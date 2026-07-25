@@ -40,11 +40,10 @@ import net.minecraft.world.World
  * 太阳能发电机方块实体。
  *
  * 发电条件（全部满足）：
- * - 主世界
- * - 白天 6:20~17:45
- * - 正上方无非透明方块遮挡
- * - 无雨雪
- */
+ * - 主世界（白天 6:20~17:45）或末地（永远白天）
+* - 正上方无非透明方块遮挡
+* - 无雨雪
+*/
 @ModBlockEntity(block = SolarGeneratorBlock::class)
 class SolarGeneratorBlockEntity(
     type: BlockEntityType<*>,
@@ -202,20 +201,21 @@ class SolarGeneratorBlockEntity(
     private fun canGenerate(world: World, pos: BlockPos): Boolean {
         if (world.isClient) return false
 
-        // 仅主世界
-        if (world.registryKey != World.OVERWORLD) return false
-
-        // 下雨或下雪不发电
-        if (world.isRaining) return false
-
-        // 白天 6:20~17:45
-        val time = world.timeOfDay % 24000
-        if (time < DAY_START_TICK || time > DAY_END_TICK) return false
-
-        // 正上方无非透明方块遮挡
-        if (!hasSkyAccess(world, pos)) return false
-
-        return true
+        return when (world.registryKey) {
+            // 末地永远白天、无天气变化，仅检查天空可见性即可
+            World.END -> hasSkyAccess(world, pos)
+            // 主世界需要白天、无雨雪、天空可见
+            World.OVERWORLD -> {
+                // 下雨或下雪不发电
+                if (world.isRaining) return false
+                // 白天 6:20~17:45
+                val time = world.timeOfDay % 24000
+                if (time < DAY_START_TICK || time > DAY_END_TICK) return false
+                // 正上方无非透明方块遮挡
+                hasSkyAccess(world, pos)
+            }
+            else -> false
+        }
     }
 
     /**
@@ -233,4 +233,3 @@ class SolarGeneratorBlockEntity(
         return true
     }
 }
-
