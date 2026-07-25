@@ -168,6 +168,14 @@ abstract class SolarPanelBlockEntity(
             return
         }
 
+        // 末地永远白天、无天气变化，直接按白天发电
+        // 注意：末地的 timeOfDay 会流动，不能用时间判定白天/黑夜
+        if (world.registryKey == World.END) {
+            generationState = GenerationState.DAY
+            markDirty()
+            return
+        }
+
         if (world.registryKey != World.OVERWORLD) {
             generationState = GenerationState.NONE
             return
