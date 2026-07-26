@@ -58,7 +58,6 @@ class CropStickBlock : BlockWithEntity(
         .breakInstantly()
         .noCollision()
         .nonOpaque()
-        .ticksRandomly()
 ) {
     override fun getRenderType(state: BlockState): BlockRenderType = BlockRenderType.MODEL
 
@@ -81,7 +80,9 @@ class CropStickBlock : BlockWithEntity(
         world: World,
         state: BlockState,
         type: BlockEntityType<T>
-    ): BlockEntityTicker<T>? = null
+    ): BlockEntityTicker<T>? =
+        if (world.isClient) null
+        else checkType(type, CropStickBlockEntity::class.type()) { w, p, s, be -> be.tick(w, p, s) }
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun canPlaceAt(state: BlockState, world: WorldView, pos: BlockPos): Boolean {
@@ -164,7 +165,11 @@ class CropStickBlock : BlockWithEntity(
         return ActionResult.PASS
     }
 
-    override fun randomTick(state: BlockState, world: net.minecraft.server.world.ServerWorld, pos: BlockPos, random: net.minecraft.util.math.random.Random) {
+    /**
+     * 固定周期 tick（对齐原版 performTick），由 BlockEntityTicker 驱动。
+     * 原 randomTick 改为固定 TICK_RATE=256 周期，避免 randomTickSpeed 影响杂交频率。
+     */
+    fun performTick(world: net.minecraft.server.world.ServerWorld, pos: BlockPos, state: BlockState, random: net.minecraft.util.math.random.Random) {
         if (!state.get(CROSSING_BASE)) {
             val stickBe = world.getBlockEntity(pos) as? CropStickBlockEntity
             if (stickBe?.hasWeedExProtection(random) == true) return
@@ -291,11 +296,25 @@ class CropStickBlockEntity(
     pos: BlockPos,
     state: BlockState
 ) : BlockEntity(type, pos, state), CropCareTarget {
+
+    companion object {
+        /** 固定周期，与 CropBlock.TICK_RATE 对齐（原版 tickrate=256）。 */
+        private const val STICK_TICK_RATE = 256L
+    }
+
     private var storageNutrients: Int = 0
     private var storageWater: Int = 0
     private var storageWeedEx: Int = 0
 
     constructor(pos: BlockPos, state: BlockState) : this(CropStickBlockEntity::class.type(), pos, state)
+
+    fun tick(world: World, pos: BlockPos, state: BlockState) {
+        if (world.isClient) return
+        if (world.time % STICK_TICK_RATE.toLong() != 0L) return
+        val block = state.block as? CropStickBlock ?: return
+        val serverWorld = world as? net.minecraft.server.world.ServerWorld ?: return
+        block.performTick(serverWorld, pos, state, world.random)
+    }
 
     fun storageSnapshot(): Triple<Int, Int, Int> = Triple(storageNutrients, storageWater, storageWeedEx)
 

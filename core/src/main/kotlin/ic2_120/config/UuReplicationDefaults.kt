@@ -4,10 +4,12 @@ package ic2_120.config
  * UU 物质复制默认白名单
  *
  * 定价原则：
- * - 有机物 >> 无机物（创造"生命"比创造"死物"更昂贵）
- * - IC2 模组物品保持原值
+* - 有机物 >> 无机物（创造"生命"比创造"死物"更昂贵）
+* - IC2 模组物品保持原值
  * - 原版物品按有机/无机重新平衡
- */
+ * - 矿物定价公式：基础产物(粗矿/宝石) = 基准；矿石 = 2 × 基准（1 矿石可打碎为 2 粗矿）；
+ *   深板岩矿石 = 1.2 × 矿石 = 2.4 × 基准；锭 = 粗矿（1:1 冶炼）；块 = 9 × 锭/宝石；粒 = 锭 / 9
+*/
 object UuReplicationDefaults {
 
     val defaultWhitelist: Map<String, Int> = linkedMapOf(
@@ -73,29 +75,94 @@ object UuReplicationDefaults {
         // ========== 玻璃 ==========
         "minecraft:glass" to 100,
 
-        // ========== 矿物系列（保持便宜）==========
+        // ========== 矿物系列 ==========
+
+        // ---- 煤炭（基准 coal = 500）----
         "minecraft:coal" to 500,
-        "minecraft:iron_ore" to 800,
+        "minecraft:coal_ore" to 1000,
+        "minecraft:deepslate_coal_ore" to 1200,
+        "minecraft:coal_block" to 4500,
+
+        // ---- 铁（基准 raw_iron = 540）----
+        "minecraft:raw_iron" to 540,
+        "minecraft:iron_ore" to 1080,
+        "minecraft:deepslate_iron_ore" to 1296,
+        "minecraft:iron_ingot" to 540,
+        "minecraft:iron_nugget" to 60,
+        "minecraft:iron_block" to 4860,
+        "minecraft:raw_iron_block" to 4860,
+
+        // ---- 铜（基准 raw_copper = 500）----
+        "minecraft:raw_copper" to 500,
+        "minecraft:copper_ore" to 1000,
+        "minecraft:deepslate_copper_ore" to 1200,
+        "minecraft:copper_ingot" to 500,
+        "minecraft:copper_block" to 4500,
+        "minecraft:raw_copper_block" to 4500,
+
+        // ---- 金（基准 raw_gold = 2500）----
+        "minecraft:raw_gold" to 2500,
         "minecraft:gold_ore" to 5000,
-        "minecraft:diamond" to 50000,
-        "minecraft:emerald" to 200000,
-        "minecraft:lapis_lazuli" to 5000,
+        "minecraft:deepslate_gold_ore" to 6000,
+        "minecraft:gold_ingot" to 2500,
+        "minecraft:gold_nugget" to 278,
+        "minecraft:gold_block" to 22500,
+        "minecraft:raw_gold_block" to 22500,
+
+        // ---- 红石（基准 redstone = 1000）----
         "minecraft:redstone" to 1000,
+        "minecraft:redstone_ore" to 2000,
+        "minecraft:deepslate_redstone_ore" to 2400,
+        "minecraft:redstone_block" to 9000,
+
+        // ---- 青金石（基准 lapis = 5000）----
+        "minecraft:lapis_lazuli" to 5000,
+        "minecraft:lapis_ore" to 10000,
+        "minecraft:deepslate_lapis_ore" to 12000,
+        "minecraft:lapis_block" to 45000,
+
+        // ---- 钻石（基准 diamond = 50000）----
+        "minecraft:diamond" to 50000,
+        "minecraft:diamond_ore" to 100000,
+        "minecraft:deepslate_diamond_ore" to 120000,
+        "minecraft:diamond_block" to 450000,
+
+        // ---- 绿宝石（基准 emerald = 200000）----
+        "minecraft:emerald" to 200000,
+        "minecraft:emerald_ore" to 400000,
+        "minecraft:deepslate_emerald_ore" to 480000,
+        "minecraft:emerald_block" to 1800000,
+
+        // ---- 下界石英（基准 quartz = 1000）----
+        "minecraft:quartz" to 1000,
+        "minecraft:nether_quartz_ore" to 2000,
+
+        // ---- 下界合金（基准 netherite_scrap = 500000，锭 = 4 scrap + 4 gold）----
+        "minecraft:ancient_debris" to 500000,
+        "minecraft:netherite_scrap" to 500000,
+        "minecraft:netherite_ingot" to 2010000,
+        "minecraft:netherite_block" to 18090000,
+
+        // ---- 紫水晶（基准 shard = 2000，块 = 4 shard）----
+        "minecraft:amethyst_shard" to 2000,
+        "minecraft:amethyst_block" to 8000,
+
+        // ---- 其他矿物产物 ----
         "minecraft:flint" to 5000,
         "minecraft:snowball" to 2000,
 
-        // IC2 矿物（保持不变）
+        // IC2 矿石（保持原值，补充深板岩和粗矿变体）
         "ic2_120:tin_ore" to 1360,
+        "ic2_120:deepslate_tin_ore" to 1632,
+        "ic2_120:raw_tin" to 680,
         "ic2_120:lead_ore" to 9182,
+        "ic2_120:deepslate_lead_ore" to 11018,
+        "ic2_120:raw_lead" to 4591,
         "ic2_120:uranium_ore" to 16070,
+        "ic2_120:deepslate_uranium_ore" to 19284,
+        "ic2_120:raw_uranium" to 8035,
         "ic2_120:iridium_ore_item" to 120000,
         "ic2_120:iridium_shard" to 13330,
-
-        // ========== 金属锭（保持矿石便宜→成品贵的设计）==========
-        "minecraft:iron_ingot" to 5000,
-        "minecraft:gold_ingot" to 25000,
-        "minecraft:gold_block" to 225000,
-        "minecraft:copper_ingot" to 1000,
 
         // ========== 海洋物品 ==========
         "minecraft:prismarine" to 200000,
@@ -106,7 +173,6 @@ object UuReplicationDefaults {
         "minecraft:obsidian" to 100000,
         "minecraft:netherrack" to 2,
         "minecraft:glowstone_dust" to 8,
-        "minecraft:emerald_ore" to 60,
 
         // ========== 有机物-树木（昂贵）==========
         "minecraft:oak_log" to 50000,

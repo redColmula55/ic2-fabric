@@ -373,8 +373,12 @@ class MatterGeneratorBlockEntity(
         val euPerMb = if (hasScrap) MatterGeneratorSync.SCRAP_EU_PER_MB else MatterGeneratorSync.BASE_EU_PER_MB
 
         // Consume as much energy as available, up to 1mb worth per tick
+        // 已知缺陷（故意保留）：hasScrap 仅判断槽位非空，整个 tick 的进度都按 1/6 加速费率计费。
+        // 若本 tick 废料不足 SCRAP_PER_MB，consumeScrapForProgress 会静默按实际库存截断消耗，
+        // 导致每个废料最多可折扣约 166_667 EU（预期约 24_510 EU），等价于"废料稀缺时单废料价值放大 ~34 倍"。
+        // 能量吞吐越高（MAX_INSERT=Long.MAX_VALUE 时甚至可单 tick 跑满 1 mB 周期），该放大效应越明显。
         val energyBudget = minOf(sync.amount, euPerMb)
-        val rawProgress = (energyBudget * MatterGeneratorSync.PROGRESS_MAX / euPerMb).toInt().coerceAtLeast(1)
+        val rawProgress = (energyBudget * MatterGeneratorSync.PROGRESS_MAX / euPerMb).toInt().coerceAtLeast(0)
         val progressIncrement = minOf(rawProgress, MatterGeneratorSync.PROGRESS_MAX - sync.progress)
 
         val energyNeeded = ceil(

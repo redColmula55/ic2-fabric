@@ -193,6 +193,7 @@ abstract class BaseMinerBlockEntity(
         private const val NBT_REDSTONE_CHANGE_REQUIRED = "RedstoneChangeRequired"
         private const val NBT_LAST_REDSTONE_ACTIVE = "LastRedstoneActive"
         private const val NBT_MINER_STATE = "MinerState"
+        private const val NBT_REACHED_BOTTOM_RECOVERY = "ReachedBottomRecovery"
     }
 
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
@@ -270,6 +271,9 @@ abstract class BaseMinerBlockEntity(
     private var pipeRecyclingRequested = false
     /** tickScanning 侧信道：tryPlacePipeAt 链请求停机（无管可铺且无可回收）。 */
     private var haltRequested = false
+
+    /** 到底回收标记：由 startPipeRecoveryAndGetState 设置，回收完成后阻止自动恢复挖矿。 */
+    private var reachedBottomRecovery = false
 
     /** 内部流体储罐（1桶容量），用于储存采矿管遇到的流体。 */
     private val fluidTankInternal = object : SingleVariantStorage<FluidVariant>() {
@@ -429,10 +433,10 @@ abstract class BaseMinerBlockEntity(
     private fun isAllowedUpgrade(stack: ItemStack): Boolean {
         if (stack.isEmpty) return false
         val item = stack.item
-        return if (acceptsAdvancedScanner) {
-            item is OverclockerUpgrade || item is TransformerUpgrade || item is RedstoneInverterUpgrade ||
-                item is EjectorUpgrade || item is FluidEjectorUpgrade
-        } else {
+       return if (acceptsAdvancedScanner) {
+           item is OverclockerUpgrade || item is TransformerUpgrade || item is RedstoneInverterUpgrade ||
+                item is EnergyStorageUpgrade || item is EjectorUpgrade || item is FluidEjectorUpgrade
+       } else {
             item is OverclockerUpgrade || item is EnergyStorageUpgrade || item is TransformerUpgrade ||
                 item is EjectorUpgrade || item is PullingUpgrade || item is FluidEjectorUpgrade || item is FluidPullingUpgrade
         }
@@ -521,6 +525,7 @@ abstract class BaseMinerBlockEntity(
             }
             else -> MinerState.IDLE
         }
+        reachedBottomRecovery = nbt.getBoolean(NBT_REACHED_BOTTOM_RECOVERY)
     }
 
     override fun writeNbt(nbt: NbtCompound) {
@@ -557,6 +562,7 @@ abstract class BaseMinerBlockEntity(
         }
         nbt.putBoolean(NBT_LAST_REDSTONE_ACTIVE, lastRedstoneActive)
         nbt.putString(NBT_MINER_STATE, minerState.name)
+        nbt.putBoolean(NBT_REACHED_BOTTOM_RECOVERY, reachedBottomRecovery)
         // 旧 key 写固定值，向前兼容旧版本加载（新代码读时优先 NBT_MINER_STATE）
         nbt.putBoolean(NBT_REDSTONE_CHANGE_REQUIRED, false)
         nbt.putBoolean(NBT_MANUAL_STOPPED_FOR_RECOVERY, false)
@@ -633,7 +639,14 @@ abstract class BaseMinerBlockEntity(
             processed -> MinerState.PIPE_RECOVERING  // 本 tick 回收了一格，继续
             pendingPipeRecovery.isNotEmpty() -> MinerState.PIPE_RECOVERING  // 槽满，暂停：下 tick 重试
             else -> {  // 队列空：回收完毕，重置游标
+                val wasBottomRecovery = reachedBottomRecovery
+                reachedBottomRecovery = false
                 resetCursorForRecovery()
+                if (wasBottomRecovery) {
+                    // 到底回收完成后不自动恢复：把游标设在 minY 以下，
+                    // 使 tryAutoResume 的 cursorY < minY 判定失败，矿机停在 IDLE 等待手动重启。
+                    sync.cursorY = MINER_MIN_Y - 1
+                }
                 if (acceptsAdvancedScanner) MinerState.REDSTONE_WAITING else MinerState.IDLE
             }
         }
@@ -986,7 +999,10 @@ abstract class BaseMinerBlockEntity(
     }
 
     /** 触发终局回收并返回新状态（供 runScanMineLoop 到底时调用）。 */
-    private fun startPipeRecoveryAndGetState(): MinerState = startPipeRecoveryInternal()
+    private fun startPipeRecoveryAndGetState(): MinerState {
+        reachedBottomRecovery = true
+        return startPipeRecoveryInternal()
+    }
 
     fun toggleMode() {
         sync.mode = if (sync.mode == 0) 1 else 0
@@ -999,6 +1015,7 @@ abstract class BaseMinerBlockEntity(
     }
 
     fun restartScan() {
+        reachedBottomRecovery = false
         minerState = MinerState.SCANNING
         lastRecycledCursorY = Int.MAX_VALUE
         pendingPipeRecovery.clear()
@@ -1014,6 +1031,7 @@ abstract class BaseMinerBlockEntity(
 
     /** 玩家手动触发终局回收（UI 按钮）。返回值忽略，内部状态由 startPipeRecoveryInternal 设置。 */
     fun startPipeRecovery() {
+        reachedBottomRecovery = false
         startPipeRecoveryInternal()
     }
 

@@ -84,6 +84,11 @@ object Ic2_120 : ModInitializer {
 
     const val MOD_ID = "ic2_120"
 
+    /** 全局 tick 计数器，由 server tick hook 递增。0 表示尚未初始化，此时 item energy 不限速。 */
+    @Volatile
+    var serverTick: Long = 0L
+        private set
+
     private val logger = LoggerFactory.getLogger(MOD_ID)
 
     override fun onInitialize() {
@@ -173,6 +178,7 @@ object Ic2_120 : ModInitializer {
 
         // 统一处理喷气背包/电力喷气背包/量子胸甲飞行（服务端 tick）
         ServerTickEvents.END_SERVER_TICK.register { server ->
+            serverTick++
             FlightManager.tick(server)
             BandwidthStatsService.onServerTick(server)
             PipeNetworkManager.tickAllWorlds(server)

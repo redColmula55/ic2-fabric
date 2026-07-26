@@ -205,26 +205,14 @@ class FluidCellItem : Item(FabricItemSettings()), FluidModificationItem {
         val fluid = stack.getFluidCellVariant()?.fluid ?: return ActionResult.PASS
 
         // 先尝试与方块的 FluidStorage 交互（如流体储罐），命中则优先交给储罐接管，
-        // 否则才会走下方 placeFluid 把流体放置到世界。
+        // 否则不执行任何操作（通用流体单元不放流体到世界）。
         val sided = FluidStorage.SIDED.find(world, pos, context.side)
         if (sided != null && !ClaimProtection.isProtected(world, pos, player, ClaimProtection.INTERACT_BLOCK) && FluidStorageUtil.interactWithFluidStorage(sided, player, hand)) {
             return ActionResult.SUCCESS
         }
 
-        // 放置流体到世界
-        val hitResult = BlockHitResult(context.hitPos, context.side, pos, context.hitsInsideBlock())
-        if (placeFluid(player, world, pos, hitResult)) {
-            if (!player.abilities.creativeMode) {
-                stack.decrement(1)
-                val empty = ItemStack(cellItem("empty_cell"))
-                if (stack.isEmpty) {
-                    player.setStackInHand(hand, empty)
-                } else if (!player.inventory.insertStack(empty)) {
-                    player.dropItem(empty, false)
-                }
-            }
-            return ActionResult.SUCCESS
-        }
+        // 通用流体单元不能直接向世界放置流体，只能与流体容器（储罐等）交互。
+        // 如需在世界中放置流体，请使用桶或专用流体单元（ModFluidCell 子类）。
         return ActionResult.PASS
     }
 

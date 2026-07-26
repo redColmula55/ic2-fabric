@@ -284,16 +284,7 @@ class IridiumIngot : Item(FabricItemSettings()) {
             //     .criterion(hasItem(IridiumOreItem::class.instance()), conditionsFromItem(IridiumOreItem::class.instance()))
             //     .offerTo(exporter, ic2_120_advanced_solar_addon.IC2AdvancedSolarAddon.id("iridium_ingot_from_ore"))
 
-            // 配方 2: 铱矿石
-            ShapedRecipeJsonBuilder.create(RecipeCategory.MISC, IridiumIngot::class.instance(), 1)
-                .pattern("   ")
-                .pattern(" O ")
-                .pattern("   ")
-                .input('O', IridiumOreItem::class.instance())
-                .criterion(hasItem(IridiumOreItem::class.instance()), conditionsFromItem(IridiumOreItem::class.instance()))
-                .offerTo(exporter, ic2_120_advanced_solar_addon.IC2AdvancedSolarAddon.id("iridium_ingot_from_ore"))
-
-            // // 配方 3: 强化铱板 + 充电电池
+           // // 配方 3: 强化铱板 + 充电电池
             // ShapedRecipeJsonBuilder.create(RecipeCategory.MISC, IridiumIngot::class.instance(), 1)
             //     .pattern(" I ")
             //     .pattern("   ")
