@@ -32,13 +32,16 @@ open class TickLimitedSidedEnergyContainer(
     open val capacity: Long
         get() = baseCapacity
 
-    private val sideStorages = mutableMapOf<Direction?, EnergyStorage>()
+    // Direction is a six-value enum.  An array avoids a nullable-key HashMap
+    // lookup for every sided capability query (machines do this several times
+    // per tick).
+    private val sideStorages = arrayOfNulls<EnergyStorage>(Direction.entries.size + 1)
 
     init {
         // 为所有方向创建 SideStorage
-        sideStorages[null] = createSideStorage(null)
+        sideStorages[0] = createSideStorage(null)
         Direction.entries.forEach { dir ->
-            sideStorages[dir] = createSideStorage(dir)
+            sideStorages[dir.ordinal + 1] = createSideStorage(dir)
         }
     }
 
@@ -47,7 +50,7 @@ open class TickLimitedSidedEnergyContainer(
      * 用于 ClassScanner 注册时按面注册。
      */
     fun getSideStorage(side: Direction?): EnergyStorage {
-        return sideStorages[side]!!
+        return sideStorages[if (side == null) 0 else side.ordinal + 1]!!
     }
 
     private fun createSideStorage(side: Direction?): EnergyStorage {

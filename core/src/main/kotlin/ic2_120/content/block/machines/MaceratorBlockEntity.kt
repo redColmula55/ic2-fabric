@@ -91,6 +91,8 @@ class MaceratorBlockEntity(
     }
 
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
+    private var cachedRecipeItem: net.minecraft.item.Item? = null
+    private var cachedRecipe: MaceratorRecipe? = null
     @RegisterItemStorage
     val itemStorage = RoutedItemStorage(
         inventory = inventory,
@@ -203,15 +205,14 @@ class MaceratorBlockEntity(
             return
         }
 
-        val recipeInventory = SimpleInventory(input)
-        val match = world.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, world)
-        if (match.isEmpty) {
+        val recipe = maceratorRecipeFor(input, world)
+        if (recipe == null) {
             if (sync.progress != 0) sync.progress = 0
             sync.syncCurrentTickFlow()
             return
         }
-        val result = match.get().output.copy()
-        val inputCount = match.get().inputCount
+        val result = recipe.output.copy()
+        val inputCount = recipe.inputCount
         val outputSlot = getStack(SLOT_OUTPUT)
         val maxStack = result.maxCount
         val canAccept = outputSlot.isEmpty() ||
@@ -264,6 +265,14 @@ class MaceratorBlockEntity(
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
+    private fun maceratorRecipeFor(input: ItemStack, world: World): MaceratorRecipe? {
+        if (cachedRecipeItem === input.item) return cachedRecipe
+        val recipeInventory = SimpleInventory(input)
+        cachedRecipeItem = input.item
+        cachedRecipe = world.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, world).orElse(null)
+        return cachedRecipe
+    }
+
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
         val currentWorld = world ?: return true
@@ -272,4 +281,3 @@ class MaceratorBlockEntity(
         return currentWorld.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, currentWorld).isPresent
     }
 }
-

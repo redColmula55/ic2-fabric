@@ -140,6 +140,8 @@ class BlastFurnaceBlockEntity(
     }
 
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
+    private var cachedRecipeItem: net.minecraft.item.Item? = null
+    private var cachedRecipe: BlastFurnaceRecipe? = null
     @RegisterItemStorage
     val itemStorage = RoutedItemStorage(
         inventory = inventory,
@@ -315,9 +317,12 @@ class BlastFurnaceBlockEntity(
 
     private fun getRecipeForInput(input: ItemStack): BlastFurnaceRecipe? {
         if (input.isEmpty) return null
+        if (cachedRecipeItem === input.item) return cachedRecipe
         val inv = BlastFurnaceRecipe.Input(input)
         val recipeManager = world?.recipeManager ?: return null
-        return recipeManager.getFirstMatch(getRecipeType<BlastFurnaceRecipe>(), inv, world ?: return null).orElse(null)
+        cachedRecipeItem = input.item
+        cachedRecipe = recipeManager.getFirstMatch(getRecipeType<BlastFurnaceRecipe>(), inv, world ?: return null).orElse(null)
+        return cachedRecipe
     }
 
     /**

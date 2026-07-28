@@ -20,6 +20,17 @@ object EnergyNetworkManager {
     private val logger = LoggerFactory.getLogger("ic2_120/EnergyNetworkManager")
     private val worldPosToNetwork = mutableMapOf<RegistryKey<World>, MutableMap<Long, EnergyNetwork>>()
 
+    /**
+     * Tick each distinct network once per world.  Cable block entities used to
+     * invoke this through an individual ticker, which still incurred one BE
+     * tick and one map lookup per cable even though EnergyNetwork deduplicated
+     * the actual work internally.
+     */
+    fun tickAll(world: World) {
+        val networks = worldPosToNetwork[world.registryKey]?.values?.toSet() ?: return
+        for (network in networks) network.tickIfNeeded(world)
+    }
+
     private fun mapFor(world: World): MutableMap<Long, EnergyNetwork> =
         worldPosToNetwork.getOrPut(world.registryKey) { mutableMapOf() }
 

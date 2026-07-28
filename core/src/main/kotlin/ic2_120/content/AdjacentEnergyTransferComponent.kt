@@ -7,6 +7,7 @@ import ic2_120.content.block.machines.TransformerBlockEntity
 import ic2_120.integration.ftbchunks.ClaimProtection
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction
 import net.minecraft.block.entity.BlockEntity
+import net.minecraft.block.BlockState
 import net.minecraft.inventory.Inventory
 import net.minecraft.particle.ParticleTypes
 import net.minecraft.server.world.ServerWorld
@@ -33,6 +34,7 @@ class AdjacentEnergyTransferComponent(
      * current neighbor BlockEntity; a replaced neighbor naturally invalidates it.
      */
     private data class NeighborStorageCache(
+        var state: BlockState? = null,
         var blockEntity: BlockEntity? = null,
         var storage: EnergyStorage? = null
     )
@@ -49,20 +51,25 @@ class AdjacentEnergyTransferComponent(
         for (side in Direction.values()) {
             val selfStorage = energy.getSideStorage(side)
             val neighborPos = owner.pos.offset(side)
+            val neighborState = world.getBlockState(neighborPos)
             val neighborBe = world.getBlockEntity(neighborPos)
             val cache = neighborStorageCache[side.ordinal] ?: NeighborStorageCache().also {
                 neighborStorageCache[side.ordinal] = it
             }
-            val neighborStorage = if (neighborBe != null && cache.blockEntity === neighborBe) {
+            val neighborStorage = if (cache.state == neighborState && cache.blockEntity === neighborBe) {
                 cache.storage
             } else {
                 val resolved = EnergyStorage.SIDED.find(world, neighborPos, side.opposite)
+                cache.state = neighborState
                 if (neighborBe != null) {
                     cache.blockEntity = neighborBe
                     cache.storage = resolved
                 } else {
+                    // Keep a negative result too.  Empty/ordinary neighbors
+                    // are common and should not trigger capability lookup on
+                    // every machine tick.
                     cache.blockEntity = null
-                    cache.storage = null
+                    cache.storage = resolved
                 }
                 resolved
             } ?: continue

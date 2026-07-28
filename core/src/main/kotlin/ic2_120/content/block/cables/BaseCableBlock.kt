@@ -161,8 +161,10 @@ abstract class BaseCableBlock(settings: AbstractBlock.Settings = defaultSettings
         state: BlockState,
         type: BlockEntityType<T>
     ): BlockEntityTicker<T>? =
-        if (world.isClient) null
-        else checkType(type, CableBlockEntity.TYPE) { w, p, s, be -> be.tick(w, p, s) }
+        // Energy networks are ticked once per world by Ic2_120.  Keeping a
+        // ticker here makes every cable pay a BE-tick cost even though the
+        // network itself already deduplicates work by game time.
+        null
 
     // ── 导线能量参数（子类覆写） ────────────────────────────────
 

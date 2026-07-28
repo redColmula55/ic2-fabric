@@ -39,6 +39,7 @@ import net.minecraft.item.Items
 import net.minecraft.nbt.NbtCompound
 import net.minecraft.network.PacketByteBuf
 import net.minecraft.recipe.RecipeType
+import net.minecraft.recipe.SmeltingRecipe
 import net.minecraft.screen.ScreenHandler
 import net.minecraft.server.world.ServerWorld
 import net.minecraft.text.Text
@@ -96,6 +97,8 @@ class ElectricFurnaceBlockEntity(
 
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)  // 0: 输入, 1: 输出, 2: 放电
     private var storedExperience: Float = 0f
+    private var cachedRecipeItem: net.minecraft.item.Item? = null
+    private var cachedRecipe: SmeltingRecipe? = null
     @RegisterItemStorage
     val itemStorage = RoutedItemStorage(
         inventory = inventory,
@@ -220,16 +223,14 @@ class ElectricFurnaceBlockEntity(
             return
         }
 
-        val inputInv = SimpleInventory(1).apply { setStack(0, input) }
-        val match = world.recipeManager.getFirstMatch(RecipeType.SMELTING, inputInv, world)
-        if (match.isEmpty) {
+        val recipe = smeltingRecipeFor(input, world)
+        if (recipe == null) {
             if (sync.progress != 0) sync.progress = 0
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
-        val recipe = match.get()
         val result = recipe.getOutput(world.registryManager).copy()
         val outputSlot = getStack(1)
         val maxStack = result.maxCount
@@ -307,6 +308,14 @@ class ElectricFurnaceBlockEntity(
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
+    private fun smeltingRecipeFor(input: ItemStack, world: World): SmeltingRecipe? {
+        if (cachedRecipeItem === input.item) return cachedRecipe
+        val inputInv = SimpleInventory(1).apply { setStack(0, input) }
+        cachedRecipeItem = input.item
+        cachedRecipe = world.recipeManager.getFirstMatch(RecipeType.SMELTING, inputInv, world).orElse(null)
+        return cachedRecipe
+    }
+
     private fun getExperienceForElectricFurnace(
         recipe: net.minecraft.recipe.Recipe<*>,
         input: ItemStack
@@ -323,4 +332,3 @@ class ElectricFurnaceBlockEntity(
         return w.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, w).isPresent
     }
 }
-

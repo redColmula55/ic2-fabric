@@ -178,6 +178,9 @@ object Ic2_120 : ModInitializer {
         // 统一处理喷气背包/电力喷气背包/量子胸甲飞行（服务端 tick）
         ServerTickEvents.END_SERVER_TICK.register { server ->
             serverTick++
+            for (world in server.worlds) {
+                EnergyNetworkManager.tickAll(world)
+            }
             FlightManager.tick(server)
             PipeNetworkManager.tickAllWorlds(server)
             NuclearExplosionManager.tick(server)
