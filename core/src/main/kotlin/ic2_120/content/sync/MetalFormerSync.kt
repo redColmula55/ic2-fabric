@@ -44,10 +44,10 @@ class MetalFormerSync(
         const val ENERGY_PER_TICK = 10L
     }
 
-    var energy by schema.int("Energy")
+    var energy by schema.int("Energy", persist = false)
     var progress by schema.int("Progress")
     var mode by schema.int("Mode")
-    var energyCapacity by schema.int("EnergyCapacity", default = ENERGY_CAPACITY.toInt())
+    var energyCapacity by schema.int("EnergyCapacity", default = ENERGY_CAPACITY.toInt(), persist = false)
     private val flow = EnergyFlowSync(schema, this)
 
     override fun onEnergyCommitted() {
@@ -82,5 +82,4 @@ class MetalFormerSync(
     /** 获取同步的滤波后耗能量（EU/t） */
     fun getSyncedConsumedAmount(): Long = flow.getSyncedConsumedAmount()
 }
-
 

@@ -24,7 +24,7 @@ import kotlin.reflect.KProperty
  * 客户端：`MyMachineSync(SyncedDataView(propertyDelegate))`
  */
 interface SyncSchema {
-    fun int(name: String, default: Int = 0): ReadWriteProperty<Any?, Int>
+    fun int(name: String, default: Int = 0, persist: Boolean = true): ReadWriteProperty<Any?, Int>
     /**
      * 创建一个带滑动窗口平均滤波的整型属性。
      * 每次赋值会将当前值加入滑动窗口，返回值为窗口内所有值的平均值。
@@ -33,7 +33,7 @@ interface SyncSchema {
      * @param default 默认值
      * @param windowSize 滑动窗口大小（tick 数），默认 20（1 秒）
      */
-    fun intAveraged(name: String, default: Int = 0, windowSize: Int = 20): ReadWriteProperty<Any?, Int>
+    fun intAveraged(name: String, default: Int = 0, windowSize: Int = 20, persist: Boolean = true): ReadWriteProperty<Any?, Int>
 }
 
 /**
@@ -56,7 +56,7 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
         blockEntity.markDirty()
     }
 
-    override fun int(name: String, default: Int): ReadWriteProperty<Any?, Int> {
+    override fun int(name: String, default: Int, persist: Boolean): ReadWriteProperty<Any?, Int> {
         val indexHigh = entries.size
         entries.add(Entry("${name}_High", default ushr 16))
         val indexLow = entries.size
@@ -68,14 +68,15 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
                 return (high shl 16) or (low and 0xFFFF)
             }
             override fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) {
+                if (getValue(thisRef, property) == value) return
                 entries[indexHigh].value = value ushr 16
                 entries[indexLow].value = value and 0xFFFF
-                markDirtyIfNeeded()
+                if (persist) markDirtyIfNeeded()
             }
         }
     }
 
-    override fun intAveraged(name: String, default: Int, windowSize: Int): ReadWriteProperty<Any?, Int> {
+    override fun intAveraged(name: String, default: Int, windowSize: Int, persist: Boolean): ReadWriteProperty<Any?, Int> {
         val indexHigh = entries.size
         entries.add(Entry("${name}_High", default ushr 16))
         val indexLow = entries.size
@@ -92,6 +93,7 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
                 } else window.sum() / window.size
             }
             override fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) {
+                val oldAverage = (entries[indexHigh].value shl 16) or (entries[indexLow].value and 0xFFFF)
                 // 更新滑动窗口
                 window.addLast(value)
                 if (window.size > windowSize) {
@@ -101,13 +103,16 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
                 val avg = window.sum() / window.size
                 entries[indexHigh].value = avg ushr 16
                 entries[indexLow].value = avg and 0xFFFF
-                markDirtyIfNeeded()
+                if (persist && oldAverage != avg) {
+                    markDirtyIfNeeded()
+                }
             }
         }
     }
 
     override fun get(index: Int): Int = entries[index].value
     override fun set(index: Int, value: Int) {
+        if (entries[index].value == value) return
         entries[index].value = value
         markDirtyIfNeeded()
     }
@@ -130,7 +135,7 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
 class SyncedDataView(private val delegate: PropertyDelegate) : SyncSchema {
     private var nextIndex = 0
 
-    override fun int(name: String, default: Int): ReadWriteProperty<Any?, Int> {
+    override fun int(name: String, default: Int, persist: Boolean): ReadWriteProperty<Any?, Int> {
         val indexHigh = nextIndex++
         val indexLow = nextIndex++
         return object : ReadWriteProperty<Any?, Int> {
@@ -146,7 +151,7 @@ class SyncedDataView(private val delegate: PropertyDelegate) : SyncSchema {
         }
     }
 
-    override fun intAveraged(name: String, default: Int, windowSize: Int): ReadWriteProperty<Any?, Int> {
+    override fun intAveraged(name: String, default: Int, windowSize: Int, persist: Boolean): ReadWriteProperty<Any?, Int> {
         // 客户端不需要滤波，直接返回服务端计算好的平均值
         return int(name, default)
     }
