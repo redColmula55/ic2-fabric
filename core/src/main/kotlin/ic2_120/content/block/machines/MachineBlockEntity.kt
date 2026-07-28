@@ -27,6 +27,21 @@ abstract class MachineBlockEntity(
     state: BlockState
 ) : BlockEntity(type, pos, state), ITieredMachine, IOwned {
 
+    private var lastThrottledDirtyTick = Long.MIN_VALUE
+
+    /**
+     * Processing machines change progress every tick, but persisting every
+     * intermediate value keeps the chunk dirty continuously.  Use this for
+     * tick-driven progress/state changes; inventory and user actions should
+     * continue to call markDirty() directly.
+     */
+    protected fun markDirtyThrottled(intervalTicks: Long = 20L) {
+        val now = world?.time ?: return markDirty()
+        if (now - lastThrottledDirtyTick < intervalTicks) return
+        lastThrottledDirtyTick = now
+        markDirty()
+    }
+
     companion object {
         /** 槽位索引常量 */
         const val FUEL_SLOT = 0      // 燃料槽（子类可使用）

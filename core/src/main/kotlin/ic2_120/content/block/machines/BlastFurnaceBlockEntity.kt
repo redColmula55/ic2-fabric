@@ -419,7 +419,7 @@ class BlastFurnaceBlockEntity(
         if (canWork) {
             // 消耗压缩空气，空气不足则不推进进度（不产出）
             if (!consumeAirForTick(progressMax)) {
-                markDirty()
+                markDirtyThrottled()
                 setActiveState(world, pos, state, false)
                 sync.huInput = huBuffer.toInt()
                 huReceivedThisTick = 0L
@@ -440,7 +440,7 @@ class BlastFurnaceBlockEntity(
                 else outputSlag.increment(slagOutput.count)
                 sync.progress = 0
                 airConsumedThisSteel = 0L
-                markDirty()
+                markDirtyThrottled()
                 setActiveState(world, pos, state, true)
                 sync.huInput = huBuffer.toInt()
                 huReceivedThisTick = 0L
@@ -449,7 +449,7 @@ class BlastFurnaceBlockEntity(
             }
 
             sync.progress = nextProgress
-            markDirty()
+            markDirtyThrottled()
             setActiveState(world, pos, state, true)
         } else {
             // 温度不够 / 无材料 / 产物满：重置进度，不工作

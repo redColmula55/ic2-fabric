@@ -252,7 +252,7 @@ class ElectricFurnaceBlockEntity(
             storedExperience = (storedExperience + getExperienceForElectricFurnace(recipe, input))
                 .coerceAtMost(MAX_STORED_XP)
             sync.progress = 0
-            markDirty()
+            markDirtyThrottled()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -263,7 +263,7 @@ class ElectricFurnaceBlockEntity(
         if (sync.consumeEnergy(need) > 0L) {
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
             sync.progress += progressIncrement
-            markDirty()
+            markDirtyThrottled()
             setActiveState(world, pos, state, true)
         } else {
             setActiveState(world, pos, state, false)

@@ -230,7 +230,7 @@ class MaceratorBlockEntity(
             else outputSlot.increment(result.count)
             sync.progress = 0
             setActiveState(world, pos, state, false)
-            markDirty()
+            markDirtyThrottled()
             sync.syncCurrentTickFlow()
             return
         }
@@ -240,7 +240,7 @@ class MaceratorBlockEntity(
         if (sync.consumeEnergy(need) > 0L) {
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
             sync.progress += progressIncrement
-            markDirty()
+            markDirtyThrottled()
         }
 
         val active = sync.progress > 0

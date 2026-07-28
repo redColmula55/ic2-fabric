@@ -125,7 +125,7 @@ class KineticGeneratorBlockEntity(
         sync.currentKu = inputKuThisTick
         sync.outputEu = outputEuThisTick
         sync.isGenerating = 1
-        markDirty()
+        markDirtyThrottled()
         return acceptedKu
     }
 
@@ -147,7 +147,7 @@ class KineticGeneratorBlockEntity(
         val active = sync.currentKu >= runThreshold
         setActiveState(world, pos, state, active)
         sync.syncCurrentTickFlow()
-        markDirty()
+        markDirtyThrottled()
     }
 
     override fun writeScreenOpeningData(player: ServerPlayerEntity, buf: PacketByteBuf) {
