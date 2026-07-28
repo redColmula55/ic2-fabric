@@ -164,6 +164,13 @@ object UuReplicationDefaults {
         "ic2_120:iridium_ore_item" to 120000,
         "ic2_120:iridium_shard" to 13330,
 
+        // IC2 钢与高级合金
+        // 钢锭 = 10,000 uB（10 mB）；钢块 = 9 × 钢锭
+        "ic2_120:steel_ingot" to 10000,
+        "ic2_120:steel_block" to 90000,
+        // 9 钢 + 9 青铜 + 9 锡 -> 2 混合金属锭 -> 1 高级合金；原料总价 × 1.5，取整
+        "ic2_120:alloy" to 75769,
+
         // ========== 海洋物品 ==========
         "minecraft:prismarine" to 200000,
         "minecraft:prismarine_bricks" to 200000,
@@ -272,7 +279,8 @@ object UuReplicationDefaults {
         "minecraft:leather" to 300000,
         "minecraft:feather" to 300000,
         "minecraft:ender_pearl" to 500000,
-        "minecraft:slime_ball" to 500000,
+        "minecraft:slime_ball" to 10000,
+        "minecraft:slime_block" to 90000,
         "minecraft:gunpowder" to 50000,
 
         // ========== 羊毛 ==========

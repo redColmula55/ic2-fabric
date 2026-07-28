@@ -41,6 +41,20 @@ abstract class MachineBlockEntity(
         ownerUuid = if (nbt.containsUuid(NBT_OWNER_UUID)) nbt.getUuid(NBT_OWNER_UUID) else null
     }
 
+    /**
+     * 客户端跳过 markDirty。
+     *
+     * Create 等模组在装配 contraption（矿车、轴承等）时会用 [net.minecraft.world.World] 的
+     * 虚拟实现（如 VirtualRenderWorld）通过 be.load(nbt) 重建 BlockEntity。这类世界的 chunk
+     * 不是原版 [net.minecraft.world.chunk.WorldChunk]，基类 markDirty 会强转失败导致客户端 ClassCastException 崩溃。
+     * 客户端 markDirty 本就是空操作，跳过既安全又无副作用。
+     */
+    override fun markDirty() {
+        val world = world
+        if (world != null && world.isClient) return
+        super.markDirty()
+    }
+
     override fun writeNbt(nbt: NbtCompound) {
         super.writeNbt(nbt)
         ownerUuid?.let { nbt.putUuid(NBT_OWNER_UUID, it) }

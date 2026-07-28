@@ -47,7 +47,13 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
     private class Entry(val name: String, var value: Int)
 
     private fun markDirtyIfNeeded() {
-        blockEntity?.markDirty()
+        // markDirty 仅对服务端持久化有意义。
+        // Create 的 VirtualRenderWorld（矿车/contraption 装配时用 be.load 重建 BE）的 isClient 为 true，
+        // 但其 chunk 非原版 Chunk，markDirty 内部强转会抛 ClassCastException 导致客户端崩溃。
+        // 客户端 markDirty 本就是空操作，这里直接跳过。
+        val world = blockEntity?.world ?: return
+        if (world.isClient) return
+        blockEntity.markDirty()
     }
 
     override fun int(name: String, default: Int): ReadWriteProperty<Any?, Int> {
