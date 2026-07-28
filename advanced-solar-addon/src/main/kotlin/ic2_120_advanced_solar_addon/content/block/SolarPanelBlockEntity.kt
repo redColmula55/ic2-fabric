@@ -124,6 +124,13 @@ abstract class SolarPanelBlockEntity(
         )
     }
 
+    init {
+        // These values are tier constants, not per-tick state.
+        sync.dayPower = dayPower
+        sync.nightPower = nightPower
+        sync.maxOutput = ic2_120.content.energy.EnergyTier.euPerTickFromTier(tier).toInt()
+    }
+
     override fun getInventory(): Inventory? = this
 
     open fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -142,12 +149,11 @@ abstract class SolarPanelBlockEntity(
             GenerationState.NONE -> {}
         }
 
-        sync.isGenerating = if (canGenerate) 1 else 0
-        sync.generationState = generationState.ordinal
-        sync.dayPower = dayPower
-        sync.nightPower = nightPower
-        sync.maxOutput = ic2_120.content.energy.EnergyTier.euPerTickFromTier(tier).toInt()
-        sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        val generatingValue = if (canGenerate) 1 else 0
+        if (sync.isGenerating != generatingValue) sync.isGenerating = generatingValue
+
+        val generationStateValue = generationState.ordinal
+        if (sync.generationState != generationStateValue) sync.generationState = generationStateValue
 
         sync.syncCurrentTickFlow()
 
@@ -156,7 +162,6 @@ abstract class SolarPanelBlockEntity(
         }
 
         setActiveState(world, pos, state, canGenerate)
-        markDirty()
     }
 
     private fun checkSky() {

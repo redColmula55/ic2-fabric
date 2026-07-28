@@ -7,7 +7,6 @@
 		"LivingEntityJumpMixin",
 		"LivingEntityScaffoldFabricMixin",
 		"LivingEntityScaffoldForgeMixin",
-		"ServerPlayNetworkHandlerMixin",
 		"ChickenEntityMixin",
 		"PassiveEntityMixin",
 		"MerchantEntityMixin",

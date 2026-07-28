@@ -657,7 +657,6 @@
   "message.ic2_120.jetpack.flight_on": "Jetpack: Flight ON",
   "message.ic2_120.jetpack.flight_off": "Jetpack: Flight OFF",
   "key.ic2_120.toggle_vision": "Alt + Vision Key",
-  "key.ic2_120.toggle_bandwidth_hud": "Toggle Bandwidth HUD",
   "category.ic2_120.ic2": "IC2",
   "message.ic2_120.iridium_drill.silk_touch_on": "Iridium Drill: Silk Touch ON",
   "message.ic2_120.iridium_drill.silk_touch_off": "Iridium Drill: Silk Touch OFF",

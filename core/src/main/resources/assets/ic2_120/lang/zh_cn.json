@@ -640,7 +640,6 @@
   "message.ic2_120.jetpack.flight_on": "喷气背包：飞行已开启",
   "message.ic2_120.jetpack.flight_off": "喷气背包：飞行已关闭",
   "key.ic2_120.toggle_vision": "Alt + 夜视键",
-  "key.ic2_120.toggle_bandwidth_hud": "切换带宽 HUD",
   "category.ic2_120.ic2": "IC2",
   "message.ic2_120.iridium_drill.silk_touch_on": "铱钻头：精准采集已开启",
   "message.ic2_120.iridium_drill.silk_touch_off": "铱钻头：精准采集已关闭",

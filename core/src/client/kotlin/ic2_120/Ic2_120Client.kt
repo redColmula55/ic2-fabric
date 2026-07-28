@@ -3,7 +3,6 @@ package ic2_120
 import ic2_120.client.ArmorKeybinds
 import ic2_120.client.ArmorTooltipHandler
 import ic2_120.client.AnimalmatronTooltipHandler
-import ic2_120.client.BandwidthHudKeybinds
 import ic2_120.client.DrillTooltipHandler
 import ic2_120.client.FoamSprayerTooltipHandler
 import ic2_120.client.MiningLaserTooltipHandler
@@ -49,7 +48,6 @@ object Ic2_120Client : ClientModInitializer {
 		// 匿名使用统计：客户端每次加入世界上报一次（每会话一次）
 		AnalyticsClientReporter.register()
 		ModeKeybinds.register()
-		BandwidthHudKeybinds.register()
 		ArmorKeybinds.register()
 		QuantumLeggingsSpeedController.register()
 		ArmorTooltipHandler.register()

@@ -16,7 +16,6 @@ import ic2_120.content.block.nuclear.ReactorItemStorageProvider
 import ic2_120.content.block.energy.EnergyNetworkManager
 import ic2_120.content.fluid.ModFluids
 import ic2_120.content.network.NetworkManager
-import ic2_120.content.network.BandwidthStatsService
 import ic2_120.content.network.ConfigSyncHelper
 import ic2_120.content.network.ConfigSyncPacket
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
@@ -180,7 +179,6 @@ object Ic2_120 : ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register { server ->
             serverTick++
             FlightManager.tick(server)
-            BandwidthStatsService.onServerTick(server)
             PipeNetworkManager.tickAllWorlds(server)
             NuclearExplosionManager.tick(server)
         }

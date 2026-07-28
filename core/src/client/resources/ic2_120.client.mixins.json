@@ -3,7 +3,6 @@
 	"package": "ic2_120.mixin.client",
 	"compatibilityLevel": "JAVA_17",
 	"client": [
-		"BandwidthHudMixin",
 		"HandledScreenInvTitleMixin",
 		"KeyboardModifierStateMixin",
 		"LivingEntityJumpClientMixin",

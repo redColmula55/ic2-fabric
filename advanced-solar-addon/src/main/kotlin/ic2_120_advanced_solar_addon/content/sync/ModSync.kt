@@ -40,14 +40,20 @@ class SolarPanelSync(
         if (amount >= minOutput) maxExtract else 0L
 
     override fun onEnergyCommitted() {
-        energy = amount.toInt().coerceIn(0, Int.MAX_VALUE)
-        capacitySync = this@SolarPanelSync.capacity.toInt().coerceIn(0, Int.MAX_VALUE)
+        val currentEnergy = amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        if (energy != currentEnergy) energy = currentEnergy
+
+        val currentCapacity = capacity.toInt().coerceIn(0, Int.MAX_VALUE)
+        if (capacitySync != currentCapacity) capacitySync = currentCapacity
     }
 
     fun syncCurrentTickFlow() {
         finalizeFlowSnapshot()
-        avgInserted = getLastGeneratedAmount().toInt()
-        avgExtracted = getLastExtractedAmount().toInt()
+        val generated = getLastGeneratedAmount().toInt()
+        if (avgInserted != generated) avgInserted = generated
+
+        val extracted = getLastExtractedAmount().toInt()
+        if (avgExtracted != extracted) avgExtracted = extracted
     }
 }
 

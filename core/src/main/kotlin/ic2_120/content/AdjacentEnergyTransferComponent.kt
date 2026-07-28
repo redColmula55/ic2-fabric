@@ -27,6 +27,18 @@ class AdjacentEnergyTransferComponent(
     private val energy: TickLimitedSidedEnergyContainer
 ) {
 
+    /**
+     * Energy API capability lookup is relatively expensive and the adjacent block
+     * usually does not change between ticks. Keep the lookup result tied to the
+     * current neighbor BlockEntity; a replaced neighbor naturally invalidates it.
+     */
+    private data class NeighborStorageCache(
+        var blockEntity: BlockEntity? = null,
+        var storage: EnergyStorage? = null
+    )
+
+    private val neighborStorageCache = arrayOfNulls<NeighborStorageCache>(Direction.values().size)
+
     fun tick(): Long {
         val world = owner.world ?: return 0L
         if (world.isClient) return 0L
@@ -38,7 +50,22 @@ class AdjacentEnergyTransferComponent(
             val selfStorage = energy.getSideStorage(side)
             val neighborPos = owner.pos.offset(side)
             val neighborBe = world.getBlockEntity(neighborPos)
-            val neighborStorage = EnergyStorage.SIDED.find(world, neighborPos, side.opposite) ?: continue
+            val cache = neighborStorageCache[side.ordinal] ?: NeighborStorageCache().also {
+                neighborStorageCache[side.ordinal] = it
+            }
+            val neighborStorage = if (neighborBe != null && cache.blockEntity === neighborBe) {
+                cache.storage
+            } else {
+                val resolved = EnergyStorage.SIDED.find(world, neighborPos, side.opposite)
+                if (neighborBe != null) {
+                    cache.blockEntity = neighborBe
+                    cache.storage = resolved
+                } else {
+                    cache.blockEntity = null
+                    cache.storage = null
+                }
+                resolved
+            } ?: continue
 
             if (neighborBe is CableBlockEntity) continue
 
