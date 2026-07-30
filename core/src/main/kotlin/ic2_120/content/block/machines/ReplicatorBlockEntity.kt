@@ -103,7 +103,9 @@ class ReplicatorBlockEntity(
         const val SLOT_UPGRADE_2 = 6
         const val SLOT_UPGRADE_3 = 7
         val SLOT_UPGRADE_INDICES = intArrayOf(SLOT_UPGRADE_0, SLOT_UPGRADE_1, SLOT_UPGRADE_2, SLOT_UPGRADE_3)
-        val SLOT_OUTPUT_INDICES = intArrayOf(SLOT_OUTPUT)
+        // SLOT_CONTAINER_OUTPUT 是消耗满 UU 物质单元后返还的空单元槽（OUTPUT_ONLY），
+        // 必须纳入弹出升级扫描范围，否则空单元会卡在机器里无法自动弹出。
+        val SLOT_OUTPUT_INDICES = intArrayOf(SLOT_OUTPUT, SLOT_CONTAINER_OUTPUT)
         val SLOT_INPUT_INDICES = intArrayOf(SLOT_CONTAINER_INPUT)
         const val INVENTORY_SIZE = 8
         private const val NBT_TANK_AMOUNT = "TankAmount"

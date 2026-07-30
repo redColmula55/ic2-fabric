@@ -17,6 +17,7 @@ import ic2_120.content.screen.FluidHeatExchangerScreenHandler
 import ic2_120.content.sync.FluidHeatExchangerSync
 import ic2_120.content.sync.HeatFlowSync
 import ic2_120.content.syncs.SyncedData
+import ic2_120.content.upgrade.EjectorUpgradeComponent
 import ic2_120.content.upgrade.FluidPipeUpgradeComponent
 import ic2_120.content.upgrade.IFluidPipeUpgradeSupport
 import ic2_120.registry.annotation.ModBlockEntity
@@ -119,6 +120,12 @@ class FluidHeatExchangerBlockEntity(
         const val SLOT_OUTPUT_FILLED_CONTAINER = 16
 
         const val INVENTORY_SIZE = 17
+
+        // SLOT_INPUT_EMPTY_CONTAINER 是消耗满容器（岩浆/热冷却液单元）后返还的空容器槽
+        // （ScreenHandler 用 OUTPUT_ONLY_SLOT_SPEC），必须纳入弹出升级扫描范围。
+        // SLOT_OUTPUT_FILLED_CONTAINER 是装满后输出槽（OUTPUT_ONLY），同样应弹出。
+        val SLOT_OUTPUT_INDICES = intArrayOf(SLOT_INPUT_EMPTY_CONTAINER, SLOT_OUTPUT_FILLED_CONTAINER)
+        val SLOT_INPUT_INDICES = intArrayOf(SLOT_INPUT_FILLED_CONTAINER)
 
         private const val NBT_INPUT_TANK = "InputTank"
         private const val NBT_INPUT_FLUID = "InputFluid"
@@ -514,6 +521,7 @@ class FluidHeatExchangerBlockEntity(
         if (fluidPipeReceiverEnabled) {
             FluidPipeUpgradeComponent.pullFluidFromNeighbors(world, pos, inputTankInternal, fluidPipeReceiverFilter, fluidPipeReceiverSides, upgradeCount = fluidPipePullingCount)
         }
+        EjectorUpgradeComponent.ejectIfUpgraded(world, pos, this, SLOT_UPGRADE_INDICES, SLOT_OUTPUT_INDICES)
         handleInputFluidContainers()
         fillOutputFluidContainers()
         tickHeatMachine(world, pos, state)

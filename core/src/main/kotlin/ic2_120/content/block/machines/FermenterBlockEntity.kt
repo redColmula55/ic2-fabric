@@ -93,7 +93,9 @@ class FermenterBlockEntity(
         const val SLOT_UPGRADE_0 = 5
         const val SLOT_UPGRADE_1 = 6
         val SLOT_UPGRADE_INDICES = intArrayOf(SLOT_UPGRADE_0, SLOT_UPGRADE_1)
-        val SLOT_OUTPUT_INDICES = intArrayOf(SLOT_OUTPUT_FILLED_CONTAINER, SLOT_OUTPUT_FERTILIZER)
+        // SLOT_INPUT_EMPTY_CONTAINER 虽然名字带 INPUT，但它是消耗满生物质容器后返还的空容器槽
+        // （ScreenHandler 用 OUTPUT_ONLY_SLOT_SPEC，玩家只能取不能放），必须纳入弹出升级扫描范围。
+        val SLOT_OUTPUT_INDICES = intArrayOf(SLOT_OUTPUT_FILLED_CONTAINER, SLOT_OUTPUT_FERTILIZER, SLOT_INPUT_EMPTY_CONTAINER)
         val SLOT_INPUT_INDICES = intArrayOf(SLOT_INPUT_FILLED_CONTAINER)
         const val INVENTORY_SIZE = 7
 
