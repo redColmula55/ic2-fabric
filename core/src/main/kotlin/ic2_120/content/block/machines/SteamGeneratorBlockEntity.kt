@@ -129,14 +129,15 @@ class SteamGeneratorBlockEntity(
     /** 上次消耗的水是否为蒸馏水（用于蒸汽积压时回收水） */
     private var consumedWaterIsDistilled: Boolean = false
 
-    private var debugWindowStartTick: Long = Long.MIN_VALUE
-    private var debugTicks: Int = 0
-    private var debugHeatInputHu: Long = 0L
-    private var debugWaterConsumedMb: Long = 0L
-    private var debugSteamProducedDroplets: Long = 0L
-    private var debugSteamExtractedDroplets: Long = 0L
-    private var debugSteamRecoveredDroplets: Long = 0L
-    private var debugSteamExplodedDroplets: Long = 0L
+    // TODO: 调试用日志字段 — 暂注释保留，后续视情况删除
+//    private var debugWindowStartTick: Long = Long.MIN_VALUE
+//    private var debugTicks: Int = 0
+//    private var debugHeatInputHu: Long = 0L
+//    private var debugWaterConsumedMb: Long = 0L
+//    private var debugSteamProducedDroplets: Long = 0L
+//    private var debugSteamExtractedDroplets: Long = 0L
+//    private var debugSteamRecoveredDroplets: Long = 0L
+//    private var debugSteamExplodedDroplets: Long = 0L
 
     // ==== 流体槽 ====
 
@@ -201,7 +202,7 @@ class SteamGeneratorBlockEntity(
             if (extracted > 0L) {
                 transaction.addOuterCloseCallback { result ->
                     if (result.wasCommitted()) {
-                        debugSteamExtractedDroplets += extracted
+                        // debugSteamExtractedDroplets += extracted
                     }
                 }
             }
@@ -372,7 +373,7 @@ class SteamGeneratorBlockEntity(
         // 取出跨 tick 累积的热量用于本 tick 处理
         val heatAvailableThisTick = heatBuffer.coerceAtMost(SteamGeneratorSync.MAX_HEAT_INPUT)
         heatBuffer = 0L
-        debugHeatInputHu += heatAvailableThisTick
+        // debugHeatInputHu += heatAvailableThisTick
 
         // 脸对脸全量直推蒸汽：相邻的流体容器（轮机/管道）不限速一次性收走。
         // ejectFluidToNeighbors 受 fluidTransferRate(ejectorCount) 限速（默认 50mB/t），
@@ -394,7 +395,7 @@ class SteamGeneratorBlockEntity(
                             if (steamTank.amount <= 0L) steamTank.variant = FluidVariant.blank()
                             tx2.commit()
                         }
-                        debugSteamExtractedDroplets += accepted
+                        // debugSteamExtractedDroplets += accepted
                     }
                 }
             }
@@ -409,7 +410,7 @@ class SteamGeneratorBlockEntity(
         val leftoverSteam = steamTank.amount.coerceAtLeast(0L)
         if (leftoverSteam > 0L) {
             if (world.random.nextInt(10) == 0) {
-                debugSteamExplodedDroplets += leftoverSteam
+                // debugSteamExplodedDroplets += leftoverSteam
                 if (ClaimProtection.explosionCubeAllowed(world, pos, 1f, null)) {
                     world.createExplosion(null, pos.x + 0.5, pos.y + 0.5, pos.z + 0.5,
                         1f, World.ExplosionSourceType.NONE)
@@ -430,7 +431,7 @@ class SteamGeneratorBlockEntity(
                         }
                     }
                 }
-                debugSteamRecoveredDroplets += leftoverSteam
+                // debugSteamRecoveredDroplets += leftoverSteam
                 Transaction.openOuter().use { tx ->
                     steamTank.updateSnapshots(tx)
                     steamTank.amount = 0L
@@ -524,12 +525,12 @@ class SteamGeneratorBlockEntity(
                     if (waterToConsume > 0L) {
                         consumedWaterIsDistilled = waterTank.isDistilled()
                         if (waterTank.consumeMb(waterToConsume)) {
-                            debugWaterConsumedMb += waterToConsume
+                            // debugWaterConsumedMb += waterToConsume
                             // 产出蒸汽 = 水量 * 膨胀倍率
                             val steamProduced = waterToConsume * SteamGeneratorSync.STEAM_EXPANSION
                             val steamDroplets = mbToDroplets(steamProduced)
                             steamTank.produceSteam(steamDroplets)
-                            debugSteamProducedDroplets += steamDroplets
+                            // debugSteamProducedDroplets += steamDroplets
                             sync.outputMB = steamProduced.toInt()
 
                             // 冷却 = water × (100 + pressure/220×100) × 0.5, 上限 2000 milli-°C(2°C)
@@ -580,49 +581,40 @@ class SteamGeneratorBlockEntity(
             systemHeatMilli <= SteamGeneratorSync.MAX_SYSTEM_HEAT_MILLI
         setActiveState(world, pos, state, active)
 
-        logSteamDebug(world, pos, pressure, inputMB)
+        // logSteamDebug(world, pos, pressure, inputMB)
 
         markDirty()
     }
 
-    private fun logSteamDebug(world: World, pos: BlockPos, pressure: Int, inputMB: Int) {
-        if (debugWindowStartTick == Long.MIN_VALUE) {
-            debugWindowStartTick = world.time
-        }
-        debugTicks++
-        if (debugTicks < 100) return
-
-        val ticks = debugTicks.coerceAtLeast(1)
-        val producedMb = dropletsToMb(debugSteamProducedDroplets)
-        val extractedMb = dropletsToMb(debugSteamExtractedDroplets)
-        val recoveredMb = dropletsToMb(debugSteamRecoveredDroplets)
-        val explodedMb = dropletsToMb(debugSteamExplodedDroplets)
-        val avgProduced = producedMb.toDouble() / ticks
-        val avgExtracted = extractedMb.toDouble() / ticks
-        val avgRecovered = recoveredMb.toDouble() / ticks
-        val avgHeat = debugHeatInputHu.toDouble() / ticks
-        val avgWater = debugWaterConsumedMb.toDouble() / ticks
-        val superheated = producingSuperheated
-
-        println(
-            "[SteamGenerator] pos=$pos ticks=$ticks pressure=$pressure inputMB=$inputMB " +
-                "temp=${systemHeatMilli / 1000.0}C superheated=$superheated " +
-                "avgHeatHuT=${"%.2f".format(avgHeat)} avgWaterMbT=${"%.2f".format(avgWater)} " +
-                "avgProducedMbT=${"%.2f".format(avgProduced)} avgExtractedMbT=${"%.2f".format(avgExtracted)} " +
-                "avgRecoveredMbT=${"%.2f".format(avgRecovered)} recoveredMb=$recoveredMb explodedMb=$explodedMb " +
-                "steamTankMb=${dropletsToMb(steamTank.amount)} waterTankMb=${dropletsToMb(waterTank.amount)} " +
-                "calcification=$calcification windowStart=$debugWindowStartTick tick=${world.time}"
-        )
-
-        debugWindowStartTick = world.time
-        debugTicks = 0
-        debugHeatInputHu = 0L
-        debugWaterConsumedMb = 0L
-        debugSteamProducedDroplets = 0L
-        debugSteamExtractedDroplets = 0L
-        debugSteamRecoveredDroplets = 0L
-        debugSteamExplodedDroplets = 0L
-    }
+    // TODO: 调试用日志方法 — 暂注释保留，后续视情况删除
+//    private fun logSteamDebug(world: World, pos: BlockPos, pressure: Int, inputMB: Int) {
+//        if (debugWindowStartTick == Long.MIN_VALUE) {
+//            debugWindowStartTick = world.time
+//        }
+//        debugTicks++
+//        if (debugTicks < 100) return
+//
+//        val ticks = debugTicks.coerceAtLeast(1)
+//        val producedMb = dropletsToMb(debugSteamProducedDroplets)
+//        val extractedMb = dropletsToMb(debugSteamExtractedDroplets)
+//        val recoveredMb = dropletsToMb(debugSteamRecoveredDroplets)
+//        val explodedMb = dropletsToMb(debugSteamExplodedDroplets)
+//        val avgProduced = producedMb.toDouble() / ticks
+//        val avgExtracted = extractedMb.toDouble() / ticks
+//        val avgRecovered = recoveredMb.toDouble() / ticks
+//        val avgHeat = debugHeatInputHu.toDouble() / ticks
+//        val avgWater = debugWaterConsumedMb.toDouble() / ticks
+//        val superheated = producingSuperheated
+//
+//        debugWindowStartTick = world.time
+//        debugTicks = 0
+//        debugHeatInputHu = 0L
+//        debugWaterConsumedMb = 0L
+//        debugSteamProducedDroplets = 0L
+//        debugSteamExtractedDroplets = 0L
+//        debugSteamRecoveredDroplets = 0L
+//        debugSteamExplodedDroplets = 0L
+//    }
 
     /** 获取群系温度（milli-°C），对齐 ic2_origin BiomeUtil.getBiomeTemperature */
     private fun getBiomeTemperatureMilli(world: World, pos: BlockPos): Long {
