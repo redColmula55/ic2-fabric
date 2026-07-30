@@ -7,7 +7,6 @@ import ic2_120.content.fluid.ModFluids
 import ic2_120.content.item.IUpgradeItem
 import ic2_120.content.item.getFluidCellVariant
 import ic2_120.content.item.isFluidCellEmpty
-import ic2_120.content.item.ModFluidCell
 import ic2_120.content.item.energy.IBatteryItem
 import ic2_120.content.storage.ItemInsertRoute
 import ic2_120.content.storage.RoutedItemStorage
@@ -51,7 +50,6 @@ import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.entity.player.PlayerInventory
 import net.minecraft.inventory.Inventories
 import net.minecraft.inventory.Inventory
-import net.minecraft.item.BucketItem
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.nbt.NbtCompound
@@ -145,7 +143,6 @@ class ReplicatorBlockEntity(
     override val routedItemStorage get() = itemStorage
     private var singlePulseConsumed = false
     private var fluidConsumptionRemainder = 0L
-    private val emptyCellItem by lazy { Registries.ITEM.get(Identifier("ic2_120", "empty_cell")) }
 
     val syncedData = SyncedData(this)
 
@@ -465,23 +462,24 @@ class ReplicatorBlockEntity(
         val space = tankInternal.getTankCapacity() - tankInternal.getStoredAmount()
         if (space < FluidConstants.BUCKET) return
 
-        val emptyResult = getEmptyContainerFor(input) ?: return
-        if (!canMergeIntoSlot(output, emptyResult)) return
-
         Transaction.openOuter().use { tx ->
-            val ctx = ContainerItemContext.withConstant(input)
+            @Suppress("DEPRECATION")
+            val ctx = ContainerItemContext.withInitial(input.copyWithCount(1))
             val itemStorage = ctx.find(FluidStorage.ITEM) ?: return@use
             for (view in itemStorage) {
-                if (view.amount < FluidConstants.BUCKET || view.resource.isBlank || !isUuMatter(view.resource.fluid)) continue
-                val extracted = view.extract(view.resource, FluidConstants.BUCKET, tx)
+                if (view.amount < FluidConstants.BUCKET || view.resource.isBlank) continue
+                val containedFluid = view.resource
+                if (!isUuMatter(containedFluid.fluid)) continue
+                val extracted = view.extract(containedFluid, FluidConstants.BUCKET, tx)
                 if (extracted < FluidConstants.BUCKET) continue
                 val inserted = tankInternal.insert(FluidVariant.of(ModFluids.UU_MATTER_STILL), extracted, tx)
                 if (inserted < extracted) continue
 
-                val remaining = ctx.itemVariant.toStack(ctx.amount.toInt().coerceAtLeast(0))
+                val emptyResult = ctx.itemVariant.toStack(1)
+                if (!canMergeIntoSlot(output, emptyResult)) return@use
+
                 input.decrement(1)
                 if (input.isEmpty) setStack(SLOT_CONTAINER_INPUT, ItemStack.EMPTY)
-                else setStack(SLOT_CONTAINER_INPUT, remaining)
 
                 if (output.isEmpty) setStack(SLOT_CONTAINER_OUTPUT, emptyResult.copy())
                 else output.increment(emptyResult.count)
@@ -514,14 +512,4 @@ class ReplicatorBlockEntity(
         return droplets to (total % 1_000_000L)
     }
 
-    private fun getEmptyContainerFor(filled: ItemStack): ItemStack? = when (filled.item) {
-        is BucketItem -> net.minecraft.item.ItemStack(net.minecraft.item.Items.BUCKET)
-        is ModFluidCell -> net.minecraft.item.ItemStack((filled.item as ModFluidCell).getEmptyCell())
-        else -> {
-            val path = Registries.ITEM.getId(filled.item).path
-            if (path == "fluid_cell" || path.endsWith("_cell")) {
-                net.minecraft.item.ItemStack(emptyCellItem)
-            } else null
-        }
-    }
 }

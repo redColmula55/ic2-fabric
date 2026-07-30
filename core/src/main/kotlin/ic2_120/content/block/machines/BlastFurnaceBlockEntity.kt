@@ -504,18 +504,29 @@ class BlastFurnaceBlockEntity(
         }
 
         // 任意 Fabric Transfer API 流体容器：尝试提取 1 桶 compressed_air
-        val ctx = ContainerItemContext.withConstant(airSlot)
+        @Suppress("DEPRECATION")
+        val ctx = ContainerItemContext.withInitial(airSlot.copyWithCount(1))
         val storage = ctx.find(FluidStorage.ITEM) ?: return
         Transaction.openOuter().use { tx ->
             for (view in storage) {
                 if (view.isResourceBlank || view.amount < FluidConstants.BUCKET) continue
-                if (!ModFluids.isCompressedAir(view.resource.fluid)) continue
-                val extracted = view.extract(view.resource, FluidConstants.BUCKET, tx)
+                val containedFluid = view.resource
+                if (!ModFluids.isCompressedAir(containedFluid.fluid)) continue
+                val extracted = view.extract(containedFluid, FluidConstants.BUCKET, tx)
                 if (extracted < FluidConstants.BUCKET) continue
+
+                val emptyContainer = ctx.itemVariant.toStack(1)
+                val emptyOutput = getStack(SLOT_OUTPUT_EMPTY)
+                val canAcceptEmpty = emptyOutput.isEmpty ||
+                    (ItemStack.areItemsEqual(emptyOutput, emptyContainer) &&
+                        emptyOutput.count + emptyContainer.count <= emptyContainer.maxCount)
+                if (!canAcceptEmpty) return@use
+
                 tx.commit()
                 airSlot.decrement(1)
-                val remaining = ctx.itemVariant.toStack(ctx.amount.toInt().coerceAtLeast(0))
-                setStack(SLOT_AIR_INPUT, if (airSlot.isEmpty) ItemStack.EMPTY else remaining)
+                if (airSlot.isEmpty) setStack(SLOT_AIR_INPUT, ItemStack.EMPTY)
+                if (emptyOutput.isEmpty) setStack(SLOT_OUTPUT_EMPTY, emptyContainer)
+                else emptyOutput.increment(emptyContainer.count)
                 airTankInternal.tryFillAir(FluidConstants.BUCKET)
                 return
             }

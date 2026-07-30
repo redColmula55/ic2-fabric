@@ -3,16 +3,10 @@ package ic2_120.content.block.machines
 import ic2_120.Ic2_120
 import ic2_120.content.block.CannerBlock
 import ic2_120.content.fluid.ModFluids
-import ic2_120.content.fluid.FluidFuelRegistry
 import ic2_120.content.item.EmptyFuelRodItem
-import ic2_120.content.item.CfPack
-import ic2_120.content.item.FoamSprayerItem
-import ic2_120.content.item.armor.JetpackItem
 import ic2_120.content.sound.MachineSoundConfig
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.energy.charge.BatteryDischargerComponent
-import ic2_120.content.item.ModFluidCell
-import ic2_120.content.item.fluidToFilledCellStack
 import ic2_120.content.AdjacentEnergyTransferComponent
 import ic2_120.content.recipes.solidcanner.SolidCannerRecipe
 import ic2_120.content.item.IUpgradeItem
@@ -60,7 +54,6 @@ import net.minecraft.fluid.Fluids
 import net.minecraft.inventory.Inventories
 import net.minecraft.inventory.Inventory
 import net.minecraft.inventory.SimpleInventory
-import net.minecraft.item.BucketItem
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.nbt.NbtCompound
@@ -82,7 +75,7 @@ import net.minecraft.world.World
  * 模式化工作：
  * - 排出模式：左槽满容器 → 左液槽，空容器从右槽输出
  * - 灌入模式：左槽空容器/中槽泡沫喷枪或Cf背包 → 右液槽灌装，满容器从右槽输出
- * - 流体混合：左液槽 + 中槽固体 → 右液槽（配方见 CannerMixingRecipes）
+ * - 流体混合：左液槽 + 中槽固体 → 优先灌入左槽空容器，余液进入右液槽
  * - 固体装罐：左槽锡罐 + 中槽食物 → 右槽成品
  */
 @ModBlockEntity(block = CannerBlock::class)
@@ -285,10 +278,12 @@ class CannerBlockEntity(
 
     override fun isValid(slot: Int, stack: ItemStack): Boolean = when (slot) {
         SLOT_INPUT -> {
-            if (stack.isEmpty || stack.item is IBatteryItem || stack.item is FoamSprayerItem || stack.item is CfPack) return false
+            if (stack.isEmpty || stack.item is IBatteryItem) return false
             when (sync.getMode()) {
                 CannerSync.Mode.BOTTLE_SOLID -> stack.item == tinCanItem || stack.item is EmptyFuelRodItem
-                CannerSync.Mode.EMPTY_LIQUID, CannerSync.Mode.ENRICH_LIQUID -> cannerIsFilledFluidContainer(stack)
+                CannerSync.Mode.EMPTY_LIQUID -> cannerIsFilledFluidContainer(stack)
+                CannerSync.Mode.ENRICH_LIQUID ->
+                    cannerIsFilledFluidContainer(stack) || cannerIsEmptyFluidContainer(stack)
                 CannerSync.Mode.BOTTLE_LIQUID -> cannerIsEmptyFluidContainer(stack)
             }
         }
@@ -296,7 +291,7 @@ class CannerBlockEntity(
             if (stack.isEmpty || stack.item is IBatteryItem) return false
             when (sync.getMode()) {
                 CannerSync.Mode.EMPTY_LIQUID -> false
-                CannerSync.Mode.BOTTLE_LIQUID -> stack.item is FoamSprayerItem || stack.item is CfPack || stack.item is JetpackItem
+                CannerSync.Mode.BOTTLE_LIQUID, CannerSync.Mode.EMPTY_LIQUID -> false
                 else -> SolidCannerRecipe.slot1Ingredients(world!!).any { it.test(stack) } ||
                     CannerMixingRecipes.isMixingMaterial(stack.item)
             }
@@ -468,10 +463,54 @@ class CannerBlockEntity(
             leftTankInternal.amount,
             material
         ) ?: return false
-        val space = (TANK_CAPACITY - rightTankInternal.amount).coerceAtLeast(0L)
-        if (space < FluidConstants.BUCKET) return false
-        if (!rightTankInternal.variant.isBlank && rightTankInternal.variant.fluid != recipe.outputFluid) return false
-        return true
+        return planMixingOutput(FluidVariant.of(recipe.outputFluid)) != null
+    }
+
+    private data class MixingOutputPlan(
+        val containerFluidAmount: Long,
+        val filledContainer: ItemStack,
+        val containerFullAfterFill: Boolean,
+        val tankFluidAmount: Long
+    )
+
+    /**
+     * 原版 EnrichLiquid 语义：产物先尝试灌入容器槽，只有余液进入右液槽。
+     * 此处只模拟 Transfer API 操作，用于在开始读条前同时验证容器输出和水槽容量。
+     */
+    private fun planMixingOutput(outputVariant: FluidVariant): MixingOutputPlan? {
+        var containerFluidAmount = 0L
+        var filledContainer = ItemStack.EMPTY
+        var containerFullAfterFill = false
+        val container = getStack(SLOT_INPUT)
+
+        if (!container.isEmpty) {
+            @Suppress("DEPRECATION")
+            val ctx = ContainerItemContext.withInitial(container.copyWithCount(1))
+            val containerStorage = ctx.find(FluidStorage.ITEM)
+            if (containerStorage != null && containerStorage.supportsInsertion()) {
+                Transaction.openOuter().use { tx ->
+                    containerFluidAmount = containerStorage.insert(outputVariant, FluidConstants.BUCKET, tx)
+                    if (containerFluidAmount > 0) {
+                        filledContainer = ctx.itemVariant.toStack(1)
+                        containerFullAfterFill = containerStorage.insert(outputVariant, 1L, tx) == 0L
+                    }
+                }
+                if (containerFullAfterFill &&
+                    !canAcceptOutput(getStack(SLOT_OUTPUT), filledContainer)
+                ) return null
+            }
+        }
+
+        val tankFluidAmount = FluidConstants.BUCKET - containerFluidAmount
+        Transaction.openOuter().use { tx ->
+            if (rightTankInternal.insert(outputVariant, tankFluidAmount, tx) != tankFluidAmount) return null
+        }
+        return MixingOutputPlan(
+            containerFluidAmount,
+            filledContainer,
+            containerFullAfterFill,
+            tankFluidAmount
+        )
     }
 
     private fun tryPourOutToLeft(container: ItemStack): Boolean {
@@ -503,54 +542,40 @@ class CannerBlockEntity(
         return true
     }
 
-    /**
-     * 灌入模式：左槽为空桶/单元，灌装后满容器写入 SLOT_OUTPUT；
-     * 或中槽为未满的建筑泡沫喷枪/Cf背包（从右液槽灌装）。
-     */
+    /** 灌入模式统一处理左槽中所有支持 Fabric Transfer API 的流体容器。 */
     private fun resolveBottleLiquidTargetSlot(): Int? {
         val inputStack = getStack(SLOT_INPUT)
-        if (canFillStackFromRightTank(inputStack) && canAcceptOutput(getStack(SLOT_OUTPUT), getFilledResult(inputStack))) return SLOT_INPUT
-        val mat = getStack(SLOT_MATERIAL)
-        if (mat.item is FoamSprayerItem && canFillStackFromRightTank(mat)) return SLOT_MATERIAL
-        if ((mat.item is CfPack || mat.item is JetpackItem) && canFillStackFromRightTank(mat)) return SLOT_MATERIAL
-        return null
-    }
-
-    private fun getFilledResult(emptyContainer: ItemStack): ItemStack = when (emptyContainer.item) {
-        is FoamSprayerItem, is CfPack, is JetpackItem -> emptyContainer.copyWithCount(1)
-        Items.BUCKET -> {
-            val fluid = rightTankInternal.variant.fluid
-            when (fluid) {
-                Fluids.WATER, Fluids.FLOWING_WATER -> ItemStack(Items.WATER_BUCKET)
-                Fluids.LAVA, Fluids.FLOWING_LAVA -> ItemStack(Items.LAVA_BUCKET)
-                else -> ItemStack.EMPTY
-            }
+        return if (planContainerFill(inputStack, rightTankInternal.variant, rightTankInternal.amount) != null) {
+            SLOT_INPUT
+        } else {
+            null
         }
-        else -> fluidToFilledCellStack(rightTankInternal.variant.fluid)
     }
 
-    private fun canFillStackFromRightTank(container: ItemStack): Boolean {
-        if (container.isEmpty) return false
-        if (rightTankInternal.amount < FluidConstants.BUCKET || rightTankInternal.variant.isBlank) return false
-        val single = container.copyWithCount(1)
-        val ctx = ContainerItemContext.withConstant(single)
-        val itemStorage = ctx.find(FluidStorage.ITEM) ?: return false
-        if (!itemStorage.supportsInsertion()) return false
-        val fluid = rightTankInternal.variant.fluid
-        return when (container.item) {
-            Items.BUCKET -> when (fluid) {
-                Fluids.WATER, Fluids.FLOWING_WATER -> true
-                Fluids.LAVA, Fluids.FLOWING_LAVA -> true
-                else -> false
-            }
-            is FoamSprayerItem ->
-                (fluid == ModFluids.CONSTRUCTION_FOAM_STILL || fluid == ModFluids.CONSTRUCTION_FOAM_FLOWING) &&
-                    FoamSprayerItem.getFluidAmount(container) < FoamSprayerItem.CAPACITY_DROPLETS
-            is CfPack ->
-                (fluid == ModFluids.CONSTRUCTION_FOAM_STILL || fluid == ModFluids.CONSTRUCTION_FOAM_FLOWING) &&
-                    CfPack.getFluidAmount(container) < CfPack.CAPACITY_DROPLETS
-            is JetpackItem -> FluidFuelRegistry.isSupported(fluid) && itemStorage.supportsInsertion()
-            else -> fluidToFilledCellStack(fluid).isEmpty.not()
+    private data class ContainerFillPlan(
+        val amount: Long,
+        val result: ItemStack,
+        val fullAfterFill: Boolean
+    )
+
+    private fun planContainerFill(
+        container: ItemStack,
+        variant: FluidVariant,
+        available: Long
+    ): ContainerFillPlan? {
+        if (container.isEmpty || variant.isBlank || available <= 0L) return null
+        @Suppress("DEPRECATION")
+        val ctx = ContainerItemContext.withInitial(container.copyWithCount(1))
+        val storage = ctx.find(FluidStorage.ITEM) ?: return null
+        if (!storage.supportsInsertion()) return null
+
+        Transaction.openOuter().use { tx ->
+            val inserted = storage.insert(variant, minOf(FluidConstants.BUCKET, available), tx)
+            if (inserted <= 0L) return null
+            val result = ctx.itemVariant.toStack(1)
+            val fullAfterFill = storage.insert(variant, 1L, tx) == 0L
+            if (fullAfterFill && !canAcceptOutput(getStack(SLOT_OUTPUT), result)) return null
+            return ContainerFillPlan(inserted, result, fullAfterFill)
         }
     }
 
@@ -577,20 +602,47 @@ class CannerBlockEntity(
         ) ?: return
         val extractVariant = leftTankInternal.variant
         val outputVariant = FluidVariant.of(recipe.outputFluid)
+        val plan = planMixingOutput(outputVariant) ?: return
+        val container = getStack(SLOT_INPUT)
+        val outputSlot = getStack(SLOT_OUTPUT)
+
         Transaction.openOuter().use { tx ->
             val extracted = leftTankInternal.extract(extractVariant, FluidConstants.BUCKET, tx)
-            if (extracted > 0) {
-                val inserted = rightTankInternal.insert(outputVariant, FluidConstants.BUCKET, tx)
-                if (inserted > 0) {
-                    tx.commit()
-                    material.decrement(recipe.inputSolidCount)
-                    if (material.isEmpty) setStack(SLOT_MATERIAL, ItemStack.EMPTY)
-                    sync.leftFluidAmount = leftTankInternal.amount.toInt().coerceAtLeast(0)
-                    sync.leftFluidRawId = if (leftTankInternal.variant.isBlank) -1 else Registries.FLUID.getRawId(leftTankInternal.variant.fluid)
-                    sync.rightFluidAmount = rightTankInternal.amount.toInt().coerceAtLeast(0)
-                    sync.rightFluidRawId = if (rightTankInternal.variant.isBlank) -1 else Registries.FLUID.getRawId(rightTankInternal.variant.fluid)
+            if (extracted != FluidConstants.BUCKET) return@use
+
+            var filledContainer = ItemStack.EMPTY
+            if (plan.containerFluidAmount > 0) {
+                if (container.isEmpty) return@use
+                @Suppress("DEPRECATION")
+                val ctx = ContainerItemContext.withInitial(container.copyWithCount(1))
+                val containerStorage = ctx.find(FluidStorage.ITEM) ?: return@use
+                val inserted = containerStorage.insert(outputVariant, plan.containerFluidAmount, tx)
+                if (inserted != plan.containerFluidAmount) return@use
+                filledContainer = ctx.itemVariant.toStack(1)
+                if (plan.containerFullAfterFill &&
+                    !canAcceptOutput(outputSlot, filledContainer)
+                ) return@use
+            }
+
+            if (rightTankInternal.insert(outputVariant, plan.tankFluidAmount, tx) != plan.tankFluidAmount) return@use
+            tx.commit()
+
+            material.decrement(recipe.inputSolidCount)
+            if (material.isEmpty) setStack(SLOT_MATERIAL, ItemStack.EMPTY)
+            if (!filledContainer.isEmpty) {
+                container.decrement(1)
+                if (container.isEmpty) setStack(SLOT_INPUT, ItemStack.EMPTY)
+                if (plan.containerFullAfterFill) {
+                    if (outputSlot.isEmpty) setStack(SLOT_OUTPUT, filledContainer)
+                    else outputSlot.increment(filledContainer.count)
+                } else {
+                    setStack(SLOT_INPUT, filledContainer)
                 }
             }
+            sync.leftFluidAmount = leftTankInternal.amount.toInt().coerceAtLeast(0)
+            sync.leftFluidRawId = if (leftTankInternal.variant.isBlank) -1 else Registries.FLUID.getRawId(leftTankInternal.variant.fluid)
+            sync.rightFluidAmount = rightTankInternal.amount.toInt().coerceAtLeast(0)
+            sync.rightFluidRawId = if (rightTankInternal.variant.isBlank) -1 else Registries.FLUID.getRawId(rightTankInternal.variant.fluid)
         }
     }
 
@@ -623,9 +675,13 @@ class CannerBlockEntity(
         Transaction.openOuter().use { tx ->
             for (view in itemStorage) {
                 if (view.amount >= FluidConstants.BUCKET && !view.resource.isBlank) {
-                    val extracted = view.extract(view.resource, FluidConstants.BUCKET, tx)
+                    // FullItemFluidStorage is a live view: extracting swaps the full
+                    // container for its empty variant, which immediately makes
+                    // view.resource blank. Keep the fluid before mutating the context.
+                    val containedFluid = view.resource
+                    val extracted = view.extract(containedFluid, FluidConstants.BUCKET, tx)
                     if (extracted > 0) {
-                        val inserted = leftTankInternal.insert(FluidVariant.of(view.resource.fluid), extracted, tx)
+                        val inserted = leftTankInternal.insert(containedFluid, extracted, tx)
                         if (inserted > 0) {
                             val emptyResult = ctx.itemVariant.toStack(1)
                             val outputSlot = getStack(SLOT_OUTPUT)
@@ -651,35 +707,30 @@ class CannerBlockEntity(
         if (container.isEmpty) return
         val variant = rightTankInternal.variant
         if (variant.isBlank) return
-        val fluid = variant.fluid
-
-        val filledResult = getFilledResult(container)
-        if (filledResult.isEmpty) return
+        val plan = planContainerFill(container, variant, rightTankInternal.amount) ?: return
         val single = container.copyWithCount(1)
         @Suppress("DEPRECATION")
         val ctx = ContainerItemContext.withInitial(single)
         val itemStorage = ctx.find(FluidStorage.ITEM) ?: return
         Transaction.openOuter().use { tx ->
-            val inserted = itemStorage.insert(variant, FluidConstants.BUCKET, tx)
-            if (inserted > 0) {
-                val extracted = rightTankInternal.extract(variant, inserted, tx)
-                if (extracted > 0) {
-                    val filled = ctx.itemVariant.toStack(1)
-                    if (slot == SLOT_INPUT && !canAcceptOutput(getStack(SLOT_OUTPUT), filled)) return@use
-                    tx.commit()
-                    if (slot == SLOT_INPUT) {
-                        // 从左输入槽取空容器，灌装后放入输出槽
-                        container.decrement(1)
-                        if (container.isEmpty) setStack(SLOT_INPUT, ItemStack.EMPTY)
-                        val output = getStack(SLOT_OUTPUT)
-                        if (output.isEmpty) setStack(SLOT_OUTPUT, filled)
-                        else output.increment(1)
-                    } else {
-                        setStack(slot, filled)
-                    }
-                    sync.rightFluidAmount = rightTankInternal.amount.toInt().coerceAtLeast(0)
-                }
+            val inserted = itemStorage.insert(variant, plan.amount, tx)
+            if (inserted != plan.amount) return@use
+            val extracted = rightTankInternal.extract(variant, inserted, tx)
+            if (extracted != inserted) return@use
+            val filled = ctx.itemVariant.toStack(1)
+            if (plan.fullAfterFill && !canAcceptOutput(getStack(SLOT_OUTPUT), filled)) return@use
+            tx.commit()
+
+            container.decrement(1)
+            if (container.isEmpty) setStack(SLOT_INPUT, ItemStack.EMPTY)
+            if (plan.fullAfterFill) {
+                val output = getStack(SLOT_OUTPUT)
+                if (output.isEmpty) setStack(SLOT_OUTPUT, filled)
+                else output.increment(filled.count)
+            } else {
+                setStack(SLOT_INPUT, filled)
             }
+            sync.rightFluidAmount = rightTankInternal.amount.toInt().coerceAtLeast(0)
         }
     }
 
