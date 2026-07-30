@@ -1,0 +1,328 @@
+package ic2_120_industrial_upgrade.content.block
+
+import ic2_120.content.AdjacentEnergyTransferComponent
+import ic2_120.content.block.ITieredMachine
+import ic2_120.content.block.machines.MachineBlockEntity
+import ic2_120.content.item.energy.IBatteryItem
+import ic2_120.content.item.energy.IElectricTool
+import ic2_120.content.item.isFluidCellEmpty
+import ic2_120.content.item.setFluidCellVariant
+import ic2_120.content.syncs.SyncedData
+import ic2_120.registry.annotation.ModBlockEntity
+import ic2_120.registry.annotation.RegisterEnergy
+import ic2_120.registry.annotation.RegisterFluidStorage
+import ic2_120.registry.type
+import ic2_120_industrial_upgrade.content.fluid.NeutronFluid
+import ic2_120_industrial_upgrade.content.screen.NeutronFabricatorScreenHandler
+import ic2_120_industrial_upgrade.content.sync.NeutronFabricatorSync
+import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidConstants
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidStorage
+import net.fabricmc.fabric.api.transfer.v1.fluid.FluidVariant
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage
+import net.fabricmc.fabric.api.transfer.v1.storage.StoragePreconditions
+import net.fabricmc.fabric.api.transfer.v1.storage.StorageView
+import net.fabricmc.fabric.api.transfer.v1.storage.base.SingleVariantStorage
+import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction
+import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext
+import net.minecraft.block.BlockState
+import net.minecraft.entity.player.PlayerEntity
+import net.minecraft.entity.player.PlayerInventory
+import net.minecraft.inventory.Inventories
+import net.minecraft.inventory.Inventory
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
+import net.minecraft.nbt.NbtCompound
+import net.minecraft.network.PacketByteBuf
+import net.minecraft.registry.Registries
+import net.minecraft.screen.ScreenHandler
+import net.minecraft.screen.ScreenHandlerContext
+import net.minecraft.server.network.ServerPlayerEntity
+import net.minecraft.state.property.Properties
+import net.minecraft.text.Text
+import net.minecraft.util.Identifier
+import net.minecraft.util.collection.DefaultedList
+import net.minecraft.util.math.BlockPos
+import net.minecraft.util.math.Direction
+import net.minecraft.world.World
+
+@ModBlockEntity(block = NeutronFabricatorBlock::class)
+class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
+    MachineBlockEntity(NeutronFabricatorBlockEntity::class.type(), pos, state),
+    ITieredMachine, ExtendedScreenHandlerFactory, Inventory {
+
+    companion object {
+        const val TIER = 11
+        /** 充满一槽所需能量（每产出 1 mB 中子流体消耗）。对齐 1.4.0 原版 15,625,000 EU/mB */
+        const val ENERGY_PER_MB: Long = 15_625_000L
+        const val TANK_CAPACITY_DROPLETS = FluidConstants.BUCKET * 10L // 10 桶
+
+        // 槽位索引
+        const val SLOT_CHARGE_0 = 0
+        const val SLOT_CHARGE_1 = 1
+        const val SLOT_CHARGE_2 = 2
+        const val SLOT_CONTAINER_INPUT = 3
+        const val SLOT_CONTAINER_OUTPUT = 4
+        const val INVENTORY_SIZE = 5
+        val SLOT_CHARGE_INDICES = intArrayOf(SLOT_CHARGE_0, SLOT_CHARGE_1, SLOT_CHARGE_2)
+
+        @Volatile
+        private var fluidLookupRegistered = false
+
+        @RegisterFluidStorage
+        fun registerFluidStorageLookup() {
+            if (fluidLookupRegistered) return
+            FluidStorage.SIDED.registerForBlockEntity(
+                { be, side -> (be as NeutronFabricatorBlockEntity).getFluidStorageForSide(side) },
+                NeutronFabricatorBlockEntity::class.type()
+            )
+            fluidLookupRegistered = true
+        }
+    }
+
+    override val tier: Int = TIER
+    override val activeProperty = NeutronFabricatorBlock.ACTIVE
+
+    @Suppress("unused")
+    val syncedData = SyncedData(this)
+
+    @RegisterEnergy
+    val sync = NeutronFabricatorSync(
+        schema = syncedData,
+        capacity = ENERGY_PER_MB,
+        tier = TIER,
+        getFacing = { world?.getBlockState(pos)?.get(Properties.HORIZONTAL_FACING) ?: Direction.NORTH },
+        currentTickProvider = { world?.time }
+    )
+
+    private val adjacentEnergyTransfer = AdjacentEnergyTransferComponent(this, sync)
+
+    /** ic2 通用流体单元（万能单元，可装任意流体） */
+    private val emptyCellItem by lazy { Registries.ITEM.get(Identifier("ic2_120", "empty_cell")) }
+    private val fluidCellItem by lazy { Registries.ITEM.get(Identifier("ic2_120", "fluid_cell")) }
+
+    /** 中子流体槽（内部产出写入，外部只能取出） */
+    private val tankInternal = object : SingleVariantStorage<FluidVariant>() {
+        override fun getBlankVariant(): FluidVariant = FluidVariant.blank()
+        override fun getCapacity(variant: FluidVariant): Long = TANK_CAPACITY_DROPLETS
+        // 外部不能灌入（玩家/管道只能抽取产出的中子流体）
+        override fun canInsert(variant: FluidVariant): Boolean = false
+        override fun canExtract(variant: FluidVariant): Boolean = !variant.isBlank
+        override fun onFinalCommit() { markDirty() }
+
+        fun getStoredAmount(): Long = amount
+        fun getTankCapacity(): Long = TANK_CAPACITY_DROPLETS
+        fun availableSpace(): Long = (TANK_CAPACITY_DROPLETS - amount).coerceAtLeast(0L)
+
+        /** 机器内部产出写入（绕过 canInsert 限制） */
+        fun insertInternal(toInsert: Long): Long {
+            if (toInsert <= 0L) return 0L
+            val actual = minOf(toInsert, availableSpace())
+            if (actual <= 0L) return 0L
+            val tx = Transaction.openOuter()
+            try {
+                updateSnapshots(tx)
+                amount += actual
+                if (variant.isBlank) variant = FluidVariant.of(NeutronFluid.NEUTRON_STILL)
+                tx.commit()
+            } finally {
+                tx.close()
+            }
+            sync.fluidAmount = amount.toInt().coerceIn(0, Int.MAX_VALUE)
+            markDirty()
+            return actual
+        }
+
+        /** 内部抽取（用于灌入容器，绕过外部 extract 的事务） */
+        fun extractInternal(toExtract: Long): Long {
+            if (toExtract <= 0L || amount <= 0L) return 0L
+            val actual = minOf(toExtract, amount)
+            val tx = Transaction.openOuter()
+            try {
+                updateSnapshots(tx)
+                amount -= actual
+                if (amount <= 0L) variant = FluidVariant.blank()
+                tx.commit()
+            } finally {
+                tx.close()
+            }
+            sync.fluidAmount = amount.toInt().coerceIn(0, Int.MAX_VALUE)
+            markDirty()
+            return actual
+        }
+    }
+
+    /** 对外暴露的流体存储（只读抽取，供管道/泵抽出中子流体；正面朝向不接受） */
+    private val outputStorage = object : Storage<FluidVariant> {
+        override fun supportsInsertion(): Boolean = false
+        override fun supportsExtraction(): Boolean = true
+        override fun insert(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long = 0L
+
+        override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long {
+            StoragePreconditions.notBlankNotNegative(resource, maxAmount)
+            if (!isNeutron(resource.fluid)) return 0L
+            return tankInternal.extract(FluidVariant.of(NeutronFluid.NEUTRON_STILL), maxAmount, transaction)
+        }
+
+        override fun iterator(): MutableIterator<StorageView<FluidVariant>> {
+            if (tankInternal.amount <= 0L || tankInternal.variant.isBlank) {
+                return mutableListOf<StorageView<FluidVariant>>().iterator()
+            }
+            return mutableListOf(object : StorageView<FluidVariant> {
+                override fun getResource(): FluidVariant = tankInternal.variant
+                override fun getAmount(): Long = tankInternal.amount
+                override fun getCapacity(): Long = tankInternal.getTankCapacity()
+                override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long {
+                    StoragePreconditions.notBlankNotNegative(resource, maxAmount)
+                    if (!isNeutron(resource.fluid)) return 0L
+                    return tankInternal.extract(FluidVariant.of(NeutronFluid.NEUTRON_STILL), maxAmount, transaction)
+                }
+                override fun isResourceBlank(): Boolean = false
+            }).iterator()
+        }
+    }
+
+    private fun getFluidStorageForSide(side: Direction?): Storage<FluidVariant>? {
+        val facing = world?.getBlockState(pos)?.get(Properties.HORIZONTAL_FACING) ?: Direction.NORTH
+        // 正面（玩家面对的面）不暴露流体存储，避免与 GUI 容器槽冲突
+        if (side == facing) return null
+        return outputStorage
+    }
+
+    // ====== Inventory ======
+    private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
+    override fun getInventory(): Inventory = this
+    override fun size(): Int = INVENTORY_SIZE
+    override fun getStack(slot: Int): ItemStack = inventory.getOrElse(slot) { ItemStack.EMPTY }
+    override fun setStack(slot: Int, stack: ItemStack) { inventory[slot] = stack; markDirty() }
+    override fun removeStack(slot: Int, amount: Int): ItemStack = Inventories.splitStack(inventory, slot, amount)
+    override fun removeStack(slot: Int): ItemStack = Inventories.removeStack(inventory, slot)
+    override fun clear() = inventory.clear()
+    override fun isEmpty(): Boolean = inventory.all { it.isEmpty }
+    override fun canPlayerUse(player: PlayerEntity): Boolean = Inventory.canPlayerUse(this, player)
+
+    /** 槽位校验：充电槽接受电池/电动工具；容器输入槽接受空桶/空单元 */
+    fun isValidForSlot(slot: Int, stack: ItemStack): Boolean = when (slot) {
+        in SLOT_CHARGE_INDICES -> {
+            val item = stack.item
+            when {
+                item is IElectricTool -> true
+                item is IBatteryItem && item.canCharge -> item.tier <= TIER
+                else -> false
+            }
+        }
+        SLOT_CONTAINER_INPUT -> isFillableContainer(stack)
+        else -> false
+    }
+
+    /** 判断物品是否可用于盛装中子流体（空桶或空流体单元） */
+    private fun isFillableContainer(stack: ItemStack): Boolean {
+        if (stack.isEmpty) return false
+        val item = stack.item
+        return item == Items.BUCKET ||
+            item == emptyCellItem ||
+            (item == fluidCellItem && stack.isFluidCellEmpty())
+    }
+
+    private fun isNeutron(fluid: net.minecraft.fluid.Fluid): Boolean =
+        fluid == NeutronFluid.NEUTRON_STILL || fluid == NeutronFluid.NEUTRON_FLOWING
+
+    private fun canMergeIntoSlot(current: ItemStack, toInsert: ItemStack): Boolean {
+        if (toInsert.isEmpty) return false
+        return current.isEmpty || (ItemStack.canCombine(current, toInsert) && current.count < current.maxCount)
+    }
+
+    // ====== tick 逻辑：能量满 → 产中子流体；容器槽自动装填 ======
+    fun tick(world: World, pos: BlockPos, state: BlockState) {
+        if (world.isClient) return
+        adjacentEnergyTransfer.tick()
+
+        var active = false
+        // 能量达到阈值且流体槽未满 → 消耗能量产流体（1 mB = 81 droplets = BUCKET/1000... 实际 1mb=81droplet）
+        if (sync.amount >= ENERGY_PER_MB && tankInternal.amount < TANK_CAPACITY_DROPLETS) {
+            val produced = tankInternal.insertInternal(FluidConstants.BUCKET / 1000L) // 1 mB
+            if (produced > 0L) {
+                sync.consumeEnergy(ENERGY_PER_MB)
+                active = true
+            }
+        }
+
+        // 容器槽自动装填：把产出的中子流体灌入空桶/空单元
+        fillContainersFromTank()
+
+        // 同步 GUI 数据
+        sync.fluidAmount = tankInternal.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        sync.progress = ((sync.amount.toFloat() / ENERGY_PER_MB) * 100).toInt().coerceIn(0, 100)
+
+        setActiveState(world, pos, state, active)
+        markDirtyThrottled()
+    }
+
+    /** 把流体槽中的中子流体灌入容器输入槽的物品，产物进入容器输出槽 */
+    private fun fillContainersFromTank() {
+        if (tankInternal.getStoredAmount() < FluidConstants.BUCKET) return // 至少 1 桶才能灌桶
+        val input = getStack(SLOT_CONTAINER_INPUT)
+        if (input.isEmpty) return
+
+        // 空桶需要 1 桶流体；空单元也按 1 桶计（与 core 物质制造机一致）
+        val result = when (input.item) {
+            Items.BUCKET -> ItemStack(NeutronFluid.NEUTRON_BUCKET)
+            emptyCellItem -> ItemStack(fluidCellItem).apply {
+                setFluidCellVariant(FluidVariant.of(NeutronFluid.NEUTRON_STILL))
+            }
+            fluidCellItem -> {
+                if (input.isFluidCellEmpty()) {
+                    ItemStack(fluidCellItem).apply {
+                        setFluidCellVariant(FluidVariant.of(NeutronFluid.NEUTRON_STILL))
+                    }
+                } else {
+                    ItemStack.EMPTY
+                }
+            }
+            else -> ItemStack.EMPTY
+        }
+        if (result.isEmpty) return
+
+        val output = getStack(SLOT_CONTAINER_OUTPUT)
+        if (!canMergeIntoSlot(output, result)) return
+
+        val drained = tankInternal.extractInternal(FluidConstants.BUCKET)
+        if (drained < FluidConstants.BUCKET) return
+
+        input.decrement(1)
+        if (input.isEmpty) setStack(SLOT_CONTAINER_INPUT, ItemStack.EMPTY)
+        if (output.isEmpty) setStack(SLOT_CONTAINER_OUTPUT, result.copy())
+        else output.increment(result.count)
+        markDirty()
+    }
+
+    // ====== ExtendedScreenHandlerFactory ======
+    override fun getDisplayName(): Text = Text.translatable("block.ic2_120_industrial_upgrade.neutron_fabricator")
+
+    override fun createMenu(syncId: Int, playerInventory: PlayerInventory, player: PlayerEntity?): ScreenHandler =
+        NeutronFabricatorScreenHandler(syncId, playerInventory, ScreenHandlerContext.create(world!!, pos), syncedData, this)
+
+    override fun writeScreenOpeningData(player: ServerPlayerEntity, buf: PacketByteBuf) {
+        buf.writeBlockPos(pos)
+        buf.writeVarInt(syncedData.size())
+    }
+
+    // ====== NBT ======
+    override fun readNbt(nbt: NbtCompound) {
+        super.readNbt(nbt)
+        sync.restoreEnergy(nbt.getLong(NeutronFabricatorSync.NBT_ENERGY).coerceIn(0L, sync.capacity))
+        syncedData.readNbt(nbt)
+        Inventories.readNbt(nbt.getCompound("Inv"), inventory)
+        val tankAmount = nbt.getLong("TankAmount")
+        tankInternal.amount = tankAmount.coerceIn(0L, TANK_CAPACITY_DROPLETS)
+        if (tankInternal.amount > 0L) tankInternal.variant = FluidVariant.of(NeutronFluid.NEUTRON_STILL)
+    }
+
+    override fun writeNbt(nbt: NbtCompound) {
+        super.writeNbt(nbt)
+        nbt.putLong(NeutronFabricatorSync.NBT_ENERGY, sync.amount)
+        syncedData.writeNbt(nbt)
+        nbt.put("Inv", Inventories.writeNbt(NbtCompound(), inventory))
+        nbt.putLong("TankAmount", tankInternal.amount)
+    }
+}

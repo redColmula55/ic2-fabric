@@ -1,0 +1,39 @@
+{
+  "block.ic2_120_industrial_upgrade.spectral_solar_panel": "Spectral Solar Panel",
+  "block.ic2_120_industrial_upgrade.proton_solar_panel": "Proton Solar Panel",
+  "block.ic2_120_industrial_upgrade.singular_solar_panel": "Singular Solar Panel",
+  "block.ic2_120_industrial_upgrade.admin_solar_panel": "Admin Solar Panel",
+  "block.ic2_120_industrial_upgrade.photonic_solar_panel": "Photonic Solar Panel",
+  "block.ic2_120_industrial_upgrade.neutron_solar_panel": "Neutron Solar Panel",
+  "block.ic2_120_industrial_upgrade.neutron_fabricator": "Neutron Fabricator",
+
+  "item.ic2_120_industrial_upgrade.spectral_core": "Spectral Core",
+  "item.ic2_120_industrial_upgrade.proton_core": "Proton Core",
+  "item.ic2_120_industrial_upgrade.singular_core": "Singular Core",
+  "item.ic2_120_industrial_upgrade.quant_core1": "Quantum Core I",
+  "item.ic2_120_industrial_upgrade.quant_core2": "Quantum Core II",
+  "item.ic2_120_industrial_upgrade.neutron_core": "Neutron Core",
+  "item.ic2_120_industrial_upgrade.ender_quantum_component": "Ender Quantum Component",
+
+  "item.ic2_120_industrial_upgrade.enriched_sunnarium_alloy2": "Spectral Enriched Sunnarium Alloy",
+  "item.ic2_120_industrial_upgrade.enriched_sunnarium_alloy3": "Singular Enriched Sunnarium Alloy",
+  "item.ic2_120_industrial_upgrade.enriched_sunnarium_alloy4": "Proton Enriched Sunnarium Alloy",
+
+  "item.ic2_120_industrial_upgrade.photoniy": "Photoniy",
+  "item.ic2_120_industrial_upgrade.photoniy_ingot": "Photoniy Ingot",
+
+  "item.ic2_120_industrial_upgrade.proton": "Proton",
+  "item.ic2_120_industrial_upgrade.proton_shard": "Proton Shard",
+  "item.ic2_120_industrial_upgrade.neutron": "Neutron",
+  "item.ic2_120_industrial_upgrade.neutron_shard": "Neutron Shard",
+
+  "item.ic2_120_industrial_upgrade.red_component": "Red Component",
+  "item.ic2_120_industrial_upgrade.blue_component": "Blue Component",
+  "item.ic2_120_industrial_upgrade.green_component": "Green Component",
+  "item.ic2_120_industrial_upgrade.solar_splitter": "Solar Splitter",
+
+  "item.ic2_120_industrial_upgrade.neutron_bucket": "Neutron Bucket",
+  "fluid.ic2_120_industrial_upgrade.neutron": "Neutron",
+
+  "itemGroup.ic2_120_industrial_upgrade.industrial_upgrade": "Industrial Upgrade"
+}

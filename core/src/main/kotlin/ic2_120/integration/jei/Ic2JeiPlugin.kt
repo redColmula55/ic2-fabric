@@ -1,16 +1,29 @@
 package ic2_120.integration.jei
 
 import ic2_120.config.Ic2Config
+import ic2_120.content.recipes.ModMachineRecipes
+import ic2_120.content.recipes.blastfurnace.BlastFurnaceRecipe
 import ic2_120.content.recipes.blastfurnace.BlastFurnaceRecipeDatagen
+import ic2_120.content.recipes.blockcutter.BlockCutterRecipe
 import ic2_120.content.recipes.blockcutter.BlockCutterRecipeDatagen
+import ic2_120.content.recipes.centrifuge.CentrifugeRecipe
 import ic2_120.content.recipes.centrifuge.CentrifugeRecipeDatagen
+import ic2_120.content.recipes.compressor.CompressorRecipe
 import ic2_120.content.recipes.compressor.CompressorRecipeDatagen
+import ic2_120.content.recipes.extractor.ExtractorRecipe
 import ic2_120.content.recipes.extractor.ExtractorRecipeDatagen
+import ic2_120.content.recipes.macerator.MaceratorRecipe
 import ic2_120.content.recipes.macerator.MaceratorRecipeDatagen
+import ic2_120.content.recipes.metalformer.CuttingRecipe
+import ic2_120.content.recipes.metalformer.ExtrudingRecipe
+import ic2_120.content.recipes.metalformer.MetalFormerRecipe
 import ic2_120.content.recipes.metalformer.MetalFormerRecipeDatagen
+import ic2_120.content.recipes.metalformer.RollingRecipe
+import ic2_120.content.recipes.orewashing.OreWashingRecipe
 import ic2_120.content.recipes.orewashing.OreWashingRecipeDatagen
 import ic2_120.content.item.EmptyTinCanItem
 import ic2_120.content.item.FilledTinCanItem
+import ic2_120.content.recipes.solidcanner.SolidCannerRecipe
 import ic2_120.content.recipes.solidcanner.SolidCannerRecipeDatagen
 import ic2_120.registry.instance
 import ic2_120.integration.jei.BlastFurnaceJeiRecipe
@@ -52,6 +65,7 @@ import mezz.jei.api.registration.ISubtypeRegistration
 import mezz.jei.api.runtime.IJeiRuntime
 import net.minecraft.fluid.Fluid
 import net.minecraft.fluid.Fluids
+import net.minecraft.recipe.Recipe
 import net.minecraft.item.Item
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
@@ -287,84 +301,118 @@ class Ic2JeiPlugin : IModPlugin {
         )
     }
 
+    /**
+     * 优先从运行时 client recipeManager 收集指定 [Recipe] 类型的所有配方实例。
+     * 与各机器实际判定逻辑（recipeManager.getFirstMatch）使用同一数据源，
+     * 覆盖 core + 所有附属命名空间，并反映服务器下发 / datapack 修改后的配方状态。
+     * recipeManager 未就绪时返回 null，由调用方退回 datagen 硬编码列表。
+     */
+    private inline fun <reified T : Recipe<*>> liveRecipes(): List<T>? {
+        val rm = LiveRecipeSource.instance?.clientRecipeManager() ?: return null
+        return rm.values().filterIsInstance<T>().takeIf { it.isNotEmpty() }
+    }
+
     override fun registerRecipes(registration: IRecipeRegistration) {
         // Macerator 配方
-        val maceratorRecipes = MaceratorRecipeDatagen.allEntries()
-            .map { entry ->
-                MaceratorJeiRecipe(
-                    entry.input.toItemStacks(entry.inputCount),
-                    ItemStack(entry.output, entry.count)
-                )
-            }
+        val maceratorRecipes = liveRecipes<MaceratorRecipe>()?.map { r ->
+            MaceratorJeiRecipe(
+                r.ingredient.matchingStacks.map { it.copy().apply { count = r.inputCount } }.toList(),
+                r.output
+            )
+        } ?: MaceratorRecipeDatagen.allEntries().map { entry ->
+            MaceratorJeiRecipe(
+                entry.input.toItemStacks(entry.inputCount),
+                ItemStack(entry.output, entry.count)
+            )
+        }
         registration.addRecipes(Ic2JeiRecipeTypes.MACERATOR, maceratorRecipes)
 
         // Compressor 配方
-        val compressorRecipes = CompressorRecipeDatagen.allEntries()
-            .map { entry ->
-                CompressorJeiRecipe(
-                    entry.input.toItemStacks(entry.inputCount),
-                    ItemStack(entry.output, entry.count),
-                    entry.containerReturn
-                )
-            }
+        val compressorRecipes = liveRecipes<CompressorRecipe>()?.map { r ->
+            CompressorJeiRecipe(
+                r.ingredient.matchingStacks.map { it.copy().apply { count = r.inputCount } }.toList(),
+                r.output,
+                r.containerReturn
+            )
+        } ?: CompressorRecipeDatagen.allEntries().map { entry ->
+            CompressorJeiRecipe(
+                entry.input.toItemStacks(entry.inputCount),
+                ItemStack(entry.output, entry.count),
+                entry.containerReturn
+            )
+        }
         registration.addRecipes(Ic2JeiRecipeTypes.COMPRESSOR, compressorRecipes)
 
         // Extractor 配方
-        val extractorRecipes = ExtractorRecipeDatagen.allEntries()
-            .map { entry ->
-                ExtractorJeiRecipe(
-                    entry.input.toItemStacks(1),
-                    ItemStack(entry.output, entry.count)
-                )
-            }
+        val extractorRecipes = liveRecipes<ExtractorRecipe>()?.map { r ->
+            ExtractorJeiRecipe(r.ingredient.matchingStacks.toList(), r.output)
+        } ?: ExtractorRecipeDatagen.allEntries().map { entry ->
+            ExtractorJeiRecipe(
+                entry.input.toItemStacks(1),
+                ItemStack(entry.output, entry.count)
+            )
+        }
         registration.addRecipes(Ic2JeiRecipeTypes.EXTRACTOR, extractorRecipes)
 
         // Centrifuge 配方
-        val centrifugeRecipes = CentrifugeRecipeDatagen.allEntries()
-            .map { entry ->
-                CentrifugeJeiRecipe(
-                    entry.input.toItemStacks(entry.inputCount),
-                    entry.minHeat,
-                    entry.outputs.map { ItemStack(it.item, it.count) }
-                )
-            }
+        val centrifugeRecipes = liveRecipes<CentrifugeRecipe>()?.map { r ->
+            CentrifugeJeiRecipe(
+                r.ingredient.matchingStacks.map { it.copy().apply { count = r.inputCount } }.toList(),
+                r.minHeat,
+                r.outputs
+            )
+        } ?: CentrifugeRecipeDatagen.allEntries().map { entry ->
+            CentrifugeJeiRecipe(
+                entry.input.toItemStacks(entry.inputCount),
+                entry.minHeat,
+                entry.outputs.map { ItemStack(it.item, it.count) }
+            )
+        }
         registration.addRecipes(Ic2JeiRecipeTypes.CENTRIFUGE, centrifugeRecipes)
 
         // BlastFurnace 配方
-        val blastFurnaceRecipes = BlastFurnaceRecipeDatagen.allEntries()
-            .map { entry ->
-                BlastFurnaceJeiRecipe(
-                    entry.input.toItemStacks(1),
-                    ItemStack(entry.steelOutput, entry.steelCount),
-                    ItemStack(entry.slagOutput, entry.slagCount)
-                )
-            }
+        val blastFurnaceRecipes = liveRecipes<BlastFurnaceRecipe>()?.map { r ->
+            BlastFurnaceJeiRecipe(r.ingredient.matchingStacks.toList(), r.steelOutput, r.slagOutput)
+        } ?: BlastFurnaceRecipeDatagen.allEntries().map { entry ->
+            BlastFurnaceJeiRecipe(
+                entry.input.toItemStacks(1),
+                ItemStack(entry.steelOutput, entry.steelCount),
+                ItemStack(entry.slagOutput, entry.slagCount)
+            )
+        }
         registration.addRecipes(Ic2JeiRecipeTypes.BLAST_FURNACE, blastFurnaceRecipes)
 
         // OreWashing 配方
-        val oreWashingRecipes = OreWashingRecipeDatagen.allEntries()
-            .map { entry ->
-                OreWashingJeiRecipe(
-                    entry.input.toItemStacks(1),
-                    entry.outputs.map { ItemStack(it.item, it.count) },
-                    entry.waterConsumptionDroplets
-                )
-            }
+        val oreWashingRecipes = liveRecipes<OreWashingRecipe>()?.map { r ->
+            OreWashingJeiRecipe(r.ingredient.matchingStacks.toList(), r.outputItems, r.waterConsumptionDroplets)
+        } ?: OreWashingRecipeDatagen.allEntries().map { entry ->
+            OreWashingJeiRecipe(
+                entry.input.toItemStacks(1),
+                entry.outputs.map { ItemStack(it.item, it.count) },
+                entry.waterConsumptionDroplets
+            )
+        }
         registration.addRecipes(Ic2JeiRecipeTypes.ORE_WASHING, oreWashingRecipes)
 
         // BlockCutter 配方
-        val blockCutterRecipes = BlockCutterRecipeDatagen.allEntries()
-            .map { entry ->
-                BlockCutterJeiRecipe(
-                    entry.input.toItemStacks(entry.inputCount),
-                    ItemStack(entry.output, entry.count)
-                )
-            }
+        val blockCutterRecipes = liveRecipes<BlockCutterRecipe>()?.map { r ->
+            BlockCutterJeiRecipe(
+                r.ingredient.matchingStacks.map { it.copy().apply { count = r.inputCount } }.toList(),
+                r.output
+            )
+        } ?: BlockCutterRecipeDatagen.allEntries().map { entry ->
+            BlockCutterJeiRecipe(
+                entry.input.toItemStacks(entry.inputCount),
+                ItemStack(entry.output, entry.count)
+            )
+        }
         registration.addRecipes(Ic2JeiRecipeTypes.BLOCK_CUTTER, blockCutterRecipes)
 
-        // MetalFormer 配方 - 按模式分组
-        val metalFormerRecipes = MetalFormerRecipeDatagen.allEntries()
-        val rollingRecipes = metalFormerRecipes.filter { it.mode == MetalFormerRecipeDatagen.Mode.ROLLING }
+        // MetalFormer 配方 - 按模式分组（Rolling/Cutting/Extruding 子类共用同一 RecipeType）
+        val metalFormerLive = liveRecipes<MetalFormerRecipe>()
+        val rollingRecipes = metalFormerLive?.filter { it is RollingRecipe }?.map { r ->
+            MetalFormerRollingJeiRecipe(r.ingredient.matchingStacks.toList(), r.output)
+        } ?: MetalFormerRecipeDatagen.allEntries().filter { it.mode == MetalFormerRecipeDatagen.Mode.ROLLING }
             .map { entry ->
                 MetalFormerRollingJeiRecipe(
                     entry.input.toItemStacks(1),
@@ -373,7 +421,9 @@ class Ic2JeiPlugin : IModPlugin {
             }
         registration.addRecipes(Ic2JeiRecipeTypes.METAL_FORMER_ROLLING, rollingRecipes)
 
-        val cuttingRecipes = metalFormerRecipes.filter { it.mode == MetalFormerRecipeDatagen.Mode.CUTTING }
+        val cuttingRecipes = metalFormerLive?.filter { it is CuttingRecipe }?.map { r ->
+            MetalFormerCuttingJeiRecipe(r.ingredient.matchingStacks.toList(), r.output)
+        } ?: MetalFormerRecipeDatagen.allEntries().filter { it.mode == MetalFormerRecipeDatagen.Mode.CUTTING }
             .map { entry ->
                 MetalFormerCuttingJeiRecipe(
                     entry.input.toItemStacks(1),
@@ -382,7 +432,9 @@ class Ic2JeiPlugin : IModPlugin {
             }
         registration.addRecipes(Ic2JeiRecipeTypes.METAL_FORMER_CUTTING, cuttingRecipes)
 
-        val extrudingRecipes = metalFormerRecipes.filter { it.mode == MetalFormerRecipeDatagen.Mode.EXTRUDING }
+        val extrudingRecipes = metalFormerLive?.filter { it is ExtrudingRecipe }?.map { r ->
+            MetalFormerExtrudingJeiRecipe(r.ingredient.matchingStacks.toList(), r.output)
+        } ?: MetalFormerRecipeDatagen.allEntries().filter { it.mode == MetalFormerRecipeDatagen.Mode.EXTRUDING }
             .map { entry ->
                 MetalFormerExtrudingJeiRecipe(
                     entry.input.toItemStacks(1),
@@ -391,15 +443,20 @@ class Ic2JeiPlugin : IModPlugin {
             }
         registration.addRecipes(Ic2JeiRecipeTypes.METAL_FORMER_EXTRUDING, extrudingRecipes)
 
-        // SolidCanner 配方
-        val solidCannerRecipes = SolidCannerRecipeDatagen.allEntries()
-            .map { entry ->
-                SolidCannerJeiRecipe(
-                    slot0 = entry.slot0Ingredient.toItemStacks(entry.slot0Count),
-                    slot1 = entry.slot1Ingredient.toItemStacks(entry.slot1Count),
-                    output = ItemStack(entry.outputItem, entry.outputCount)
-                )
-            } + Registries.ITEM.mapNotNull { item ->
+        // SolidCanner 配方：datagen 部分优先从 recipeManager，食物罐头动态配方始终生成
+        val solidCannerRecipes = (liveRecipes<SolidCannerRecipe>()?.map { r ->
+            SolidCannerJeiRecipe(
+                slot0 = r.slot0Ingredient.matchingStacks.map { it.copy().apply { count = r.slot0Count } }.toList(),
+                slot1 = r.slot1Ingredient.matchingStacks.map { it.copy().apply { count = r.slot1Count } }.toList(),
+                output = r.output
+            )
+        } ?: SolidCannerRecipeDatagen.allEntries().map { entry ->
+            SolidCannerJeiRecipe(
+                slot0 = entry.slot0Ingredient.toItemStacks(entry.slot0Count),
+                slot1 = entry.slot1Ingredient.toItemStacks(entry.slot1Count),
+                output = ItemStack(entry.outputItem, entry.outputCount)
+            )
+        }) + Registries.ITEM.mapNotNull { item ->
                 val food = item.foodComponent ?: return@mapNotNull null
                 val canCount = food.hunger.coerceAtLeast(1)
                 SolidCannerJeiRecipe(

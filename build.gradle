@@ -89,6 +89,7 @@ project(':core') {
 	dependencies {
 		[
 			':advanced-solar-addon',
+		    ':industrial-upgrade-addon',
 			// ':advanced-weapons-addon',
 			// ':buildcraft-addon'
 		].each { addonProject ->
@@ -100,6 +101,11 @@ project(':core') {
 	}
 
 	tasks.named('runClient') {
+		classpath = classpath.plus(configurations.addonLocalRuntime)
+	}
+
+	// 同 runClient：让开发服务端也加载本仓库内所有 addon，便于无头验证
+	tasks.named('runServer') {
 		classpath = classpath.plus(configurations.addonLocalRuntime)
 	}
 }

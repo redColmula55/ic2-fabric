@@ -30,10 +30,16 @@ import ic2_120.client.SodiumCompatibilityWarning
 import ic2_120.client.WindMeterClientInitializer
 import ic2_120.client.network.NetworkManager
 import ic2_120.analytics.AnalyticsClientReporter
+import ic2_120.integration.jei.ClientLiveRecipeSource
+import ic2_120.integration.jei.LiveRecipeSource
 import net.fabricmc.api.ClientModInitializer
 
 object Ic2_120Client : ClientModInitializer {
 	override fun onInitializeClient() {
+		// 注入客户端 RecipeManager 提供者，供 JEI plugin 收集运行时实际加载的配方
+		// （与机器判定逻辑同源，覆盖 core + 所有附属命名空间）
+		LiveRecipeSource.instance = ClientLiveRecipeSource
+
 		ModFluidClient.register()
 		ClientScreenRegistrar.registerScreens(Ic2_120.MOD_ID, listOf("ic2_120.client"))
 		ModItemTooltip.register()

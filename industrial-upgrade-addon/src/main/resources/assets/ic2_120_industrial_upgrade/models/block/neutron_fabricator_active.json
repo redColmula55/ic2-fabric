@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "particle": "ic2_120_industrial_upgrade:block/neutron_fabricator_side",
+    "down": "ic2_120_industrial_upgrade:block/neutron_fabricator_side",
+    "up": "ic2_120_industrial_upgrade:block/neutron_fabricator_top_active",
+    "north": "ic2_120_industrial_upgrade:block/neutron_fabricator_side",
+    "east": "ic2_120_industrial_upgrade:block/neutron_fabricator_side",
+    "south": "ic2_120_industrial_upgrade:block/neutron_fabricator_side",
+    "west": "ic2_120_industrial_upgrade:block/neutron_fabricator_side"
+  }
+}

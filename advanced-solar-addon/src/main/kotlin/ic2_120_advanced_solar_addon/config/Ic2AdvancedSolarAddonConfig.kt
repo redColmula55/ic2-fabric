@@ -150,6 +150,72 @@ object Ic2AdvancedSolarAddonConfig {
         return true
     }
 
+    /**
+     * 供附属 mod 追加一条完整的分子重组仪配方到配置文件。
+     *
+     * 若配置中已存在相同 input 的条目（玩家已手动配置或上次已写入），则**不覆盖**，直接返回 false，
+     * 以保留服主的设置。仅当该 input 不存在时，才追加 [inputId]/[outputId]/[energy]/[outputCount] 并落盘。
+     *
+     * 与 [addOrUpdateRecipeEnergy] 的区别：本方法总是写入完整的 input/output/energy/outputCount，
+     * 适用于附属首次注入配方；[addOrUpdateRecipeEnergy] 仅改 energy，对新条目的 output 留空（会被过滤）。
+     *
+     * 注意：本方法只更新配置文件与 [current]，不会触发 [MTRecipes.loadFromConfig]。
+     * 调用方若需让新配方立即在内存配方表中生效，应额外注册扩展配方或手动重载。
+     *
+     * @return true 表示新增了一条配方；false 表示已存在（未改动）或参数非法
+     */
+    fun ensureRecipeExists(inputId: String, outputId: String, energy: Long, outputCount: Int = 1): Boolean {
+        val normalizedInput = inputId.trim()
+        val normalizedOutput = outputId.trim()
+        if (normalizedInput.isEmpty() || normalizedOutput.isEmpty() || energy <= 0) return false
+
+        // 已存在同 input 条目 → 不覆盖（保留服主/已有配置）
+        if (getRecipeByInput(normalizedInput) != null) return false
+
+        val currentRecipes = current.molecularTransformer.recipes.toMutableList()
+        currentRecipes.add(MolecularTransformerRecipeConfig(
+            input = normalizedInput,
+            output = normalizedOutput,
+            energy = energy,
+            outputCount = outputCount.coerceAtLeast(1)
+        ))
+        current = current.copy(
+            molecularTransformer = current.molecularTransformer.copy(
+                recipes = currentRecipes
+            )
+        )
+        saveCurrentConfig()
+        return true
+    }
+
+    /**
+     * 确保配置中存在指定 input 的分子重组仪配方（供附属持久化注入）。
+     *
+     * 附属（如工业升级）在 onInitialize 中调用 [MTRecipes.registerExtensionRecipe] 时会间接调用本方法，
+     * 把其配方写入配置文件，使玩家可见、可编辑、配置重载后不丢失。
+     *
+     * - 若配置中已存在相同 input 的配方（玩家手动添加或历史注入），保留原样（配置优先），返回 false。
+     * - 若不存在，追加完整配方（input/output/energy/outputCount）并保存到磁盘，返回 true。
+     *
+     * 调用时机：必须在 [loadOrThrow] 之后（配置文件已加载/创建）。
+     * 附属通过 fabric.mod.json depends 声明依赖本 mod，保证其 onInitialize 在本 mod 之后执行，
+     * 因此调用本方法时配置文件必定已存在（既有玩家配置，或由 loadOrThrow 刚创建的默认配置）。
+     */
+    fun ensureRecipe(inputId: String, outputId: String, energy: Long, outputCount: Int = 1): Boolean {
+        val normalizedInput = inputId.trim()
+        if (normalizedInput.isEmpty() || outputId.isBlank() || energy <= 0) return false
+        if (current.molecularTransformer.recipes.any { it.input == normalizedInput }) return false
+        val newRecipe = MolecularTransformerRecipeConfig(normalizedInput, outputId, energy, outputCount)
+        current = current.copy(
+            molecularTransformer = current.molecularTransformer.copy(
+                recipes = current.molecularTransformer.recipes + newRecipe
+            )
+        )
+        saveCurrentConfig()
+        logger.info("Injected extension MT recipe into config: {} -> {} ({} EU)", normalizedInput, outputId, energy)
+        return true
+    }
+
     fun removeRecipe(inputId: String): Boolean {
         val normalizedId = inputId.trim()
         if (normalizedId.isEmpty()) return false
