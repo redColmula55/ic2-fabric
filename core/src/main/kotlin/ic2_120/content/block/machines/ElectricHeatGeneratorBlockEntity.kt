@@ -194,9 +194,12 @@ class ElectricHeatGeneratorBlockEntity(
         markDirty()
     }
 
+    /** 当前安装的线圈数量。 */
+    fun getCoilCount(): Int = inventory.count { !it.isEmpty && it.item == coilItem }
+
     override fun generateHeat(world: World, pos: BlockPos, state: BlockState): Long {
         val redstoneAllowsRun = RedstoneControlComponent.canRun(world, pos, this)
-        val coilCount = inventory.count { !it.isEmpty && it.item == coilItem }
+        val coilCount = getCoilCount()
         val maxHuPerTick = coilCount * HU_PER_COIL_PER_TICK
 
         var generatedThisTick = 0L

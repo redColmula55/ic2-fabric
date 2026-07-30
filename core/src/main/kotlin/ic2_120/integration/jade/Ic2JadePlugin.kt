@@ -8,6 +8,7 @@ import ic2_120.content.block.CropStickBlock
 import ic2_120.content.block.CropStickBlockEntity
 import ic2_120.content.block.UvLampBlock
 import ic2_120.content.block.machines.UvLampBlockEntity
+import ic2_120.content.block.machines.ElectricHeatGeneratorBlockEntity
 import ic2_120.content.block.RubberSaplingBlock
 import ic2_120.content.worldgen.RubberSaplingGrowth
 import ic2_120.content.block.RubberLogBlock
@@ -18,6 +19,7 @@ import ic2_120.content.block.AnimalmatronBlock
 import ic2_120.content.block.machines.AnimalmatronBlockEntity
 import ic2_120.content.block.TeleporterBlock
 import ic2_120.content.block.machines.TeleporterBlockEntity
+import ic2_120.content.block.ElectricHeatGeneratorBlock
 import ic2_120.content.block.KineticGeneratorBlock
 import ic2_120.content.block.WindKineticGeneratorBlock
 import ic2_120.content.block.WaterKineticGeneratorBlock
@@ -92,6 +94,7 @@ class Ic2JadePlugin : snownee.jade.api.IWailaPlugin {
         registration.registerBlockDataProvider(KineticJadeProvider, LeashKineticGeneratorBlockEntity::class.java)
         registration.registerBlockDataProvider(KineticJadeProvider, KineticGeneratorBlockEntity::class.java)
         registration.registerBlockDataProvider(TeleporterJadeProvider, TeleporterBlockEntity::class.java)
+        registration.registerBlockDataProvider(ElectricHeatGeneratorJadeProvider, ElectricHeatGeneratorBlockEntity::class.java)
         registration.registerBlockDataProvider(RubberLogJadeProvider, RubberLogBlockEntity::class.java)
         registration.registerEntityDataProvider(AnimalJadeProvider, PassiveEntity::class.java)
         registration.registerBlockDataProvider(MachineClaimJadeProvider, BlockEntity::class.java)
@@ -109,6 +112,7 @@ class Ic2JadePlugin : snownee.jade.api.IWailaPlugin {
         registration.registerBlockComponent(KineticJadeProvider, ManualKineticGeneratorBlock::class.java)
         registration.registerBlockComponent(KineticJadeProvider, KineticGeneratorBlock::class.java)
         registration.registerBlockComponent(TeleporterJadeProvider, TeleporterBlock::class.java)
+        registration.registerBlockComponent(ElectricHeatGeneratorJadeProvider, ElectricHeatGeneratorBlock::class.java)
         registration.registerBlockComponent(RubberSaplingJadeProvider, RubberSaplingBlock::class.java)
         registration.registerBlockComponent(RubberLogJadeProvider, RubberLogBlock::class.java)
         registration.registerBlockComponent(ScaffoldJadeProvider, Ic2ScaffoldBlock::class.java)

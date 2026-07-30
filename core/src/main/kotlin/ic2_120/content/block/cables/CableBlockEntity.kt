@@ -54,6 +54,12 @@ class CableBlockEntity(pos: BlockPos, state: BlockState) : BlockEntity(TYPE, pos
     /** 导线当前负载（本 tick 内已传输的能量），仅用于 Jade 显示。不影响实际能量传输逻辑。 */
     var cableLoad: Long by FilteredValue(20)
 
+    override fun setWorld(world: World) {
+        super.setWorld(world)
+        if (!world.isClient) {
+            EnergyNetworkManager.queueNetworkBuild(world, pos)
+        }
+    }
 
     /** 对外暴露的 [EnergyStorage]，insert/extract 均委托给电网池。 */
     val energyStorage: EnergyStorage = object : EnergyStorage {

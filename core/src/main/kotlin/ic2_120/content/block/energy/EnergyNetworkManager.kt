@@ -19,6 +19,18 @@ object EnergyNetworkManager {
 
     private val logger = LoggerFactory.getLogger("ic2_120/EnergyNetworkManager")
     private val worldPosToNetwork = mutableMapOf<RegistryKey<World>, MutableMap<Long, EnergyNetwork>>()
+    private val pendingBuilds = mutableMapOf<RegistryKey<World>, MutableSet<Long>>()
+
+    /**
+     * Register a loaded or newly placed cable for lazy network construction.
+     *
+     * Cable block entities no longer have individual tickers, so network
+     * construction must be bootstrapped explicitly instead of relying on the
+     * first cable tick.
+     */
+    fun queueNetworkBuild(world: World, pos: BlockPos) {
+        pendingBuilds.getOrPut(world.registryKey) { mutableSetOf() }.add(pos.asLong())
+    }
 
     /**
      * Tick each distinct network once per world.  Cable block entities used to
@@ -27,6 +39,13 @@ object EnergyNetworkManager {
      * the actual work internally.
      */
     fun tickAll(world: World) {
+        pendingBuilds.remove(world.registryKey)?.forEach { posLong ->
+            val pos = BlockPos.fromLong(posLong)
+            if (world.getBlockState(pos).block is BaseCableBlock) {
+                getOrCreateNetwork(world, pos)
+            }
+        }
+
         val networks = worldPosToNetwork[world.registryKey]?.values?.toSet() ?: return
         for (network in networks) network.tickIfNeeded(world)
     }
@@ -114,7 +133,11 @@ object EnergyNetworkManager {
         distributeEnergyToEntities(world, network)
         for (cablePosLong in network.cables) {
             posToNetwork.remove(cablePosLong)
-            (world.getBlockEntity(BlockPos.fromLong(cablePosLong)) as? CableBlockEntity)?.network = null
+            val cablePos = BlockPos.fromLong(cablePosLong)
+            (world.getBlockEntity(cablePos) as? CableBlockEntity)?.network = null
+            if (cablePos != pos && world.getBlockState(cablePos).block is BaseCableBlock) {
+                queueNetworkBuild(world, cablePos)
+            }
         }
     }
 
@@ -142,5 +165,6 @@ object EnergyNetworkManager {
     /** 世界卸载时仅清理该维度缓存，避免误伤其他维度电网。 */
     fun onWorldUnload(world: World) {
         worldPosToNetwork.remove(world.registryKey)
+        pendingBuilds.remove(world.registryKey)
     }
 }

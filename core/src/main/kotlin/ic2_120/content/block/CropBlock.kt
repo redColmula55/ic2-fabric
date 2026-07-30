@@ -34,13 +34,13 @@ import net.minecraft.block.BlockState
 import net.minecraft.block.BlockRenderType
 import net.minecraft.block.BlockWithEntity
 import net.minecraft.block.Blocks
+import net.minecraft.block.FarmlandBlock
 import net.minecraft.block.entity.BlockEntity
 import net.minecraft.block.entity.BlockEntityTicker
 import net.minecraft.block.entity.BlockEntityType
 import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
-import net.minecraft.world.LightType
 import net.minecraft.state.StateManager
 import net.minecraft.state.property.EnumProperty
 import net.minecraft.state.property.IntProperty
@@ -57,6 +57,7 @@ import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Direction
 import net.minecraft.util.math.Box
 import net.minecraft.world.World
+import net.minecraft.world.WorldAccess
 import net.minecraft.nbt.NbtCompound
 import net.minecraft.server.world.ServerWorld
 
@@ -181,6 +182,58 @@ class CropBlock : BlockWithEntity(
             }
         }
         super.onBreak(world, pos, state, player)
+    }
+
+    /**
+     * 支撑检查：作物只能生长在农田上方。
+     * 与 CropStickBlock 保持一致，下方农田消失时作物自毁。
+     */
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun canPlaceAt(state: BlockState, world: net.minecraft.world.WorldView, pos: BlockPos): Boolean {
+        return world.getBlockState(pos.down()).block is FarmlandBlock
+    }
+
+    /**
+     * 邻居更新：下方农田消失时掉落作物架 + 种子袋（对齐原版 IC2 crop tile 整体掉落行为），
+     * 然后变为空气。注意此时没有玩家上下文，走与 [onBreak] 相同的掉落表。
+     */
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun getStateForNeighborUpdate(
+        state: BlockState,
+        direction: Direction,
+        neighborState: BlockState,
+        world: WorldAccess,
+        pos: BlockPos,
+        neighborPos: BlockPos
+    ): BlockState {
+        if (direction == Direction.DOWN && !canPlaceAt(state, world, pos)) {
+            dropContentsOnCollapse(world, pos, state)
+            return Blocks.AIR.defaultState
+        }
+        return super.getStateForNeighborUpdate(state, direction, neighborState, world, pos, neighborPos)
+    }
+
+    /**
+     * 支撑失效（非玩家破坏）时的掉落：作物架 + 种子袋。
+     * 与 [onBreak] 的掉落表一致，但不依赖玩家。
+     */
+    private fun dropContentsOnCollapse(world: WorldAccess, pos: BlockPos, state: BlockState) {
+        val serverWorld = world as? ServerWorld ?: return
+        val be = serverWorld.getBlockEntity(pos) as? CropBlockEntity ?: return
+        val cropType = state.get(CROP_TYPE)
+        val dx = pos.x.toDouble()
+        val dy = pos.y.toDouble()
+        val dz = pos.z.toDouble()
+        if (cropType == CropType.WEED) {
+            // 杂草塌陷不掉落（与原版一致：杂草无产物）
+        } else {
+            val seedCount = be.calculateSeedDropCount(serverWorld, state)
+            repeat(seedCount) {
+                val seedBag = CropSeedBagItem.createStack(cropType, be.stats, scanLevel = be.scanLevel)
+                ItemScatterer.spawn(serverWorld, dx, dy, dz, seedBag)
+            }
+        }
+        ItemScatterer.spawn(serverWorld, dx, dy, dz, CropStickBlock::class.instance().asItem().defaultStack)
     }
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
@@ -602,8 +655,9 @@ class CropBlockEntity(
                 if (storageNutrients < 3) issues.add(RequirementIssue("nutrients_low_3", arrayOf(storageNutrients)))
             }
             CropType.RED_WHEAT -> {
-                val redstonePower = world.getReceivedRedstonePower(pos)
-                if (redstonePower !in 5..10) issues.add(RequirementIssue("redstone_out_of_range", arrayOf(redstonePower)))
+                // 原版要求光照 5~10（半阴环境）
+                val light = world.getLightLevel(pos.up())
+                if (light !in 5..10) issues.add(RequirementIssue("red_wheat_light_out_of_range", arrayOf(light)))
             }
             CropType.VENOMILIA -> {
                 if (age <= 3 && light < 12) issues.add(RequirementIssue("light_low_12", arrayOf(light)))
@@ -655,8 +709,9 @@ class CropBlockEntity(
             CropType.DANDELION, CropType.POPPY, CropType.BLACKTHORN, CropType.TULIP, CropType.CYAZINT -> light >= 12
             CropType.COCOA -> storageNutrients >= 3
             CropType.RED_WHEAT -> {
-                val redstonePower = world.getReceivedRedstonePower(pos)
-                redstonePower in 5..10
+                // 原版 CropRedWheat.canGrow: size < max && lightLevel ∈ [5, 10]
+                val light = world.getLightLevel(pos.up())
+                light in 5..10
             }
             CropType.VENOMILIA -> (age <= 3 && light >= 12) || age == 4
             CropType.FERRU -> age < max - 1 || (age == max - 1 && hasMetalRoot(world, pos, METAL_IRON))
@@ -719,6 +774,11 @@ class CropBlockEntity(
         }
     }
 
+    /** 原版 CropRedWheat.getGain 判定：作物位置是否有任意方向的强充能（如红石火把/中继器/比较器直接驱动）。 */
+    private fun hasNeighborStrongRedstone(world: World, pos: BlockPos): Boolean {
+        return world.getReceivedStrongRedstonePower(pos) > 0
+    }
+
     private fun createGainStacks(cropType: CropType, age: Int, world: World): List<ItemStack> {
         return when (cropType) {
             CropType.DANDELION -> listOf(ItemStack(Items.YELLOW_DYE, 1))
@@ -754,9 +814,10 @@ class CropBlockEntity(
                 else emptyList()
             }
             CropType.RED_WHEAT -> {
-                val sky = world.getLightLevel(LightType.SKY, pos)
-                if (sky <= 0 && !world.random.nextBoolean()) listOf(ItemStack(Items.WHEAT, 1))
-                else listOf(ItemStack(Items.REDSTONE, 1))
+                // 原版 CropRedWheat.getGain: 邻居有强充能方块 → 必出红石；否则 50% 红石 / 50% 小麦
+                val hasStrongPower = hasNeighborStrongRedstone(world, pos)
+                if (hasStrongPower || world.random.nextBoolean()) listOf(ItemStack(Items.REDSTONE, 1))
+                else listOf(ItemStack(Items.WHEAT, 1))
             }
             CropType.EATING_PLANT -> listOf(ItemStack(Items.MELON, 1))
             CropType.TERRA_WART -> listOf(ItemStack(TerraWart::class.instance(), 1))

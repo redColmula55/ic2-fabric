@@ -155,6 +155,8 @@ object UuReplicationDefaults {
         "ic2_120:tin_ore" to 1360,
         "ic2_120:deepslate_tin_ore" to 1632,
         "ic2_120:raw_tin" to 680,
+        // 锡锭 = raw_tin 1:1 冶炼，无损耗（补遗漏：锭应与粗矿同价，参照铁/铜/金）
+        "ic2_120:tin_ingot" to 680,
         "ic2_120:lead_ore" to 9182,
         "ic2_120:deepslate_lead_ore" to 11018,
         "ic2_120:raw_lead" to 4591,
@@ -168,6 +170,11 @@ object UuReplicationDefaults {
         // 钢锭 = 10,000 uB（10 mB）；钢块 = 9 × 钢锭
         "ic2_120:steel_ingot" to 10000,
         "ic2_120:steel_block" to 90000,
+        // 青铜锭：4 锭 = 3 铜 + 1 锡，单锭成本 = (3×copper_ingot 500 + tin_ingot 680) ÷ 4 = 545；
+        // 作为成品单独复制时加 50% 加工损耗 → 545 × 1.5 = 817.5 → 取整 818
+        "ic2_120:bronze_ingot" to 818,
+        // 青铜块 = 9 × 青铜锭（纯 9 倍，块不再叠加损耗，参照 netherite/amethyst/coal 惯例）
+        "ic2_120:bronze_block" to 7362,
         // 9 钢 + 9 青铜 + 9 锡 -> 2 混合金属锭 -> 1 高级合金；原料总价 × 1.5，取整
         "ic2_120:alloy" to 75769,
 

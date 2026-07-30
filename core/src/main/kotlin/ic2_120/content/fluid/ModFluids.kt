@@ -204,9 +204,41 @@ object ModFluids {
         }
     }
 
-    private fun registerFluid(name: String, stillTex: String, flowTex: String, tintArgb: Int? = null, withBucket: Boolean = true, rises: Boolean = false) {
-        val modId = Ic2_120.MOD_ID
+    /**
+     * 注册结果：包含新注册流体的 block 与 bucket 引用。
+     * 供附属通过 [registerFluidFor] 获取返回值。
+     */
+    data class RegisteredFluid(
+        val still: FlowableFluid,
+        val flowing: FlowableFluid,
+        val block: Block,
+        val bucket: Item
+    )
 
+    /**
+     * 为任意附属 modId 注册一套流体（Still + Flowing + FluidBlock + Bucket）。
+     *
+     * 贴图路径约定：`<modId>:block/fluid/<stillTex>`、`<modId>:block/fluid/<flowTex>`
+     * （与 core 自身注册一致，modId 替换 core 的 ic2 命名空间）。
+     *
+     * @param modId 附属 mod id（决定流体/方块/物品的注册命名空间与贴图命名空间）
+     * @param name 流体名（注册为 `<modId>:<name>` 与 `<modId>:flowing_<name>`）
+     * @param stillTex 静止贴图名（不含扩展名，路径为 `<modId>:block/fluid/<stillTex>`）
+     * @param flowTex 流动贴图名
+     * @param tintArgb 可选的 ARGB 着色值
+     * @param withBucket 是否注册桶物品
+     * @param rises 是否为上升流体（如蒸汽）
+     * @return 注册结果（含 block 与 bucket 引用）
+     */
+    fun registerFluidFor(
+        modId: String,
+        name: String,
+        stillTex: String,
+        flowTex: String,
+        tintArgb: Int? = null,
+        withBucket: Boolean = true,
+        rises: Boolean = false
+    ): RegisteredFluid {
         // 1. 注册 Still 和 Flowing 流体
         val still = Registry.register(
             Registries.FLUID,
@@ -223,13 +255,12 @@ object ModFluids {
         Ic2Fluid.stillFluidMap[name] = still
         Ic2Fluid.flowingFluidMap[name] = flowing
 
-        // 存储 tint 颜色（服务端安全）
         if (tintArgb != null) {
             fluidTintColors[still] = tintArgb
             fluidTintColors[flowing] = tintArgb
         }
 
-        // 2. 注册 FluidBlock（蒸汽等上升流体使用 SteamFluidBlock 控制生命周期）
+        // 2. 注册 FluidBlock
         val block = Registry.register(
             Registries.BLOCK,
             Identifier(modId, name),
@@ -240,31 +271,47 @@ object ModFluids {
             }
         )
 
-        // 3. 注册 Bucket（可选，蒸汽等不能装桶的流体跳过）
-        val bucket: Item
-        if (withBucket) {
-            // 使用自定义 Ic2BucketItem 确保与第三方 Storage 正确交互，避免事务冲突崩溃
+        // 3. 注册 Bucket（可选）
+        val bucket: Item = if (withBucket) {
+            // 蒸馏水放置时转为普通水（仅 core 自身使用此约定；附属传 modId 时不触发）
+            val placeOverride = if (modId == Ic2_120.MOD_ID && name == "distilled_water") Fluids.WATER else null
             val bucketItem = Ic2BucketItem(
                 still,
-                if (name == "distilled_water") Fluids.WATER else null, // 蒸馏水放置时转为普通水
+                placeOverride,
                 FabricItemSettings().recipeRemainder(Items.BUCKET).maxCount(1)
             )
-            bucket = Registry.register(
+            val b = Registry.register(
                 Registries.ITEM,
                 Identifier(modId, "${name}_bucket"),
                 bucketItem
             )
+            b
+        } else {
+            Items.AIR
+        }
 
-            // 添加到创造模式物品栏
+        // 4. 填充 block/bucket 查找表
+        Ic2Fluid.blockMap[name] = block
+        Ic2Fluid.bucketMap[name] = bucket
+
+        return RegisteredFluid(still, flowing, block, bucket)
+    }
+
+    private fun registerFluid(name: String, stillTex: String, flowTex: String, tintArgb: Int? = null, withBucket: Boolean = true, rises: Boolean = false): RegisteredFluid {
+        val modId = Ic2_120.MOD_ID
+        val result = registerFluidFor(modId, name, stillTex, flowTex, tintArgb, withBucket, rises)
+        val block = result.block
+        val bucket = result.bucket
+
+        // core 专属：把流体桶加入 IC2 材料创造栏
+        if (withBucket && bucket !== Items.AIR) {
             val ic2MaterialsKey = RegistryKey.of(RegistryKeys.ITEM_GROUP, Identifier(modId, CreativeTab.IC2_MATERIALS.id))
             ItemGroupEvents.modifyEntriesEvent(ic2MaterialsKey).register { entries ->
                 entries.add(bucket)
             }
-        } else {
-            bucket = Items.AIR
         }
 
-        // 4. 设置流体类的 block 和 bucket 引用（通过反射或延迟初始化）
+        // core 专属：把 block/bucket 赋值给模块级 lateinit 字段，供机器配方/模型引用
         when (name) {
             "coolant" -> {
                 COOLANT_BLOCK = block
@@ -320,9 +367,7 @@ object ModFluids {
             }
         }
 
-        // 5. 填充 block/bucket 查找表
-        Ic2Fluid.blockMap[name] = block
-        Ic2Fluid.bucketMap[name] = bucket
+        return result
     }
 
     /** 蒸汽世界方块：流体 tick 负责扩散，方块 tick 负责独立、可持久化的生命周期。 */
@@ -398,11 +443,11 @@ object ModFluids {
     ) : FlowableFluid() {
 
         companion object {
-            /** 注册名 → Still/Flowing/Block/Bucket 查找表。由 registerFluid() 自动填充，替代 getStill/getFlowing/getBlock/getIc2Bucket 中的 when。 */
-            internal val stillFluidMap = mutableMapOf<String, Fluid>()
-            internal val flowingFluidMap = mutableMapOf<String, Fluid>()
-            internal val blockMap = mutableMapOf<String, Block>()
-            internal val bucketMap = mutableMapOf<String, Item>()
+            /** 注册名 → Still/Flowing/Block/Bucket 查找表。由 registerFluid()/registerFluidFor() 自动填充，替代 getStill/getFlowing/getBlock/getIc2Bucket 中的 when。 */
+            val stillFluidMap = mutableMapOf<String, Fluid>()
+            val flowingFluidMap = mutableMapOf<String, Fluid>()
+            val blockMap = mutableMapOf<String, Block>()
+            val bucketMap = mutableMapOf<String, Item>()
         }
 
         override fun getStill(): Fluid = getStillFluid()

@@ -1180,6 +1180,13 @@
   "ic2_120.jade.teleporter.check.energy_insufficient": "Energy Insufficient (%s)",
   "ic2_120.jade.teleporter.check.energy_sufficient": "Energy Sufficient (%s)",
 
+  "ic2_120.jade.electric_heat.buffer": "Buffer: %s / %s EU",
+  "ic2_120.jade.electric_heat.generating": "Generating: %s HU/t",
+  "ic2_120.jade.electric_heat.coils": "Coils: %s",
+  "ic2_120.jade.electric_heat.running": "Status: Running",
+  "ic2_120.jade.electric_heat.stopped_no_signal": "Status: Stopped (No Redstone Signal)",
+  "ic2_120.jade.electric_heat.stopped_inverted": "Status: Stopped (Redstone Signal in Inverted Mode)",
+
   "key.ic2_120.toggle_speed": "Speed Boost",
   "key.ic2_120.toggle_jump": "Jump Boost",
 

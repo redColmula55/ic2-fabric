@@ -89,43 +89,47 @@ object CropSystem {
             put(type, CropDefinition(type, maxAge, tier, props, attrs, seeds, gain, behavior))
         }
 
-        add(CropType.WHEAT, 7, 1, intArrayOf(0, 2, 0, 0, 0), listOf("yellow", "food", "wheat"), listOf(Items.WHEAT_SEEDS), Items.WHEAT)
-        add(CropType.WEED, 4, 0, intArrayOf(3, 0, 0, 0, 0), listOf("weed", "aggressive"), behavior = CropBehavior.AGGRESSIVE)
-        add(CropType.PUMPKIN, 3, 2, intArrayOf(0, 2, 0, 1, 0), listOf("orange", "food", "stem"), listOf(Items.PUMPKIN_SEEDS), Items.PUMPKIN)
-        add(CropType.MELON, 3, 2, intArrayOf(0, 2, 0, 1, 0), listOf("green", "food", "stem"), listOf(Items.MELON_SEEDS), Items.MELON_SLICE)
-        add(CropType.DANDELION, 3, 1, intArrayOf(1, 0, 0, 2, 0), listOf("yellow", "flower"), listOf(Items.DANDELION), Items.DANDELION)
-        add(CropType.POPPY, 3, 1, intArrayOf(1, 0, 0, 2, 0), listOf("red", "flower"), listOf(Items.POPPY), Items.POPPY)
-        add(CropType.BLACKTHORN, 3, 2, intArrayOf(2, 0, 1, 2, 1), listOf("black", "flower"))
-        add(CropType.TULIP, 3, 2, intArrayOf(2, 0, 0, 2, 0), listOf("purple", "flower"), listOf(Items.ALLIUM))
-        add(CropType.CYAZINT, 3, 3, intArrayOf(2, 0, 0, 2, 1), listOf("blue", "flower"))
-        add(CropType.VENOMILIA, 5, 4, intArrayOf(2, 1, 3, 1, 2), listOf("purple", "poison", "flower"), behavior = CropBehavior.POISONOUS)
-        add(CropType.REED, 2, 1, intArrayOf(0, 1, 0, 0, 1), listOf("green", "reed"), listOf(Items.SUGAR_CANE), Items.SUGAR_CANE, behavior = CropBehavior.HIGH_HYDRATION)
-        add(CropType.STICKY_REED, 3, 4, intArrayOf(0, 1, 1, 0, 2), listOf("green", "reed", "resin"), behavior = CropBehavior.HIGH_HYDRATION)
-        add(CropType.COCOA, 3, 2, intArrayOf(1, 2, 0, 1, 1), listOf("brown", "food", "bean"), listOf(Items.COCOA_BEANS), Items.COCOA_BEANS)
-        add(CropType.FLAX, 3, 3, intArrayOf(0, 1, 0, 1, 0), listOf("fiber", "crop"))
-        add(CropType.RED_MUSHROOM, 2, 2, intArrayOf(2, 1, 0, 1, 1), listOf("red", "mushroom"), listOf(Items.RED_MUSHROOM), Items.RED_MUSHROOM, behavior = CropBehavior.DARKNESS_LOVING)
-        add(CropType.BROWN_MUSHROOM, 2, 2, intArrayOf(2, 1, 0, 1, 1), listOf("brown", "mushroom"), listOf(Items.BROWN_MUSHROOM), Items.BROWN_MUSHROOM, behavior = CropBehavior.DARKNESS_LOVING)
-        add(CropType.NETHER_WART, 2, 2, intArrayOf(2, 1, 0, 1, 2), listOf("nether", "wart"), listOf(Items.NETHER_WART), Items.NETHER_WART, behavior = CropBehavior.DARKNESS_LOVING)
-        add(CropType.TERRA_WART, 2, 3, intArrayOf(1, 1, 0, 1, 2), listOf("terra", "wart"), behavior = CropBehavior.DARKNESS_LOVING)
-        add(CropType.OAK_SAPLING, 4, 2, intArrayOf(1, 0, 0, 0, 1), listOf("tree", "oak"), listOf(Items.OAK_SAPLING), Items.OAK_SAPLING)
-        add(CropType.SPRUCE_SAPLING, 4, 2, intArrayOf(1, 0, 0, 0, 1), listOf("tree", "spruce"), listOf(Items.SPRUCE_SAPLING), Items.SPRUCE_SAPLING)
-        add(CropType.BIRCH_SAPLING, 4, 2, intArrayOf(1, 0, 0, 0, 1), listOf("tree", "birch"), listOf(Items.BIRCH_SAPLING), Items.BIRCH_SAPLING)
-        add(CropType.JUNGLE_SAPLING, 4, 2, intArrayOf(1, 0, 0, 0, 1), listOf("tree", "jungle"), listOf(Items.JUNGLE_SAPLING), Items.JUNGLE_SAPLING)
-        add(CropType.ACACIA_SAPLING, 4, 2, intArrayOf(1, 0, 0, 0, 1), listOf("tree", "acacia"), listOf(Items.ACACIA_SAPLING), Items.ACACIA_SAPLING)
-        add(CropType.DARK_OAK_SAPLING, 4, 2, intArrayOf(1, 0, 0, 0, 1), listOf("tree", "dark_oak"), listOf(Items.DARK_OAK_SAPLING), Items.DARK_OAK_SAPLING)
-        add(CropType.FERRU, 3, 4, intArrayOf(0, 0, 2, 2, 2), listOf("metal", "gray"), behavior = CropBehavior.METAL_CROP)
-        add(CropType.CYPRIUM, 3, 4, intArrayOf(0, 0, 2, 2, 2), listOf("metal", "copper"), behavior = CropBehavior.METAL_CROP)
-        add(CropType.STAGNIUM, 3, 4, intArrayOf(0, 0, 2, 2, 2), listOf("metal", "tin"), behavior = CropBehavior.METAL_CROP)
-        add(CropType.PLUMBISCUS, 3, 4, intArrayOf(0, 0, 2, 2, 2), listOf("metal", "lead"), behavior = CropBehavior.METAL_CROP)
-        add(CropType.AURELIA, 4, 5, intArrayOf(0, 0, 3, 2, 3), listOf("metal", "gold"), behavior = CropBehavior.METAL_CROP)
-        add(CropType.SHINING, 4, 5, intArrayOf(0, 0, 3, 2, 3), listOf("metal", "silver"), behavior = CropBehavior.METAL_CROP)
-        add(CropType.RED_WHEAT, 6, 4, intArrayOf(1, 2, 1, 1, 2), listOf("red", "wheat"))
-        add(CropType.COFFEE, 4, 3, intArrayOf(1, 2, 0, 1, 1), listOf("coffee", "bean"), listOf(), Items.COCOA_BEANS)
-        add(CropType.HOPS, 6, 3, intArrayOf(1, 2, 0, 1, 1), listOf("hops", "plant"))
-        add(CropType.CARROTS, 3, 1, intArrayOf(0, 2, 0, 1, 0), listOf("orange", "food"), listOf(Items.CARROT), Items.CARROT)
-        add(CropType.POTATO, 3, 1, intArrayOf(0, 2, 0, 1, 0), listOf("brown", "food"), listOf(Items.POTATO), Items.POTATO)
-        add(CropType.EATING_PLANT, 5, 5, intArrayOf(3, 2, 3, 1, 2), listOf("hostile", "plant"), behavior = CropBehavior.POISONOUS)
-        add(CropType.BEETROOTS, 3, 1, intArrayOf(0, 2, 0, 1, 0), listOf("red", "food"), listOf(Items.BEETROOT_SEEDS), Items.BEETROOT)
+        // tier 与 properties 数组对齐原版 IC2 (CropProperties(tier, chem, consum, def, color, weed))。
+        // properties 数组顺序 = [chemistry, consumable, defensive, colorful, weed]，仅用于 calculateRatioFor 杂交亲和度。
+        // maxAge 保持 fabric age 体系（0..N，N+1 张贴图），不等于原版 maxSize。
+        add(CropType.WHEAT, 7, 1, intArrayOf(0, 4, 0, 0, 2), listOf("yellow", "food", "wheat"), listOf(Items.WHEAT_SEEDS), Items.WHEAT)
+        add(CropType.WEED, 4, 0, intArrayOf(0, 0, 1, 0, 5), listOf("weed", "aggressive"), behavior = CropBehavior.AGGRESSIVE)
+        add(CropType.PUMPKIN, 3, 1, intArrayOf(0, 1, 0, 3, 1), listOf("orange", "food", "stem"), listOf(Items.PUMPKIN_SEEDS), Items.PUMPKIN)
+        add(CropType.MELON, 3, 2, intArrayOf(0, 4, 0, 2, 0), listOf("green", "food", "stem"), listOf(Items.MELON_SEEDS), Items.MELON_SLICE)
+        add(CropType.DANDELION, 3, 2, intArrayOf(1, 1, 0, 5, 1), listOf("yellow", "flower"), listOf(Items.DANDELION), Items.DANDELION)
+        add(CropType.POPPY, 3, 2, intArrayOf(1, 1, 0, 5, 1), listOf("red", "flower"), listOf(Items.POPPY), Items.POPPY)
+        add(CropType.BLACKTHORN, 3, 2, intArrayOf(1, 1, 0, 5, 1), listOf("black", "flower"))
+        add(CropType.TULIP, 3, 2, intArrayOf(1, 1, 0, 5, 1), listOf("purple", "flower"), listOf(Items.ALLIUM))
+        add(CropType.CYAZINT, 3, 2, intArrayOf(1, 1, 0, 5, 1), listOf("blue", "flower"))
+        add(CropType.VENOMILIA, 5, 3, intArrayOf(3, 1, 3, 3, 3), listOf("purple", "poison", "flower"), behavior = CropBehavior.POISONOUS)
+        add(CropType.REED, 2, 2, intArrayOf(0, 0, 1, 0, 2), listOf("green", "reed"), listOf(Items.SUGAR_CANE), Items.SUGAR_CANE, behavior = CropBehavior.HIGH_HYDRATION)
+        add(CropType.STICKY_REED, 3, 4, intArrayOf(2, 0, 1, 0, 1), listOf("green", "reed", "resin"), behavior = CropBehavior.HIGH_HYDRATION)
+        add(CropType.COCOA, 3, 3, intArrayOf(1, 3, 0, 4, 0), listOf("brown", "food", "bean"), listOf(Items.COCOA_BEANS), Items.COCOA_BEANS)
+        add(CropType.FLAX, 3, 2, intArrayOf(1, 1, 2, 0, 1), listOf("fiber", "crop"))
+        add(CropType.RED_MUSHROOM, 2, 2, intArrayOf(0, 4, 0, 0, 4), listOf("red", "mushroom"), listOf(Items.RED_MUSHROOM), Items.RED_MUSHROOM, behavior = CropBehavior.DARKNESS_LOVING)
+        add(CropType.BROWN_MUSHROOM, 2, 2, intArrayOf(0, 4, 0, 0, 4), listOf("brown", "mushroom"), listOf(Items.BROWN_MUSHROOM), Items.BROWN_MUSHROOM, behavior = CropBehavior.DARKNESS_LOVING)
+        add(CropType.NETHER_WART, 2, 5, intArrayOf(4, 2, 0, 2, 1), listOf("nether", "wart"), listOf(Items.NETHER_WART), Items.NETHER_WART, behavior = CropBehavior.DARKNESS_LOVING)
+        add(CropType.TERRA_WART, 2, 5, intArrayOf(2, 4, 0, 3, 0), listOf("terra", "wart"), behavior = CropBehavior.DARKNESS_LOVING)
+        add(CropType.OAK_SAPLING, 4, 3, intArrayOf(1, 0, 4, 4, 0), listOf("tree", "oak"), listOf(Items.OAK_SAPLING), Items.OAK_SAPLING)
+        add(CropType.SPRUCE_SAPLING, 4, 3, intArrayOf(1, 0, 4, 4, 0), listOf("tree", "spruce"), listOf(Items.SPRUCE_SAPLING), Items.SPRUCE_SAPLING)
+        add(CropType.BIRCH_SAPLING, 4, 3, intArrayOf(1, 0, 4, 4, 0), listOf("tree", "birch"), listOf(Items.BIRCH_SAPLING), Items.BIRCH_SAPLING)
+        add(CropType.JUNGLE_SAPLING, 4, 3, intArrayOf(1, 0, 4, 4, 0), listOf("tree", "jungle"), listOf(Items.JUNGLE_SAPLING), Items.JUNGLE_SAPLING)
+        add(CropType.ACACIA_SAPLING, 4, 3, intArrayOf(1, 0, 4, 4, 0), listOf("tree", "acacia"), listOf(Items.ACACIA_SAPLING), Items.ACACIA_SAPLING)
+        add(CropType.DARK_OAK_SAPLING, 4, 3, intArrayOf(1, 0, 4, 4, 0), listOf("tree", "dark_oak"), listOf(Items.DARK_OAK_SAPLING), Items.DARK_OAK_SAPLING)
+        add(CropType.FERRU, 3, 6, intArrayOf(2, 0, 0, 1, 0), listOf("metal", "gray"), behavior = CropBehavior.METAL_CROP)
+        add(CropType.CYPRIUM, 3, 6, intArrayOf(2, 0, 0, 1, 0), listOf("metal", "copper"), behavior = CropBehavior.METAL_CROP)
+        add(CropType.STAGNIUM, 3, 6, intArrayOf(2, 0, 0, 1, 0), listOf("metal", "tin"), behavior = CropBehavior.METAL_CROP)
+        add(CropType.PLUMBISCUS, 3, 6, intArrayOf(2, 0, 0, 1, 0), listOf("metal", "lead"), behavior = CropBehavior.METAL_CROP)
+        add(CropType.AURELIA, 4, 6, intArrayOf(2, 0, 0, 2, 0), listOf("metal", "gold"), behavior = CropBehavior.METAL_CROP)
+        add(CropType.SHINING, 4, 6, intArrayOf(2, 0, 0, 2, 0), listOf("metal", "silver"), behavior = CropBehavior.METAL_CROP)
+        // 原版 CropRedWheat: CropProperties(6, 3, 0, 0, 2, 0)
+        add(CropType.RED_WHEAT, 6, 6, intArrayOf(3, 0, 0, 2, 0), listOf("red", "redstone", "wheat"))
+        add(CropType.COFFEE, 4, 7, intArrayOf(1, 4, 1, 2, 0), listOf("coffee", "bean"), listOf(), Items.COCOA_BEANS)
+        add(CropType.HOPS, 6, 5, intArrayOf(2, 2, 0, 1, 1), listOf("hops", "plant"))
+        add(CropType.CARROTS, 3, 2, intArrayOf(0, 4, 0, 0, 2), listOf("orange", "food"), listOf(Items.CARROT), Items.CARROT)
+        add(CropType.POTATO, 3, 2, intArrayOf(0, 4, 0, 0, 2), listOf("brown", "food"), listOf(Items.POTATO), Items.POTATO)
+        add(CropType.EATING_PLANT, 5, 6, intArrayOf(1, 1, 3, 1, 4), listOf("hostile", "plant"), behavior = CropBehavior.POISONOUS)
+        add(CropType.BEETROOTS, 3, 1, intArrayOf(0, 4, 0, 1, 2), listOf("red", "food"), listOf(Items.BEETROOT_SEEDS), Items.BEETROOT)
     }
 
     private val seedToCrop: Map<Item, CropType> = buildMap {
@@ -167,6 +171,8 @@ object CropSystem {
             CropType.WHEAT -> 2
             CropType.PUMPKIN, CropType.MELON -> max - 1
             CropType.DANDELION, CropType.POPPY, CropType.BLACKTHORN, CropType.TULIP, CropType.CYAZINT -> max - 1
+            // 原版 getSizeAfterHarvest=2，fabric age 体系偏移 1
+            CropType.RED_WHEAT -> 1
             CropType.REED -> 0
             CropType.STICKY_REED -> if (currentAge == max) 2 - (randomBit and 1) else 0
             CropType.COCOA -> max - 1
@@ -175,7 +181,6 @@ object CropSystem {
             CropType.JUNGLE_SAPLING, CropType.ACACIA_SAPLING, CropType.DARK_OAK_SAPLING -> max - 1
             CropType.FERRU, CropType.CYPRIUM, CropType.STAGNIUM, CropType.PLUMBISCUS,
             CropType.AURELIA, CropType.SHINING -> 1
-            CropType.RED_WHEAT -> 1
             CropType.COFFEE -> max - 2
             CropType.HOPS -> 2
             CropType.VENOMILIA -> 2
