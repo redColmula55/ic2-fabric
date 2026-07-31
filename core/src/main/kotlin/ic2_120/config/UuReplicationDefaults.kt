@@ -163,6 +163,16 @@ object UuReplicationDefaults {
         "ic2_120:uranium_ore" to 16070,
         "ic2_120:deepslate_uranium_ore" to 19284,
         "ic2_120:raw_uranium" to 8035,
+        // 乏燃料棒：原燃料棒价值 − 已发电的 EU 价值（1 uB = 1000 EU，即 1 mB UU = 1M EU）。
+        // 发电 EU 来自 processChamber：铀燃料棒 basePulses=1+cells/2，totalPulses×maxUse tick；MOX 同公式但 maxUse 减半。
+        // 这些是反应堆燃烧后的副产物，无生成配方，必须显式定价。
+        // 钚 / small_plutonium / MOX / RTG 靶丸的成本由这些乏燃料棒经热离心反推得到，不另设白名单。
+        "ic2_120:depleted_uranium_fuel_rod" to 17875,      // 单铀棒 17895uB − 发电20000EU(20uB)
+        "ic2_120:depleted_dual_uranium_fuel_rod" to 36276, // 双铀棒 36356uB − 发电80000EU(80uB)
+        "ic2_120:depleted_quad_uranium_fuel_rod" to 74050, // 四铀棒 74290uB − 发电240000EU(240uB)
+        "ic2_120:depleted_mox_fuel_rod" to 80062,          // 单MOX棒 80072uB − 发电10000EU(10uB)
+        "ic2_120:depleted_dual_mox_fuel_rod" to 160660,    // 双MOX棒 160700uB − 发电40000EU(40uB)
+        "ic2_120:depleted_quad_mox_fuel_rod" to 322391,    // 四MOX棒 322511uB − 发电120000EU(120uB)
         "ic2_120:iridium_ore_item" to 120000,
         "ic2_120:iridium_shard" to 13330,
 
@@ -312,7 +322,6 @@ object UuReplicationDefaults {
         "minecraft:tnt" to 10000,
         "minecraft:name_tag" to 25000000,
         "minecraft:saddle" to 27000000,
-        "minecraft:enchanted_book" to 100000000,
         "minecraft:iron_horse_armor" to 100000,
         "minecraft:golden_horse_armor" to 250000,
         "minecraft:diamond_horse_armor" to 500000,

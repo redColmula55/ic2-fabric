@@ -235,6 +235,16 @@ object Ic2_120 : ModInitializer {
         // 2026-07-01 已注释：暂时关闭 dump，避免启动噪声。如需重新启用，取消下面这行注释即可。
         // ic2_120.content.debug.SemifluidFuelDump.register()
 
+        // UU 成本动态计算：服务器启动时构建成本图（白名单硬约束 + Bellman-Ford 补全衍生物品）。
+        // 构建完成后刷新 JEI 复制配方（覆盖 core + 附属命名空间的所有可复制物品）。
+        ic2_120.content.uu.UuCostIndex.register()
+        // 调试：取消下面两行注释可 dump 全量消耗表到文件
+        // ic2_120.content.uu.UuCostIndex.dumpOnRebuild = true
+        // ic2_120.content.uu.UuCostIndex.dumpPath = "/tmp/uu_cost_table_kilt.txt"
+        ic2_120.content.uu.UuCostIndex.onRebuild {
+            ic2_120.integration.jei.Ic2JeiPlugin.refreshReplicatorRecipes()
+        }
+
         logger.info("IC2 1.20 模组已加载（类注解驱动自动注册）")
     }
 

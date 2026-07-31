@@ -14,6 +14,8 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.lang.reflect.Modifier
 import net.fabricmc.loader.api.FabricLoader
+import net.minecraft.registry.Registries
+import net.minecraft.util.Identifier
 import org.slf4j.LoggerFactory
 
 @Target(AnnotationTarget.FIELD)
@@ -531,8 +533,13 @@ object Ic2Config {
     fun getReplicationCostUb(itemId: String): Int? {
         val normalized = itemId.trim()
         if (normalized.isEmpty()) return null
-        return current.uuReplication.replicationWhitelist[normalized]
-            ?.takeIf { it > 0 }
+        // 1. 白名单优先（手工定价，硬约束）
+        current.uuReplication.replicationWhitelist[normalized]?.takeIf { it > 0 }?.let { return it }
+        // 2. 动态计算补全（服务器启动后可用）
+        val id = Identifier.tryParse(normalized) ?: return null
+        val item = Registries.ITEM.get(id)
+        if (item === net.minecraft.item.Items.AIR) return null
+        return ic2_120.content.uu.UuCostIndex.dynamicCostUb(item)?.toInt()?.takeIf { it > 0 }
     }
 
     fun getReplicationTemplate(itemId: String): UuTemplateEntry? {
@@ -600,10 +607,20 @@ object Ic2Config {
     }
 
     /**
-     * 获取所有已配置的UU复制白名单（物品ID -> UU成本）
+     * 获取所有可复制物品及其 UU 成本（白名单 + 动态计算补全）。
+     * 动态部分在服务器启动后才可用；启动前只返回白名单。
      */
     fun getAllReplicationCosts(): Map<String, Int> {
-        return current.uuReplication.replicationWhitelist
+        val whitelist = current.uuReplication.replicationWhitelist
+        val dynamic = ic2_120.content.uu.UuCostIndex.allDynamic()
+        if (dynamic.isEmpty()) return whitelist
+        // 合并：白名单优先，动态补全；只保留 cost > 0 的
+        val merged = LinkedHashMap<String, Int>(whitelist.size + dynamic.size)
+        for ((id, ub) in whitelist) if (ub > 0) merged[id] = ub
+        for ((id, ub) in dynamic) {
+            if (id !in merged && ub > 0 && ub <= Int.MAX_VALUE) merged[id] = ub.toInt()
+        }
+        return merged
     }
 
     /**

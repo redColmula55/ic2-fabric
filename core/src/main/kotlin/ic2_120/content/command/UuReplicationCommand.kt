@@ -14,13 +14,13 @@ import net.minecraft.util.Identifier
 
 object UuReplicationCommand {
     fun register() {
-        CommandRegistrationCallback.EVENT.register(CommandRegistrationCallback { dispatcher, _, _ ->
+        CommandRegistrationCallback.EVENT.register(CommandRegistrationCallback { dispatcher, registryAccess, _ ->
             dispatcher.register(
                 literal("ic2uu")
                     .requires { source -> source.hasPermissionLevel(2) }
-                    // 设置命令: /ic2uu set <uu_cost>
+                    // 设置命令（主手）: /ic2uu setmainhand <uu_cost>
                     .then(
-                        literal("set")
+                        literal("setmainhand")
                             .then(
                                 argument("uu_cost", IntegerArgumentType.integer(1))
                                     .executes { context ->
@@ -42,7 +42,6 @@ object UuReplicationCommand {
                                         val item = mainHandStack.item
                                         val itemId = item.toString()
 
-                                        // 添加或更新白名单并保存
                                         val success = Ic2Config.addOrUpdateReplicationCost(itemId, uuCost)
 
                                         if (success) {
@@ -63,6 +62,42 @@ object UuReplicationCommand {
                                             0
                                         }
                                     }
+                            )
+                    )
+                    // 设置命令（指定物品）: /ic2uu set <item> <uu_cost>
+                    .then(
+                        literal("set")
+                            .then(
+                                argument("item", net.minecraft.command.argument.ItemStackArgumentType.itemStack(registryAccess))
+                                    .then(
+                                        argument("uu_cost", IntegerArgumentType.integer(1))
+                                            .executes { context ->
+                                                val source = context.source
+                                                val itemArg = net.minecraft.command.argument.ItemStackArgumentType.getItemStackArgument(context, "item")
+                                                val itemId = Registries.ITEM.getId(itemArg.item).toString()
+                                                val uuCost = IntegerArgumentType.getInteger(context, "uu_cost")
+
+                                                val success = Ic2Config.addOrUpdateReplicationCost(itemId, uuCost)
+
+                                                if (success) {
+                                                    source.sendFeedback(
+                                                        {
+                                                            Text.literal("")
+                                                                .append(Text.literal("成功设置 ").formatted(Formatting.GREEN))
+                                                                .append(Text.literal(itemId).formatted(Formatting.YELLOW))
+                                                                .append(Text.literal(" 的UU复制成本为 ").formatted(Formatting.GREEN))
+                                                                .append(Text.literal("$uuCost uB").formatted(Formatting.AQUA))
+                                                                .append(Text.literal("（已写入配置文件，使用 /ic2config reload 同步至客户端）").formatted(Formatting.GRAY))
+                                                        },
+                                                        true
+                                                    )
+                                                    Command.SINGLE_SUCCESS
+                                                } else {
+                                                    source.sendError(Text.literal("保存配置失败，请查看服务器日志"))
+                                                    0
+                                                }
+                                            }
+                                    )
                             )
                     )
                     // 移除命令: /ic2uu remove
@@ -173,26 +208,50 @@ object UuReplicationCommand {
     }
 
     private fun showReplicationList(source: net.minecraft.server.command.ServerCommandSource, page: Int): Int {
-        val allCosts = Ic2Config.getAllReplicationCosts().toList().sortedBy { it.first }
+        val allCosts = Ic2Config.getAllReplicationCosts().toList().sortedBy { it.second }  // 按成本升序
 
         if (allCosts.isEmpty()) {
-            source.sendFeedback({ Text.literal("UU复制白名单为空").formatted(Formatting.YELLOW) }, false)
+            source.sendFeedback({ Text.literal("UU复制表为空").formatted(Formatting.YELLOW) }, false)
             return Command.SINGLE_SUCCESS
         }
 
-        val itemsPerPage = 10
+        val whitelistIds = ic2_120.config.UuReplicationDefaults.defaultWhitelist.keys
+        val whitelistCount = allCosts.count { it.first in whitelistIds }
+        val dynamicCount = allCosts.size - whitelistCount
+
+        val itemsPerPage = 20
         val totalPages = (allCosts.size + itemsPerPage - 1) / itemsPerPage
         val actualPage = page.coerceIn(1, totalPages)
         val startIndex = (actualPage - 1) * itemsPerPage
         val endIndex = minOf(startIndex + itemsPerPage, allCosts.size)
 
         source.sendFeedback(
-            { Text.literal("=== UU复制白名单 (第 $actualPage/$totalPages 页) ===").formatted(Formatting.GOLD) },
+            {
+                Text.literal("")
+                    .append(Text.literal("=== UU复制表 ").formatted(Formatting.GOLD))
+                    .append(Text.literal("(第 $actualPage/$totalPages 页)").formatted(Formatting.WHITE))
+                    .append(Text.literal(" ===").formatted(Formatting.GOLD))
+            },
+            false
+        )
+        source.sendFeedback(
+            {
+                Text.literal("")
+                    .append(Text.literal("总计 ").formatted(Formatting.GRAY))
+                    .append(Text.literal("${allCosts.size}").formatted(Formatting.AQUA))
+                    .append(Text.literal(" 项（白名单 ").formatted(Formatting.GRAY))
+                    .append(Text.literal("$whitelistCount").formatted(Formatting.YELLOW))
+                    .append(Text.literal(" + 动态 ").formatted(Formatting.GRAY))
+                    .append(Text.literal("$dynamicCount").formatted(Formatting.GREEN))
+                    .append(Text.literal("），按成本升序").formatted(Formatting.GRAY))
+            },
             false
         )
 
         for (i in startIndex until endIndex) {
             val (itemId, cost) = allCosts[i]
+            val isWhitelist = itemId in whitelistIds
+            val source2 = if (isWhitelist) "白" else "动"
             val itemDisplay: Text = Identifier.tryParse(itemId)?.let {
                 val item = Registries.ITEM.get(it)
                 if (item !== Items.AIR) {
@@ -204,7 +263,7 @@ object UuReplicationCommand {
             source.sendFeedback(
                 {
                     Text.literal("")
-                        .append(Text.literal("• ").formatted(Formatting.GRAY))
+                        .append(Text.literal("[$source2] ").formatted(if (isWhitelist) Formatting.YELLOW else Formatting.GREEN))
                         .append(itemDisplay)
                         .append(Text.literal(": ").formatted(Formatting.GRAY))
                         .append(Text.literal("$cost uB").formatted(Formatting.AQUA))
