@@ -31,8 +31,6 @@ jobs:
           path: |
             core/build/libs/
             advanced-solar-addon/build/libs/
-            advanced-weapons-addon/build/libs/
-            buildcraft-addon/build/libs/
             industrial-upgrade-addon/build/libs/
 
   release:
@@ -60,9 +58,7 @@ jobs:
           for f in \
             build-output/**/ic2_120-*.jar \
             build-output/**/ic2_120_advanced_solar_addon-*.jar \
-            build-output/**/ic2_120_advanced_weapons_addon-*.jar \
-            build-output/**/ic2_120_industrial_upgrade-*.jar \
-            build-output/**/buildcraft_addon-*.jar; do
+            build-output/**/ic2_120_industrial_upgrade-*.jar; do
             [[ "$f" != *-sources* && "$f" != *-remapped* ]] && cp "$f" "mod-release/$(basename "$f" .jar)-mc1.20.1.jar" || true
           done
           if [ -d "libs" ]; then
