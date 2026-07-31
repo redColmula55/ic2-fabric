@@ -105,6 +105,9 @@ class MatterGeneratorBlockEntity(
         val SLOT_INPUT_INDICES = intArrayOf(SLOT_CONTAINER_INPUT)
         const val INVENTORY_SIZE = 7
 
+        /** 一个废料盒按合成配方（3×3 废料）等价于 9 个废料。 */
+        const val SCRAP_UNITS_PER_BOX = 9
+
         private const val NBT_TANK_AMOUNT = "TankAmount"
         private const val NBT_PROGRESS = "Progress"
         private const val NBT_SCRAP_CONSUMED = "ScrapConsumed"
@@ -142,6 +145,8 @@ class MatterGeneratorBlockEntity(
     private val emptyCellItem by lazy { Registries.ITEM.get(Identifier(Ic2_120.MOD_ID, "empty_cell")) }
     private val fluidCellItem by lazy { Registries.ITEM.get(Identifier(Ic2_120.MOD_ID, "fluid_cell")) }
     private val uuMatterCellItem by lazy { Registries.ITEM.get(Identifier(Ic2_120.MOD_ID, "uu_matter_cell")) }
+    private val scrapItem by lazy { Registries.ITEM.get(Identifier(Ic2_120.MOD_ID, "scrap")) }
+    private val scrapBoxItem by lazy { Registries.ITEM.get(Identifier(Ic2_120.MOD_ID, "scrap_box")) }
 
     private val outputPerCycle = mbToDroplets(1)
     /** 当前 1 mB 生成周期内已经消耗的废料数量。 */
@@ -279,8 +284,7 @@ class MatterGeneratorBlockEntity(
     }
 
     override fun isValid(slot: Int, stack: ItemStack): Boolean = when (slot) {
-        SLOT_SCRAP -> Ic2Config.current.matterGenerator.allowScrapBoost &&
-            !stack.isEmpty && Registries.ITEM.getId(stack.item) == Identifier(Ic2_120.MOD_ID, "scrap")
+        SLOT_SCRAP -> Ic2Config.current.matterGenerator.allowScrapBoost && isScrapFuel(stack)
         SLOT_CONTAINER_INPUT -> !stack.isEmpty && matterGenIsFillableContainer(stack)
         SLOT_CONTAINER_OUTPUT -> false
         else -> SLOT_UPGRADE_INDICES.contains(slot) && stack.item is IUpgradeItem && stack.item !is OverclockerUpgrade
@@ -369,7 +373,7 @@ class MatterGeneratorBlockEntity(
             sync.mode = resolveDisplayedMode()
         }
 
-        val hasScrap = Ic2Config.current.matterGenerator.allowScrapBoost && isScrap(getStack(SLOT_SCRAP))
+        val hasScrap = Ic2Config.current.matterGenerator.allowScrapBoost && isScrapFuel(getStack(SLOT_SCRAP))
         val euPerMb = if (hasScrap) MatterGeneratorSync.SCRAP_EU_PER_MB else MatterGeneratorSync.BASE_EU_PER_MB
 
         // Consume as much energy as available, up to 1mb worth per tick
@@ -411,18 +415,28 @@ class MatterGeneratorBlockEntity(
         sync.syncCurrentTickFlow()
     }
 
-    private fun consumeScrap(count: Int) {
-        if (count <= 0) return
+    /** 消耗废料等价量，返回实际消耗量（普通废料 1 个 = 1 等价量；废料盒整盒 = SCRAP_UNITS_PER_BOX）。 */
+    private fun consumeScrapUnits(units: Int): Int {
+        if (units <= 0) return 0
         val scrapStack = getStack(SLOT_SCRAP)
-        if (!isScrap(scrapStack)) return
-        val actualCount = minOf(count, scrapStack.count)
-        if (actualCount <= 0) return
+        if (scrapStack.isEmpty) return 0
+
+        if (isScrapBox(scrapStack)) {
+            // 废料盒不可拆分：缺口不足一整盒时不消耗，顺延到后续 tick，避免浪费
+            if (units < SCRAP_UNITS_PER_BOX) return 0
+            setStack(SLOT_SCRAP, ItemStack.EMPTY)
+            return SCRAP_UNITS_PER_BOX
+        }
+
+        val actualCount = minOf(units, scrapStack.count)
+        if (actualCount <= 0) return 0
         scrapStack.decrement(actualCount)
         if (scrapStack.isEmpty) {
             setStack(SLOT_SCRAP, ItemStack.EMPTY)
         } else {
             markDirty()
         }
+        return actualCount
     }
 
     private fun consumeScrapForProgress() {
@@ -432,9 +446,7 @@ class MatterGeneratorBlockEntity(
         val scrapToConsume = targetConsumed - scrapConsumedThisCycle
         if (scrapToConsume <= 0) return
 
-        val before = getStack(SLOT_SCRAP).count
-        consumeScrap(scrapToConsume)
-        scrapConsumedThisCycle += (before - getStack(SLOT_SCRAP).count).coerceAtLeast(0)
+        scrapConsumedThisCycle += consumeScrapUnits(scrapToConsume)
     }
 
     private fun fillContainersFromTank() {
@@ -489,7 +501,12 @@ class MatterGeneratorBlockEntity(
     }
 
     private fun isScrap(stack: ItemStack): Boolean =
-        !stack.isEmpty && Registries.ITEM.getId(stack.item) == Identifier(Ic2_120.MOD_ID, "scrap")
+        !stack.isEmpty && stack.item == scrapItem
+
+    private fun isScrapBox(stack: ItemStack): Boolean =
+        !stack.isEmpty && stack.item == scrapBoxItem
+
+    private fun isScrapFuel(stack: ItemStack): Boolean = isScrap(stack) || isScrapBox(stack)
 
     private fun isUuMatter(fluid: net.minecraft.fluid.Fluid): Boolean =
         fluid == ModFluids.UU_MATTER_STILL || fluid == ModFluids.UU_MATTER_FLOWING
