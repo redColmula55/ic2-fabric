@@ -38,7 +38,8 @@ class MinerScreenHandler(
     val sync = MinerSync(
         SyncedDataView(propertyDelegate),
         { null },
-        { MinerSync.BASE_ENERGY_CAPACITY }
+        { if (isAdvanced) MinerSync.ADVANCED_CAPACITY else MinerSync.NORMAL_CAPACITY },
+        baseCapacity = if (isAdvanced) MinerSync.ADVANCED_CAPACITY else MinerSync.NORMAL_CAPACITY
     )
 
     private val beSlotToHandlerIndex = mutableMapOf<Int, Int>()
@@ -50,7 +51,6 @@ class MinerScreenHandler(
         if (isAdvanced) {
             // 高级采矿机：无钻头槽
             addTrackedSlot(blockInventory, BaseMinerBlockEntity.SLOT_SCANNER, 8, 26)
-            addTrackedSlot(blockInventory, BaseMinerBlockEntity.SLOT_PIPE, 8, 44, 1024)
             addTrackedSlot(blockInventory, BaseMinerBlockEntity.SLOT_DISCHARGING, 8, 80)
 
             // 过滤槽 3×5（仅玩家可交互放置，每格限制1个）
@@ -58,7 +58,7 @@ class MinerScreenHandler(
                 val beIndex = BaseMinerBlockEntity.SLOT_ITEM_START + i
                 val spec = SlotSpec(
                     maxItemCount = 1,
-                    canInsert = { stack -> stack.item is net.minecraft.item.BlockItem },
+                    canInsert = { stack -> !stack.isEmpty },
                     canTake = { true }
                 )
                 beSlotToHandlerIndex[beIndex] = slots.size
@@ -220,7 +220,7 @@ class MinerScreenHandler(
     }
 
     private val playerSlotStart: Int
-        get() = if (isAdvanced) 22 else 22
+        get() = if (isAdvanced) 21 else 22
 
     override fun canUse(player: PlayerEntity): Boolean =
         context.get({ world, pos ->

@@ -7,10 +7,11 @@ class MinerSync(
     schema: SyncSchema,
     currentTickProvider: () -> Long? = { null },
     capacityProvider: () -> Long,
-    maxInsertPerTickProvider: (() -> Long)? = null
+    maxInsertPerTickProvider: (() -> Long)? = null,
+    baseCapacity: Long = BASE_ENERGY_CAPACITY
 ) : UpgradeableTickLimitedSidedEnergyContainer(
-    BASE_ENERGY_CAPACITY,
-    { (capacityProvider() - BASE_ENERGY_CAPACITY).coerceAtLeast(0L) },
+    baseCapacity,
+    { (capacityProvider() - baseCapacity).coerceAtLeast(0L) },
     MAX_INSERT,
     MAX_EXTRACT,
     currentTickProvider,
@@ -18,6 +19,8 @@ class MinerSync(
 ) {
     companion object {
         const val BASE_ENERGY_CAPACITY = 10000L
+        const val NORMAL_CAPACITY = 1000L
+        const val ADVANCED_CAPACITY = 4_000_000L
         const val MAX_INSERT = 512L
         const val MAX_EXTRACT = 0L
         const val SCAN_ENERGY_PER_STEP = 64L
@@ -28,7 +31,7 @@ class MinerSync(
     }
 
     var energy by schema.int("Energy")
-    var energyCapacity by schema.int("EnergyCapacity", default = BASE_ENERGY_CAPACITY.toInt())
+    var energyCapacity by schema.int("EnergyCapacity", default = baseCapacity.toInt())
     var running by schema.int("Running", default = 1)
     var mode by schema.int("Mode", default = 1) // 0=whitelist, 1=blacklist
     var silkTouch by schema.int("SilkTouch", default = 0)

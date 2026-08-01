@@ -228,7 +228,7 @@ object Ic2ConfigScreen {
         val cat = builder.getOrCreateCategory(Text.literal("采矿机"))
         cat.addEntry(eb.startStrList(Text.literal("额外可挖方块"), additionalBlocks)
             .setDefaultValue(emptyList())
-            .setTooltip(Text.literal("采矿机额外可挖方块 id 列表。默认矿石通过名称自动匹配（含 ore），此列表用于添加特殊方块或者别的 mod 的方块。"))
+            .setTooltip(Text.literal("主要用于普通采矿机的自动扫描：默认矿石通过名称自动匹配（含 ore），此列表用于添加特殊方块或者别的 mod 的方块。高级采矿机使用 GUI 中的黑名单/白名单过滤槽手动指定目标。"))
             .setSaveConsumer { additionalBlocks = it.toMutableList() }.build())
 
         return { MinerConfig(additionalMineableBlocks = additionalBlocks.toList()) }

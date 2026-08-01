@@ -147,7 +147,7 @@ class MinerScreen(
             if (relX in UPTIPS_X until UPTIPS_X + UPTIPS_SIZE && relY in UPTIPS_Y until UPTIPS_Y + UPTIPS_SIZE) {
                 context.drawTooltip(textRenderer, listOf(
                     Text.translatable("gui.ic2_120.miner.uptips"),
-                    Text.literal("§7").append(Text.translatable("item.ic2_120.overclocker_upgrade")),
+                    Text.literal("§7${EnergyFormatUtils.formatRaw(energy)} / ${EnergyFormatUtils.formatRaw(cap)} EU"),
                     Text.literal("§7").append(Text.translatable("item.ic2_120.energy_storage_upgrade")),
                     Text.literal("§7").append(Text.translatable("item.ic2_120.transformer_upgrade")),
                     Text.literal("§7").append(Text.translatable("item.ic2_120.ejector_upgrade")),
@@ -172,7 +172,7 @@ class MinerScreen(
                 return true
             }
             if (relX in 133 until 170 && relY in 101 until 117) {
-                client?.player?.networkHandler?.sendPacket(ButtonClickC2SPacket(handler.syncId, MinerScreenHandler.BUTTON_RECOVER_PIPES))
+                client?.player?.networkHandler?.sendPacket(ButtonClickC2SPacket(handler.syncId, MinerScreenHandler.BUTTON_RESTART))
                 return true
             }
         }
@@ -193,9 +193,9 @@ class MinerScreen(
         private const val ORD_EB_W = 14; private const val ORD_EB_H = 15
         private const val ORD_EB_X = 129; private const val ORD_EB_Y = 40
 
-        // 高级: 电量条 (179,3)-(193,18) = 14x15, 渲染至 10,64
+        // 高级：闪电能量槽 (12,55)
         private const val ADV_EB_U = 179; private const val ADV_EB_V = 3
         private const val ADV_EB_W = 14; private const val ADV_EB_H = 15
-        private const val ADV_EB_X = 9; private const val ADV_EB_Y = 62
+        private const val ADV_EB_X = 12; private const val ADV_EB_Y = 55
     }
 }

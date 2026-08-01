@@ -115,7 +115,7 @@ data class MatterGeneratorConfig(
 
 data class MinerConfig(
     @field:ConfigComment(
-        "采矿机额外可挖方块 id 列表。默认矿石通过名称自动匹配（含 ore），此列表用于添加特殊方块或者别的mod的方块。",
+        "普通采矿机额外可挖方块 id 列表。默认矿石通过名称自动匹配（含 ore），此列表用于添加特殊方块或者别的mod的方块；主要影响普通采矿机的自动扫描。高级采矿机由 GUI 中的黑名单/白名单过滤槽手动指定目标，不以此列表作为主要筛选入口。",
         "[]"
     )
     val additionalMineableBlocks: List<String> = emptyList()
