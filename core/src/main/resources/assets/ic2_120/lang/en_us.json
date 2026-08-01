@@ -1380,5 +1380,9 @@
   "advancements.ic2_120.buildMFE": "Storage Upgrade",
   "advancements.ic2_120.buildMFE.desc": "Build a MFE Unit",
   "advancements.ic2_120.buildMFS": "Just Too Much",
-  "advancements.ic2_120.buildMFS.desc": "Build a MFS Unit"
+  "advancements.ic2_120.buildMFS.desc": "Build a MFS Unit",
+  "jei.ic2_120.coal_water_transform": "Coal Dust in Water",
+  "jei.ic2_120.coal_water_transform.title": "Submerge in Water",
+  "jei.ic2_120.coal_water_transform.tooltip": "Throw directly into water (about 3 seconds)",
+  "jei.ic2_120.coal_water_transform.circumstance": "Submerge in"
 }

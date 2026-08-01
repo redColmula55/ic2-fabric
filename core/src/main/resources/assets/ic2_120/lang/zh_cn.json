@@ -1367,5 +1367,9 @@
   "advancements.ic2_120.buildMFE": "升级储电设备",
   "advancements.ic2_120.buildMFE.desc": "建造一个MFE",
   "advancements.ic2_120.buildMFS": "实在太多了",
-  "advancements.ic2_120.buildMFS.desc": "建造一个MFSU"
+  "advancements.ic2_120.buildMFS.desc": "建造一个MFSU",
+  "jei.ic2_120.coal_water_transform": "煤粉浸水转化",
+  "jei.ic2_120.coal_water_transform.title": "直接扔进水里",
+  "jei.ic2_120.coal_water_transform.tooltip": "直接扔进水里（约等待 3 秒）",
+  "jei.ic2_120.coal_water_transform.circumstance": "浸入"
 }

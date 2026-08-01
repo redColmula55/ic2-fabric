@@ -284,6 +284,7 @@ class Ic2JeiPlugin : IModPlugin {
 
     override fun registerCategories(registration: IRecipeCategoryRegistration) {
         registration.addRecipeCategories(
+            CoalWaterTransformRecipeCategory(registration.jeiHelpers.guiHelper),
             MaceratorRecipeCategory(registration.jeiHelpers.guiHelper),
             CompressorRecipeCategory(registration.jeiHelpers.guiHelper),
             ExtractorRecipeCategory(registration.jeiHelpers.guiHelper),
@@ -313,6 +314,16 @@ class Ic2JeiPlugin : IModPlugin {
     }
 
     override fun registerRecipes(registration: IRecipeRegistration) {
+        registration.addRecipes(
+            Ic2JeiRecipeTypes.COAL_WATER_TRANSFORM,
+            listOf(
+                CoalWaterTransformJeiRecipe(
+                    ItemStack(Registries.ITEM.get(Identifier("ic2_120", "coal_dust"))),
+                    ItemStack(Registries.ITEM.get(Identifier("ic2_120", "coal_fuel_dust")))
+                )
+            )
+        )
+
         // Macerator 配方
         val maceratorRecipes = liveRecipes<MaceratorRecipe>()?.map { r ->
             MaceratorJeiRecipe(

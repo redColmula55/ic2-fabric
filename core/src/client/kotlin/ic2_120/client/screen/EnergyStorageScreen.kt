@@ -3,14 +3,11 @@ package ic2_120.client.screen
 import ic2_120.client.EnergyFormatUtils
 import ic2_120.client.t
 import ic2_120.content.block.storage.EnergyStorageConfig
-import ic2_120.content.sync.EnergyStorageSync
 import ic2_120.content.screen.EnergyStorageScreenHandler
 import ic2_120.registry.annotation.ModScreen
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.screen.ingame.HandledScreen
-import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.entity.player.PlayerInventory
-import net.minecraft.network.packet.c2s.play.ButtonClickC2SPacket
 import net.minecraft.registry.Registries
 import net.minecraft.text.Text
 import net.minecraft.util.Identifier
@@ -29,7 +26,6 @@ class EnergyStorageScreen(
 
    private val capacity: Long = resolveCapacity()
    private val useEquipmentSlots: Boolean = resolveUseEquipmentSlots()
-   private var modeButton: ButtonWidget? = null
 
     private fun resolveCapacity(): Long {
         return handler.context.get({ world, pos ->
@@ -54,19 +50,7 @@ class EnergyStorageScreen(
 
    override fun init() {
        super.init()
-        modeButton = ButtonWidget.builder(modeButtonText()) { _ ->
-                client?.player?.networkHandler?.sendPacket(
-                    ButtonClickC2SPacket(handler.syncId, EnergyStorageScreenHandler.BUTTON_ID_TOGGLE_CHARGE_MODE)
-                )
-        }.dimensions(x - MODE_BTN_WIDTH - 2, y + 4, MODE_BTN_WIDTH, MODE_BTN_HEIGHT).build()
-        addDrawableChild(modeButton)
    }
-
-    private fun modeButtonText(): Text =
-        if (handler.sync.chargeMode == EnergyStorageSync.MODE_DISCHARGE)
-            Text.translatable("gui.ic2_120.battery_discharge")
-        else
-            Text.translatable("gui.ic2_120.battery_charge")
 
     override fun drawBackground(context: DrawContext, delta: Float, mouseX: Int, mouseY: Int) {
         context.drawTexture(TEXTURE, x, y, 0f, 0f, backgroundWidth, backgroundHeight, TEXTURE_SIZE, TEXTURE_SIZE)
@@ -75,8 +59,6 @@ class EnergyStorageScreen(
    override fun render(context: DrawContext, mouseX: Int, mouseY: Int, delta: Float) {
        renderBackground(context)
        super.render(context, mouseX, mouseY, delta)
-
-        modeButton?.message = modeButtonText()
 
        val left = x
         val top = y
@@ -132,9 +114,8 @@ class EnergyStorageScreen(
         val outputText = t("gui.ic2_120.output_eu", EnergyFormatUtils.formatRaw(outputRate))
         val sideTextWidth = maxOf(textRenderer.getWidth(inputText), textRenderer.getWidth(outputText))
         val sideTextX = left - sideTextWidth - 4
-        // 按钮在速度文本上方，速度文本下移至按钮下方
-        context.drawText(textRenderer, inputText, sideTextX, top + 4 + MODE_BTN_HEIGHT + 4, 0xAAAAAA, false)
-        context.drawText(textRenderer, outputText, sideTextX, top + 4 + MODE_BTN_HEIGHT + 16, 0xAAAAAA, false)
+        context.drawText(textRenderer, inputText, sideTextX, top + 4, 0xAAAAAA, false)
+        context.drawText(textRenderer, outputText, sideTextX, top + 16, 0xAAAAAA, false)
 
         drawMouseoverTooltip(context, mouseX, mouseY)
     }
@@ -154,7 +135,5 @@ class EnergyStorageScreen(
         private const val OVERLAY_H = 18
         private const val OVERLAY_X = 7
         private const val OVERLAY_Y = 83
-        private const val MODE_BTN_WIDTH = 64
-        private const val MODE_BTN_HEIGHT = 18
     }
 }

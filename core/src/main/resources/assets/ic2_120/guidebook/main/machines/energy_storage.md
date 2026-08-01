@@ -38,8 +38,8 @@ All storage blocks accept EU only from the five non-front faces and extract EU o
 
 ## Slots
 
-- **Charge slot:** batteries and electric tools with tier less than or equal to the storage tier.
-- **Fuel slot:** redstone adds 800 EU, Energium Dust adds 16,000 EU. Fuel is consumed only when there is enough empty space for the full value.
+- **Top charge slot:** batteries and electric tools with tier less than or equal to the storage tier are charged by the storage block.
+- **Bottom supply slot:** batteries discharge into the storage block; redstone adds 800 EU and Energium Dust adds 16,000 EU. Fuel is consumed only when there is enough empty space for the full value.
 - **MFE/MFSU equipment view:** higher-tier screens also expose player equipment charging controls.
 
 Storage blocks do not have upgrade slots. Use transformers when you need to bridge voltage tiers.

@@ -4,6 +4,12 @@ import mezz.jei.api.recipe.RecipeType
 import net.minecraft.util.Identifier
 
 object Ic2JeiRecipeTypes {
+    val COAL_WATER_TRANSFORM: RecipeType<CoalWaterTransformJeiRecipe> = RecipeType.create(
+        "ic2_120",
+        "coal_water_transform",
+        CoalWaterTransformJeiRecipe::class.java
+    )
+
     val MACERATOR: RecipeType<MaceratorJeiRecipe> = RecipeType.create(
         "ic2_120",
         "macerating",
@@ -102,4 +108,3 @@ object Ic2JeiRecipeTypes {
         CannerMixingJeiRecipe::class.java
     )
 }
-

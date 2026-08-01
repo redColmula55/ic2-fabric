@@ -284,7 +284,7 @@ class CondenserBlockEntity(
 
     override fun isValid(slot: Int, stack: ItemStack): Boolean = when (slot) {
         SLOT_UPGRADE -> isBatteryItem(stack)
-        SLOT_DISCHARGE -> isBatteryItem(stack) || stack.item === Items.REDSTONE
+        SLOT_DISCHARGE -> isBatteryItem(stack) || stack.item === Items.REDSTONE || stack.item is ic2_120.content.item.EnergiumDust
         SLOT_WATER_INPUT -> isFluidCell(stack) || isWaterBucket(stack)
         SLOT_WATER_OUTPUT -> false  // 仅输出
         in SLOT_VENT_INDICES -> isValidVent(stack)

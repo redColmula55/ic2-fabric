@@ -52,7 +52,10 @@ abstract class EnergyStorageBlockEntity(
 
     override val tier: Int get() = config.tier
 
-    private val fuelSlotIndex: Int = config.slotCount - 1
+    private companion object {
+        const val CHARGE_SLOT = 0
+        const val DISCHARGE_SLOT = 1
+    }
 
     private val inventory = DefaultedList.ofSize(config.slotCount, ItemStack.EMPTY)
     @RegisterItemStorage
@@ -62,15 +65,22 @@ abstract class EnergyStorageBlockEntity(
         slotValidator = { slot, stack -> isValid(slot, stack) },
         insertRoutes = buildList {
             add(
-                ItemInsertRoute(intArrayOf(0), matcher = { stack ->
+                ItemInsertRoute(intArrayOf(CHARGE_SLOT), matcher = { stack ->
                     val item = stack.item
-                    (item is IBatteryItem || item is IElectricTool) && item.tier <= config.tier
+                    when (item) {
+                        is IBatteryItem -> item.canCharge && item.tier <= config.tier
+                        is IElectricTool -> item.tier <= config.tier
+                        else -> false
+                    }
                 }, maxPerSlot = 1)
             )
             add(
-                ItemInsertRoute(intArrayOf(fuelSlotIndex), matcher = { stack ->
-                    stack.isOf(Items.REDSTONE) || stack.item is EnergiumDust
-                }, maxPerSlot = 64)
+                ItemInsertRoute(intArrayOf(DISCHARGE_SLOT), matcher = { stack ->
+                    when (val item = stack.item) {
+                        is IBatteryItem -> item.tier <= config.tier
+                        else -> stack.isOf(Items.REDSTONE) || item is EnergiumDust
+                    }
+                })
             )
         },
         extractSlots = IntArray(config.slotCount) { it },
@@ -95,30 +105,24 @@ abstract class EnergyStorageBlockEntity(
     )
     private val adjacentEnergyTransfer = AdjacentEnergyTransferComponent(this, sync)
 
-    private val chargerComponents = mutableListOf<BatteryChargerComponent>()
+    private val chargeComponent = BatteryChargerComponent(
+        inventory = this,
+        batterySlot = CHARGE_SLOT,
+        machineTierProvider = { tier },
+        machineEnergyProvider = { sync.amount },
+        extractEnergy = { requested -> sync.extractEnergy(requested) },
+        canChargeNow = { true }
+    )
 
-   init {
-       for (slot in 0 until config.slotCount) {
-           if (slot == fuelSlotIndex) continue
-           chargerComponents.add(
-               BatteryChargerComponent(
-                   inventory = this,
-                   batterySlot = slot,
-                   machineTierProvider = { tier },
-                    // 充电模式返回机器当前储能（可输出量），放电模式返回剩余容量（可接收量）
-                    machineEnergyProvider = {
-                        if (sync.chargeMode == EnergyStorageSync.MODE_DISCHARGE)
-                            config.capacity - sync.amount
-                        else
-                            sync.amount
-                    },
-                    extractEnergy = { requested -> sync.extractEnergy(requested) },
-                    insertEnergy = { requested -> sync.insertEnergy(requested) },
-                    canChargeNow = { true }
-               )
-           )
-       }
-   }
+    private val dischargeComponent = BatteryChargerComponent(
+        inventory = this,
+        batterySlot = DISCHARGE_SLOT,
+        machineTierProvider = { tier },
+        machineEnergyProvider = { config.capacity - sync.amount },
+        extractEnergy = { 0L },
+        insertEnergy = { requested -> sync.insertEnergy(requested) },
+        canChargeNow = { true }
+    )
 
     override fun size(): Int = config.slotCount
     override fun getStack(slot: Int): ItemStack = inventory.getOrElse(slot) { ItemStack.EMPTY }
@@ -135,8 +139,11 @@ abstract class EnergyStorageBlockEntity(
 
     override fun isValid(slot: Int, stack: ItemStack): Boolean {
         if (stack.isEmpty) return false
-        if (slot == fuelSlotIndex) {
-            return stack.isOf(Items.REDSTONE) || stack.item is EnergiumDust
+        if (slot == DISCHARGE_SLOT) {
+            return when (val item = stack.item) {
+                is IBatteryItem -> item.tier <= config.tier
+                else -> stack.isOf(Items.REDSTONE) || item is EnergiumDust
+            }
         }
         val item = stack.item
         return (item is IBatteryItem || item is IElectricTool) && item.tier <= config.tier
@@ -189,14 +196,8 @@ abstract class EnergyStorageBlockEntity(
 
         adjacentEnergyTransfer.tick()
 
-       var chargedThisTick = 0L
-       for (charger in chargerComponents) {
-           chargedThisTick += if (sync.chargeMode == EnergyStorageSync.MODE_DISCHARGE) {
-               charger.discharge()
-           } else {
-               charger.tick()
-           }
-       }
+       var chargedThisTick = chargeComponent.tick()
+       chargedThisTick += dischargeComponent.discharge()
 
        if (config.chargePlayersAbove) {
            chargedThisTick += chargePlayersAbove(world, pos)
@@ -208,18 +209,14 @@ abstract class EnergyStorageBlockEntity(
    }
 
     private fun consumeFuel() {
-        val fuelStack = inventory[fuelSlotIndex]
-        if (fuelStack.isEmpty) return
-
+        val fuelStack = inventory[DISCHARGE_SLOT]
         val energyPerItem = when {
             fuelStack.isOf(Items.REDSTONE) -> 800L
-            fuelStack.item is EnergiumDust -> 16000L
+            fuelStack.item is EnergiumDust -> 16_000L
             else -> return
         }
 
-        val remainingCapacity = config.capacity - sync.amount
-        if (remainingCapacity < energyPerItem) return
-
+        if (config.capacity - sync.amount < energyPerItem) return
         fuelStack.decrement(1)
         sync.amount += energyPerItem
         markDirty()
@@ -253,14 +250,6 @@ abstract class EnergyStorageBlockEntity(
        if (current.get(EnergyStorageBlock.ACTIVE) == active) return
        world.setBlockState(pos, current.with(EnergyStorageBlock.ACTIVE, active), Block.NOTIFY_LISTENERS)
    }
-
-    fun toggleChargeMode() {
-        sync.chargeMode = if (sync.chargeMode == EnergyStorageSync.MODE_DISCHARGE)
-            EnergyStorageSync.MODE_CHARGE
-        else
-            EnergyStorageSync.MODE_DISCHARGE
-        markDirty()
-    }
 
     // ============== Concrete BlockEntities ==============
 

@@ -102,7 +102,7 @@ class SolidCannerBlockEntity(
         slotValidator = { slot, stack -> isValid(slot, stack) },
         insertRoutes = listOf(
             ItemInsertRoute(SLOT_UPGRADE_INDICES, matcher = { it.item is IUpgradeItem }),
-            ItemInsertRoute(intArrayOf(SLOT_DISCHARGING), matcher = { isBatteryItem(it) || it.item === Items.REDSTONE }, maxPerSlot = 1),
+            ItemInsertRoute(intArrayOf(SLOT_DISCHARGING), matcher = { isBatteryItem(it) || it.item === Items.REDSTONE || it.item is ic2_120.content.item.EnergiumDust }, maxPerSlot = 1),
             ItemInsertRoute(intArrayOf(SLOT_TIN_CAN), matcher = { isContainerInput(it) }),
             ItemInsertRoute(intArrayOf(SLOT_FOOD), matcher = { isFoodInput(it) })
         ),
@@ -154,7 +154,7 @@ class SolidCannerBlockEntity(
         SLOT_TIN_CAN -> isContainerInput(stack)
         SLOT_FOOD -> isFoodInput(stack)
         SLOT_OUTPUT -> false
-        SLOT_DISCHARGING -> isBatteryItem(stack) || stack.item === Items.REDSTONE
+        SLOT_DISCHARGING -> isBatteryItem(stack) || stack.item === Items.REDSTONE || stack.item is ic2_120.content.item.EnergiumDust
         in SLOT_UPGRADE_0..SLOT_UPGRADE_3 -> stack.item is IUpgradeItem
         else -> false
     }

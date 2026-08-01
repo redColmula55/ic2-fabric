@@ -91,6 +91,7 @@ object MaceratorRecipeDatagen {
         Entry("netherrack_to_netherrack_dust", IngredientInput.item(Items.NETHERRACK), NetherrackDust::class.instance(), 1),
         Entry("obsidian_to_obsidian_dust", IngredientInput.item(Items.OBSIDIAN), ObsidianDust::class.instance(), 1),
         Entry("obsidian_plate_to_small_obsidian_dust", IngredientInput.item(ObsidianPlate::class.instance()), SmallObsidianDust::class.instance(), 8),
+        Entry("blaze_rod_to_blaze_powder", IngredientInput.item(Items.BLAZE_ROD), Items.BLAZE_POWDER, 5),
         Entry("coal_to_coal_dust", IngredientInput.item(Items.COAL), CoalDust::class.instance(), 1),
         Entry("coal_block_to_coal_dust", IngredientInput.item(Items.COAL_BLOCK), CoalDust::class.instance(), 9),
         Entry("clay_block_to_clay_dust", IngredientInput.item(Items.CLAY), ClayDust::class.instance(), 2),

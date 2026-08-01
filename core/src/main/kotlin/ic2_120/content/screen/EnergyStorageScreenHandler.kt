@@ -1,6 +1,5 @@
 package ic2_120.content.screen
 
-import ic2_120.content.block.storage.EnergyStorageBlockEntity
 import ic2_120.content.block.storage.EnergyStorageConfig
 import ic2_120.content.block.ChargepadBlock
 import ic2_120.content.sync.EnergyStorageSync
@@ -14,6 +13,7 @@ import net.minecraft.entity.player.PlayerEntity
 import net.minecraft.entity.player.PlayerInventory
 import net.minecraft.inventory.Inventory
 import net.minecraft.inventory.SimpleInventory
+import net.minecraft.item.ArmorItem
 import net.minecraft.item.ItemStack
 import net.minecraft.network.PacketByteBuf
 import net.minecraft.registry.Registries
@@ -25,6 +25,7 @@ import net.minecraft.screen.slot.Slot
 import net.minecraft.util.Identifier
 import net.minecraft.util.math.Direction
 import net.minecraft.state.property.Properties
+import net.minecraft.entity.EquipmentSlot
 import ic2_120.registry.annotation.ScreenFactory
 
 /**
@@ -85,10 +86,10 @@ class EnergyStorageScreenHandler(
 
         // 4 个玩家装备槽（横列，1px 间距），MFE/MFSU 专用
         if (config.useEquipmentSlots) {
-            addSlot(Slot(playerInventory, 39, 8, 84))   // 头盔
-            addSlot(Slot(playerInventory, 38, 26, 84))  // 胸甲
-            addSlot(Slot(playerInventory, 37, 44, 84))  // 护腿
-            addSlot(Slot(playerInventory, 36, 62, 84))  // 靴子
+            addSlot(armorSlot(playerInventory, 39, 8, 84, EquipmentSlot.HEAD))   // 头盔
+            addSlot(armorSlot(playerInventory, 38, 26, 84, EquipmentSlot.CHEST))  // 胸甲
+            addSlot(armorSlot(playerInventory, 37, 44, 84, EquipmentSlot.LEGS))   // 护腿
+            addSlot(armorSlot(playerInventory, 36, 62, 84, EquipmentSlot.FEET))   // 靴子
         }
 
         for (row in 0 until 3) {
@@ -106,6 +107,23 @@ class EnergyStorageScreenHandler(
         val handlerIndex = slots.size
         beSlotToHandlerIndex[beSlotIndex] = handlerIndex
         addSlot(PredicateSlot(inventory, beSlotIndex, x, y, spec))
+    }
+
+    /**
+     * MFE/MFSU 的装备槽直接映射到玩家护甲栏，必须同时校验物品类型和对应部位。
+     * 普通 Slot 的 canInsert 默认恒为 true，会导致任意物品被塞进护甲栏。
+     */
+    private fun armorSlot(
+        inventory: PlayerInventory,
+        index: Int,
+        x: Int,
+        y: Int,
+        equipmentSlot: EquipmentSlot
+    ): Slot = object : Slot(inventory, index, x, y) {
+        override fun canInsert(stack: ItemStack): Boolean {
+            val item = stack.item
+            return item is ArmorItem && item.type.getEquipmentSlot() == equipmentSlot
+        }
     }
 
     override fun quickMove(player: PlayerEntity, index: Int): ItemStack {
@@ -151,19 +169,6 @@ class EnergyStorageScreenHandler(
    private val hotbarEnd: Int
        get() = playerInventorySlotStart + 35
 
-   override fun onButtonClick(player: PlayerEntity, id: Int): Boolean {
-       if (id == BUTTON_ID_TOGGLE_CHARGE_MODE) {
-           context.get({ world, pos ->
-               val be = world.getBlockEntity(pos)
-               if (be is EnergyStorageBlockEntity) {
-                   be.toggleChargeMode()
-               }
-           }, true)
-           return true
-       }
-       return super.onButtonClick(player, id)
-   }
-
    override fun canUse(player: PlayerEntity): Boolean =
         context.get({ world, pos ->
             val block = world.getBlockState(pos).block
@@ -173,8 +178,6 @@ class EnergyStorageScreenHandler(
 
    companion object {
        const val SLOT_SIZE = 18
-       const val BUTTON_ID_TOGGLE_CHARGE_MODE = 0
-
         @ScreenFactory
         fun fromBuffer(syncId: Int, playerInventory: PlayerInventory, buf: PacketByteBuf): EnergyStorageScreenHandler {
             val pos = buf.readBlockPos()

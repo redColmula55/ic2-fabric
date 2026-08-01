@@ -1,6 +1,7 @@
 package ic2_120.content.energy.charge
 
 import ic2_120.content.item.energy.IBatteryItem
+import ic2_120.content.item.EnergiumDust
 import net.minecraft.item.Items
 import net.minecraft.inventory.Inventory
 
@@ -8,7 +9,8 @@ import net.minecraft.inventory.Inventory
  * 通用电池放电组件。
  *
  * 通过组合方式复用"电池给机器供能"逻辑，避免各类机器重复实现。
- * 同时支持红石一次性转化：放电槽中放入红石粉时，每 tick 消耗 1 个转化为 800 EU。
+ * 同时支持红石和能量粉一次性转化：放电槽中放入对应物品时，每 tick 消耗 1 个，
+ * 分别转化为 800 EU 和 16,000 EU。
  * 红石转化不受 canDischargeNow / maxDemand 限制，允许溢出机器容量上限。
  */
 class BatteryDischargerComponent(
@@ -19,6 +21,7 @@ class BatteryDischargerComponent(
 ) {
     companion object {
         const val REDSTONE_EU_PER_ITEM = 800L
+        const val ENERGIUM_DUST_EU_PER_ITEM = 16_000L
     }
 
     /**
@@ -34,6 +37,11 @@ class BatteryDischargerComponent(
             stack.decrement(1)
             inventory.setStack(batterySlot, stack)
             return REDSTONE_EU_PER_ITEM
+        }
+        if (!stack.isEmpty && stack.item is EnergiumDust) {
+            stack.decrement(1)
+            inventory.setStack(batterySlot, stack)
+            return ENERGIUM_DUST_EU_PER_ITEM
         }
 
         if (!canDischargeNow()) return 0L

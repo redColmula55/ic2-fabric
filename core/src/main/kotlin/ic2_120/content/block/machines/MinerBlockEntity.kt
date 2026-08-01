@@ -204,7 +204,7 @@ abstract class BaseMinerBlockEntity(
         slotValidator = { slot, stack -> isValid(slot, stack) },
         insertRoutes = buildList {
             add(ItemInsertRoute(SLOT_UPGRADE_INDICES, matcher = { isAllowedUpgrade(it) }))
-            add(ItemInsertRoute(intArrayOf(SLOT_DISCHARGING), matcher = { !it.isEmpty && (it.item is IBatteryItem || it.item === Items.REDSTONE) }, maxPerSlot = 1))
+            add(ItemInsertRoute(intArrayOf(SLOT_DISCHARGING), matcher = { !it.isEmpty && (it.item is IBatteryItem || it.item === Items.REDSTONE || it.item is ic2_120.content.item.EnergiumDust) }, maxPerSlot = 1))
             add(ItemInsertRoute(intArrayOf(SLOT_SCANNER), matcher = { isValid(SLOT_SCANNER, it) }, maxPerSlot = 1))
             add(ItemInsertRoute(intArrayOf(SLOT_DRILL), matcher = { isValid(SLOT_DRILL, it) }, maxPerSlot = 1))
             // 普通采矿机：物品槽允许外部管道插入；高级采矿机：过滤槽不允许外部插入/抽出
@@ -415,7 +415,7 @@ abstract class BaseMinerBlockEntity(
                 else -> false
             }
             SLOT_DRILL -> stack.item is Drill || stack.item is DiamondDrill || stack.item is IridiumDrill
-            SLOT_DISCHARGING -> (stack.item is IBatteryItem || stack.item === Items.REDSTONE)
+            SLOT_DISCHARGING -> (stack.item is IBatteryItem || stack.item === Items.REDSTONE || stack.item is ic2_120.content.item.EnergiumDust)
             in SLOT_ITEM_START..SLOT_ITEM_END -> {
                 if (acceptsAdvancedScanner) {
                     stack.item is net.minecraft.item.BlockItem
