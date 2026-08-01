@@ -189,7 +189,7 @@ object UuRecipeBridge {
         )
     }
 
-    // ===== 原版配方适配（输入/输出字段为 protected，用反射取）=====
+    // ===== 原版配方适配 =====
 
     private fun AbstractCookingRecipe.toSmeltingTx(rm: net.minecraft.registry.DynamicRegistryManager): UuGraph.Transformation? {
         // AbstractCookingRecipe.getIngredients() (public) 返回单元素 list，getOutput(rm) 返回输出
