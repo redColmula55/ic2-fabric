@@ -18,13 +18,14 @@ import net.minecraft.block.entity.BlockEntityTicker
 import net.minecraft.block.entity.BlockEntityType
 import net.minecraft.data.server.recipe.RecipeJsonProvider
 import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
+import net.minecraft.data.server.recipe.ShapelessRecipeJsonBuilder
 import net.minecraft.recipe.book.RecipeCategory
 import net.minecraft.util.math.BlockPos
 import net.minecraft.world.World
 import java.util.function.Consumer
 
 // i18n: block.ic2_120_industrial_upgrade.singular_solar_panelrain
-// zh_cn: 奇点雨能太阳能发电机  en_us: Singular Rain Panel
+// zh_cn: 奇异雨能太阳能发电机  en_us: Singular Rain Panel
 @ModBlock(name = "singular_solar_panelrain", registerItem = true, tab = CreativeTab.INDUSTRIAL_UPGRADE, group = "solar_panel")
 class SingularSolarPanelRainBlock : IndustrialSolarPanelBlock() {
     override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
@@ -41,7 +42,7 @@ class SingularSolarPanelRainBlock : IndustrialSolarPanelBlock() {
     companion object {
         @RecipeProvider
         fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
-            // "BA"：奇点太阳能发电机 + RainLinse（ASA）
+            // "BA"：奇异太阳能发电机 + RainLinse（ASA）
             ShapedRecipeJsonBuilder.create(RecipeCategory.MISC, SingularSolarPanelRainBlock::class.item(), 1)
                 .pattern("B")
                 .pattern("A")
@@ -49,6 +50,11 @@ class SingularSolarPanelRainBlock : IndustrialSolarPanelBlock() {
                 .input('A', RainLinse::class.instance())
                 .criterion(hasItem(SingularSolarPanelBlock::class.item()), conditionsFromItem(SingularSolarPanelBlock::class.item()))
                 .offerTo(exporter, IC2IndustrialUpgrade.id("singular_solar_panelrain"))
+            // 变体回退：变体 → 原版（透镜不返还）
+            ShapelessRecipeJsonBuilder.create(RecipeCategory.MISC, SingularSolarPanelBlock::class.item(), 1)
+                .input(SingularSolarPanelRainBlock::class.item())
+                .criterion(hasItem(SingularSolarPanelRainBlock::class.item()), conditionsFromItem(SingularSolarPanelRainBlock::class.item()))
+                .offerTo(exporter, IC2IndustrialUpgrade.id("singular_solar_panelrain_revert"))
         }
     }
 }

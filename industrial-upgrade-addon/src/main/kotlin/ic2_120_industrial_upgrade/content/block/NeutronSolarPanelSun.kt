@@ -18,6 +18,7 @@ import net.minecraft.block.entity.BlockEntityTicker
 import net.minecraft.block.entity.BlockEntityType
 import net.minecraft.data.server.recipe.RecipeJsonProvider
 import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
+import net.minecraft.data.server.recipe.ShapelessRecipeJsonBuilder
 import net.minecraft.recipe.book.RecipeCategory
 import net.minecraft.util.math.BlockPos
 import net.minecraft.world.World
@@ -49,6 +50,11 @@ class NeutronSolarPanelSunBlock : IndustrialSolarPanelBlock() {
                 .input('A', SunLinse::class.instance())
                 .criterion(hasItem(NeutronSolarPanelBlock::class.item()), conditionsFromItem(NeutronSolarPanelBlock::class.item()))
                 .offerTo(exporter, IC2IndustrialUpgrade.id("neutron_solar_panelsun"))
+            // 变体回退：变体 → 原版（透镜不返还）
+            ShapelessRecipeJsonBuilder.create(RecipeCategory.MISC, NeutronSolarPanelBlock::class.item(), 1)
+                .input(NeutronSolarPanelSunBlock::class.item())
+                .criterion(hasItem(NeutronSolarPanelSunBlock::class.item()), conditionsFromItem(NeutronSolarPanelSunBlock::class.item()))
+                .offerTo(exporter, IC2IndustrialUpgrade.id("neutron_solar_panelsun_revert"))
         }
     }
 }

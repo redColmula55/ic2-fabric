@@ -19,6 +19,7 @@ import net.minecraft.block.entity.BlockEntityTicker
 import net.minecraft.block.entity.BlockEntityType
 import net.minecraft.data.server.recipe.RecipeJsonProvider
 import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
+import net.minecraft.data.server.recipe.ShapelessRecipeJsonBuilder
 import net.minecraft.recipe.book.RecipeCategory
 import net.minecraft.util.math.BlockPos
 import net.minecraft.world.World
@@ -50,6 +51,11 @@ class UltimateSolarPanelRainBlock : UltimateSolarPanelBlock() {
                 .input('A', RainLinse::class.instance())
                 .criterion(hasItem(UltimateSolarPanelBlock::class.item()), conditionsFromItem(UltimateSolarPanelBlock::class.item()))
                 .offerTo(exporter, IC2IndustrialUpgrade.id("ultimate_solar_panelrain"))
+            // 变体回退：变体 → 原版（透镜不返还）
+            ShapelessRecipeJsonBuilder.create(RecipeCategory.MISC, UltimateSolarPanelBlock::class.item(), 1)
+                .input(UltimateSolarPanelRainBlock::class.item())
+                .criterion(hasItem(UltimateSolarPanelRainBlock::class.item()), conditionsFromItem(UltimateSolarPanelRainBlock::class.item()))
+                .offerTo(exporter, IC2IndustrialUpgrade.id("ultimate_solar_panelrain_revert"))
         }
     }
 }

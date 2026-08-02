@@ -25,7 +25,7 @@ import net.minecraft.world.World
 import java.util.function.Consumer
 
 // i18n: block.ic2_120_industrial_upgrade.admin_solar_panel
-// zh_cn: 光吸太阳能发电机
+// zh_cn: 管理员太阳能发电机
 // en_us: Admin Solar Panel
 @ModBlock(name = "admin_solar_panel", registerItem = true, tab = CreativeTab.INDUSTRIAL_UPGRADE, group = "solar_panel")
 class AdminSolarPanelBlock : IndustrialSolarPanelBlock() {

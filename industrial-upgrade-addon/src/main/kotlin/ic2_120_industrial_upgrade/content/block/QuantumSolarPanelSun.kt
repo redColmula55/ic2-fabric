@@ -19,6 +19,7 @@ import net.minecraft.block.entity.BlockEntityTicker
 import net.minecraft.block.entity.BlockEntityType
 import net.minecraft.data.server.recipe.RecipeJsonProvider
 import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
+import net.minecraft.data.server.recipe.ShapelessRecipeJsonBuilder
 import net.minecraft.recipe.book.RecipeCategory
 import net.minecraft.util.math.BlockPos
 import net.minecraft.world.World
@@ -50,6 +51,11 @@ class QuantumSolarPanelSunBlock : QuantumSolarPanelBlock() {
                 .input('A', SunLinse::class.instance())
                 .criterion(hasItem(QuantumSolarPanelBlock::class.item()), conditionsFromItem(QuantumSolarPanelBlock::class.item()))
                 .offerTo(exporter, IC2IndustrialUpgrade.id("quantum_solar_panelsun"))
+            // 变体回退：变体 → 原版（透镜不返还）
+            ShapelessRecipeJsonBuilder.create(RecipeCategory.MISC, QuantumSolarPanelBlock::class.item(), 1)
+                .input(QuantumSolarPanelSunBlock::class.item())
+                .criterion(hasItem(QuantumSolarPanelSunBlock::class.item()), conditionsFromItem(QuantumSolarPanelSunBlock::class.item()))
+                .offerTo(exporter, IC2IndustrialUpgrade.id("quantum_solar_panelsun_revert"))
         }
     }
 }

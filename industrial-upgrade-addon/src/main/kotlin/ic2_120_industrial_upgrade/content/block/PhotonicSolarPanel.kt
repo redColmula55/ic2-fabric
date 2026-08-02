@@ -38,7 +38,7 @@ class PhotonicSolarPanelBlock : IndustrialSolarPanelBlock() {
     companion object {
         @RecipeProvider
         fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
-            // 十字：4 个光吸太阳能 + 1 个量子核心I
+            // 十字：4 个管理员太阳能 + 1 个量子核心I
             ShapedRecipeJsonBuilder.create(RecipeCategory.MISC, PhotonicSolarPanelBlock::class.item(), 1)
                 .pattern(" B ")
                 .pattern("BAB")

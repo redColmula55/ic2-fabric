@@ -18,6 +18,7 @@ import net.minecraft.block.entity.BlockEntityTicker
 import net.minecraft.block.entity.BlockEntityType
 import net.minecraft.data.server.recipe.RecipeJsonProvider
 import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
+import net.minecraft.data.server.recipe.ShapelessRecipeJsonBuilder
 import net.minecraft.recipe.book.RecipeCategory
 import net.minecraft.util.math.BlockPos
 import net.minecraft.world.World
@@ -49,6 +50,11 @@ class PhotonicSolarPanelSunBlock : IndustrialSolarPanelBlock() {
                 .input('A', SunLinse::class.instance())
                 .criterion(hasItem(PhotonicSolarPanelBlock::class.item()), conditionsFromItem(PhotonicSolarPanelBlock::class.item()))
                 .offerTo(exporter, IC2IndustrialUpgrade.id("photonic_solar_panelsun"))
+            // 变体回退：变体 → 原版（透镜不返还）
+            ShapelessRecipeJsonBuilder.create(RecipeCategory.MISC, PhotonicSolarPanelBlock::class.item(), 1)
+                .input(PhotonicSolarPanelSunBlock::class.item())
+                .criterion(hasItem(PhotonicSolarPanelSunBlock::class.item()), conditionsFromItem(PhotonicSolarPanelSunBlock::class.item()))
+                .offerTo(exporter, IC2IndustrialUpgrade.id("photonic_solar_panelsun_revert"))
         }
     }
 }
