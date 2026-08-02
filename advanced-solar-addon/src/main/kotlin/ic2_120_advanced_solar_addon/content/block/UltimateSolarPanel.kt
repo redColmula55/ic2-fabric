@@ -37,7 +37,7 @@ import java.util.function.Consumer
 // zh_cn: 终极混合太阳能发电机
 // en_us: Ultimate Hybrid Solar Panel
 @ModBlock(name = "ultimate_solar_panel", registerItem = true, tab = CreativeTab.IC2_SOLAR, group = "solar_panel")
-class UltimateSolarPanelBlock : MachineBlock() {
+open class UltimateSolarPanelBlock : MachineBlock() {
 
     override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
         UltimateSolarPanelBlockEntity(pos, state)

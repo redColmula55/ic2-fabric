@@ -34,7 +34,7 @@ import java.util.function.Consumer
 // zh_cn: 量子太阳能发电机
 // en_us: Quantum Solar Panel
 @ModBlock(name = "quantum_solar_panel", registerItem = true, tab = CreativeTab.IC2_SOLAR, group = "solar_panel")
-class QuantumSolarPanelBlock : MachineBlock() {
+open class QuantumSolarPanelBlock : MachineBlock() {
 
     override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
         QuantumSolarPanelBlockEntity(pos, state)

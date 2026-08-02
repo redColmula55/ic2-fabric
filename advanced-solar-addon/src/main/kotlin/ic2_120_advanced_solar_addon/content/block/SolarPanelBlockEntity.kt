@@ -36,7 +36,7 @@ import net.minecraft.util.math.Direction
 import net.minecraft.world.World
 
 enum class GenerationState {
-    NONE, NIGHT, DAY
+    NONE, NIGHT, DAY, RAIN
 }
 
 abstract class SolarPanelBlockEntity(
@@ -47,16 +47,18 @@ abstract class SolarPanelBlockEntity(
     val nightPower: Int,
     maxStorage: Long,
     override val tier: Int,
-    activeProperty: BooleanProperty
+    activeProperty: BooleanProperty,
+    /** Rain 变体专用：RAIN 状态发电功率（默认 0，不影响既有面板）。 */
+    val rainPower: Int = 0
 ) : MachineBlockEntity(type, pos, state), IGenerator, ExtendedScreenHandlerFactory, Inventory {
 
     companion object {
         private const val CHARGE_SLOTS = 4
         private const val INVENTORY_NBT_KEY = "charge_inventory"
         /** 6:20 AM ≈ 333 ticks（0 = 6:00 AM，20 分钟 ≈ 333 ticks） */
-        private const val DAY_START_TICK = 333
+        protected const val DAY_START_TICK = 333
         /** 17:45 PM = 11750 ticks（11*1000 + 750） */
-        private const val DAY_END_TICK = 11750
+        protected const val DAY_END_TICK = 11750
     }
 
     @Suppress("unused")
@@ -78,7 +80,7 @@ abstract class SolarPanelBlockEntity(
     override val activeProperty: BooleanProperty = activeProperty
 
     var generationState: GenerationState = GenerationState.NONE
-        private set
+        protected set
     private var ticker: Int = 0
     private val tickRate: Int = 128
 
@@ -146,6 +148,7 @@ abstract class SolarPanelBlockEntity(
         when (generationState) {
             GenerationState.DAY -> sync.generateEnergy(dayPower.toLong())
             GenerationState.NIGHT -> sync.generateEnergy(nightPower.toLong())
+            GenerationState.RAIN -> sync.generateEnergy(rainPower.toLong())
             GenerationState.NONE -> {}
         }
 
@@ -164,7 +167,7 @@ abstract class SolarPanelBlockEntity(
         setActiveState(world, pos, state, canGenerate)
     }
 
-    private fun checkSky() {
+    protected open fun checkSky() {
         val world = this.world ?: return
         val pos = this.pos
 
@@ -205,7 +208,7 @@ abstract class SolarPanelBlockEntity(
      * 检查正上方是否有天空可见（无非透明方块遮挡）。
      * 参考 ic2-fabric 的 SolarGeneratorBlockEntity 实现。
      */
-    private fun hasSkyAccess(world: World, basePos: BlockPos): Boolean {
+    protected fun hasSkyAccess(world: World, basePos: BlockPos): Boolean {
         val topY = world.topY
         var y = basePos.y + 1
         while (y < topY) {
@@ -258,7 +261,7 @@ abstract class SolarPanelBlockEntity(
     override fun readNbt(nbt: NbtCompound) {
         super.readNbt(nbt)
         sync.restoreEnergy(nbt.getLong(SolarPanelSync.NBT_ENERGY).coerceIn(0L, sync.capacity))
-        generationState = GenerationState.values()[nbt.getInt("state").coerceIn(0, 2)]
+        generationState = GenerationState.entries[nbt.getInt("state").coerceIn(0, GenerationState.entries.size - 1)]
         syncedData.readNbt(nbt)
         Inventories.readNbt(nbt.getCompound(INVENTORY_NBT_KEY), inventory)
     }

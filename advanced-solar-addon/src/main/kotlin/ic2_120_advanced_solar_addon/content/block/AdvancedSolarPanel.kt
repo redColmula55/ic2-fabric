@@ -40,7 +40,7 @@ import java.util.function.Consumer
 // zh_cn: 高级太阳能发电机
 // en_us: Advanced Solar Panel
 @ModBlock(name = "advanced_solar_panel", registerItem = true, tab = CreativeTab.IC2_SOLAR, group = "solar_panel")
-class AdvancedSolarPanelBlock : MachineBlock() {
+open class AdvancedSolarPanelBlock : MachineBlock() {
 
     override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
         AdvancedSolarPanelBlockEntity(pos, state)

@@ -39,7 +39,7 @@ import java.util.function.Consumer
 // zh_cn: 混合太阳能发电机
 // en_us: Hybrid Solar Panel
 @ModBlock(name = "hybrid_solar_panel", registerItem = true, tab = CreativeTab.IC2_SOLAR, group = "solar_panel")
-class HybridSolarPanelBlock : MachineBlock() {
+open class HybridSolarPanelBlock : MachineBlock() {
 
     override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
         HybridSolarPanelBlockEntity(pos, state)
