@@ -506,6 +506,10 @@ object Ic2Config {
     var current: Ic2MainConfig = DEFAULT_CONFIG_TEMPLATE
         private set
 
+    /** Complete UU table received from the authoritative server; null before server sync. */
+    @Volatile
+    private var syncedReplicationCosts: Map<String, Int>? = null
+
     fun loadOrThrow() {
         current = readOrCreateDefault()
         logLoaded("loaded")
@@ -530,9 +534,25 @@ object Ic2Config {
         logLoaded("applied from server")
     }
 
+    fun prettyAllReplicationCosts(): String = mapper.writeValueAsString(buildAllReplicationCosts())
+
+    fun applyServerReplicationCosts(json: String) {
+        val mapType = mapper.typeFactory.constructMapType(
+            Map::class.java,
+            String::class.java,
+            Int::class.javaObjectType
+        )
+        syncedReplicationCosts = mapper.readValue<Map<String, Int>>(json, mapType)
+    }
+
+    fun clearServerReplicationCosts() {
+        syncedReplicationCosts = null
+    }
+
     fun getReplicationCostUb(itemId: String): Int? {
         val normalized = itemId.trim()
         if (normalized.isEmpty()) return null
+        syncedReplicationCosts?.get(normalized)?.takeIf { it > 0 }?.let { return it }
         // 1. 白名单优先（手工定价，硬约束）
         current.uuReplication.replicationWhitelist[normalized]?.takeIf { it > 0 }?.let { return it }
         // 2. 动态计算补全（服务器启动后可用）
@@ -611,6 +631,11 @@ object Ic2Config {
      * 动态部分在服务器启动后才可用；启动前只返回白名单。
      */
     fun getAllReplicationCosts(): Map<String, Int> {
+        syncedReplicationCosts?.let { return it }
+        return buildAllReplicationCosts()
+    }
+
+    private fun buildAllReplicationCosts(): Map<String, Int> {
         val whitelist = current.uuReplication.replicationWhitelist
         val dynamic = ic2_120.content.uu.UuCostIndex.allDynamic()
         if (dynamic.isEmpty()) return whitelist

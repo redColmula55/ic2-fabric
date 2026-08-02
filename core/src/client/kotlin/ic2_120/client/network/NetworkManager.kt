@@ -7,12 +7,14 @@ import ic2_120.content.network.ScannerResultPacket
 import ic2_120.content.network.TeleporterVisualStatePacket
 import ic2_120.content.network.ConfigSyncPacket
 import ic2_120.content.network.ConfigSyncReceiver
+import ic2_120.content.network.ReplicationCostsSyncReceiver
 import ic2_120.content.network.WindRotorStatePacket
 import ic2_120.content.network.WaterRotorStatePacket
 import ic2_120.content.network.SemifluidGeneratorFuelStatePacket
 
 import ic2_120.client.screen.ScannerScreen
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents
 import net.minecraft.client.MinecraftClient
 import net.minecraft.util.Identifier
 
@@ -25,6 +27,7 @@ object NetworkManager {
     private val SCANNER_RESULT_PACKET = ScannerResultPacket.ID
     private val TELEPORTER_VISUAL_STATE_PACKET = TeleporterVisualStatePacket.ID
     private val CONFIG_SYNC_PACKET = ConfigSyncPacket.ID
+    private val REPLICATION_COSTS_SYNC_PACKET = ConfigSyncPacket.REPLICATION_COSTS_ID
     private val SEMIFLUID_GENERATOR_FUEL_STATE_PACKET = SemifluidGeneratorFuelStatePacket.ID
 
     fun register() {
@@ -104,6 +107,17 @@ object NetworkManager {
             client.execute {
                 ConfigSyncReceiver.accept(packet)
             }
+        }
+
+        ClientPlayNetworking.registerGlobalReceiver(REPLICATION_COSTS_SYNC_PACKET) { client, _, buf, _ ->
+            val packet = ConfigSyncPacket.read(buf)
+            client.execute {
+                ReplicationCostsSyncReceiver.accept(packet)
+            }
+        }
+
+        ClientPlayConnectionEvents.DISCONNECT.register { _, _ ->
+            ic2_120.config.Ic2Config.clearServerReplicationCosts()
         }
 
         ClientPlayNetworking.registerGlobalReceiver(SEMIFLUID_GENERATOR_FUEL_STATE_PACKET) { client, _, buf, _ ->

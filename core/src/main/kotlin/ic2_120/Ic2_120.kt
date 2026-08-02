@@ -221,6 +221,11 @@ object Ic2_120 : ModInitializer {
         // 玩家加入时发送完整配置同步（分包）
         ServerPlayConnectionEvents.JOIN.register { handler, _, _ ->
             ConfigSyncHelper.sendToPlayer(handler.player, ConfigSyncPacket.ID, Ic2Config.prettyCurrentConfig())
+            ConfigSyncHelper.sendToPlayer(
+                handler.player,
+                ConfigSyncPacket.REPLICATION_COSTS_ID,
+                Ic2Config.prettyAllReplicationCosts()
+            )
         }
 
         // 注册配置重载命令（/ic2config reload）
