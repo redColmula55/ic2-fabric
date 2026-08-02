@@ -63,6 +63,11 @@ import ic2_120.content.recipes.crafting.EmptyFluidCellToEmptyCellRecipeDatagen
 import ic2_120.integration.ftbchunks.ClaimProtection
 import org.slf4j.LoggerFactory
 
+/** Vanilla water cannot be placed in the Nether; keep that restriction for cells too. */
+private fun canPlaceFluidInWorld(world: World, fluid: Fluid): Boolean {
+    return world.registryKey != World.NETHER || (fluid != Fluids.WATER && fluid != Fluids.FLOWING_WATER)
+}
+
 /** 通用流体单元 NBT 键：存储 FluidVariant */
 const val FLUID_CELL_NBT_KEY = "FluidVariant"
 
@@ -205,14 +210,25 @@ class FluidCellItem : Item(FabricItemSettings()), FluidModificationItem {
         val fluid = stack.getFluidCellVariant()?.fluid ?: return ActionResult.PASS
 
         // 先尝试与方块的 FluidStorage 交互（如流体储罐），命中则优先交给储罐接管，
-        // 否则不执行任何操作（通用流体单元不放流体到世界）。
+        // 否则回退到世界放液。
         val sided = FluidStorage.SIDED.find(world, pos, context.side)
         if (sided != null && !ClaimProtection.isProtected(world, pos, player, ClaimProtection.INTERACT_BLOCK) && FluidStorageUtil.interactWithFluidStorage(sided, player, hand)) {
             return ActionResult.SUCCESS
         }
 
-        // 通用流体单元不能直接向世界放置流体，只能与流体容器（储罐等）交互。
-        // 如需在世界中放置流体，请使用桶或专用流体单元（ModFluidCell 子类）。
+        val hitResult = BlockHitResult(context.hitPos, context.side, pos, context.hitsInsideBlock())
+        if (placeFluid(player, world, pos, hitResult)) {
+            if (!player.abilities.creativeMode) {
+                stack.decrement(1)
+                val empty = ItemStack(cellItem("empty_cell"))
+                if (stack.isEmpty) {
+                    player.setStackInHand(hand, empty)
+                } else if (!player.inventory.insertStack(empty)) {
+                    player.dropItem(empty, false)
+                }
+            }
+            return ActionResult.SUCCESS
+        }
         return ActionResult.PASS
     }
 
@@ -231,6 +247,8 @@ class FluidCellItem : Item(FabricItemSettings()), FluidModificationItem {
         val fluid = if (rawFluid == ModFluids.DISTILLED_WATER_STILL || rawFluid == ModFluids.DISTILLED_WATER_FLOWING) {
             Fluids.WATER
         } else rawFluid
+
+        if (!canPlaceFluidInWorld(world, fluid)) return false
 
         // FluidFillable：如炼药锅等可注入液体的方块
         if (block is FluidFillable) {
@@ -466,6 +484,7 @@ abstract class ModFluidCell(settings: FabricItemSettings) : Item(settings), Flui
         val fluid = if (rawFluid == ModFluids.DISTILLED_WATER_STILL || rawFluid == ModFluids.DISTILLED_WATER_FLOWING) {
             Fluids.WATER
         } else rawFluid
+        if (!canPlaceFluidInWorld(world, fluid)) return false
         val state = world.getBlockState(pos)
         val block = state.block
 
