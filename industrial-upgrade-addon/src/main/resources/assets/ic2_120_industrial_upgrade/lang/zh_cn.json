@@ -6,7 +6,6 @@
   "block.ic2_120_industrial_upgrade.photonic_solar_panel": "光子太阳能发电机",
   "block.ic2_120_industrial_upgrade.neutron_solar_panel": "中子太阳能发电机",
   "block.ic2_120_industrial_upgrade.neutron_fabricator": "中子制造机",
-
   "item.ic2_120_industrial_upgrade.spectral_core": "光谱核心",
   "item.ic2_120_industrial_upgrade.proton_core": "质子核心",
   "item.ic2_120_industrial_upgrade.singular_core": "奇点核心",
@@ -14,26 +13,43 @@
   "item.ic2_120_industrial_upgrade.quant_core2": "量子核心II",
   "item.ic2_120_industrial_upgrade.neutron_core": "中子核心",
   "item.ic2_120_industrial_upgrade.ender_quantum_component": "末影量子组件",
-
   "item.ic2_120_industrial_upgrade.enriched_sunnarium_alloy2": "光谱富集阳光合金",
   "item.ic2_120_industrial_upgrade.enriched_sunnarium_alloy3": "奇点富集阳光合金",
   "item.ic2_120_industrial_upgrade.enriched_sunnarium_alloy4": "质子富集阳光合金",
-
   "item.ic2_120_industrial_upgrade.photoniy": "光子",
   "item.ic2_120_industrial_upgrade.photoniy_ingot": "光子锭",
-
   "item.ic2_120_industrial_upgrade.proton": "质子",
   "item.ic2_120_industrial_upgrade.proton_shard": "质子碎片",
   "item.ic2_120_industrial_upgrade.neutron": "中子",
   "item.ic2_120_industrial_upgrade.neutron_shard": "中子碎片",
-
   "item.ic2_120_industrial_upgrade.red_component": "红色组件",
   "item.ic2_120_industrial_upgrade.blue_component": "蓝色组件",
   "item.ic2_120_industrial_upgrade.green_component": "绿色组件",
   "item.ic2_120_industrial_upgrade.solar_splitter": "分光器",
-
   "item.ic2_120_industrial_upgrade.neutron_bucket": "中子流体桶",
   "fluid.ic2_120_industrial_upgrade.neutron": "中子流体",
-
-  "itemGroup.ic2_120_industrial_upgrade.industrial_upgrade": "工业升级"
+  "itemGroup.ic2_120_industrial_upgrade.industrial_upgrade": "工业升级",
+  "block.ic2_120_industrial_upgrade.spectral_solar_panelsun": "光谱日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.spectral_solar_panelrain": "光谱雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.proton_solar_panelsun": "质子日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.proton_solar_panelrain": "质子雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.singular_solar_panelsun": "奇点日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.singular_solar_panelrain": "奇点雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.admin_solar_panelsun": "光吸日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.admin_solar_panelrain": "光吸雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.photonic_solar_panelsun": "光子日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.photonic_solar_panelrain": "光子雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.neutron_solar_panelsun": "中子日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.neutron_solar_panelrain": "中子雨能太阳能发电机",
+  "item.ic2_120_industrial_upgrade.sunlinse": "日光镜",
+  "item.ic2_120_industrial_upgrade.nightlinse": "夜光镜",
+  "item.ic2_120_industrial_upgrade.rainlinse": "雨镜",
+  "block.ic2_120_industrial_upgrade.advanced_solar_panelsun": "高级日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.advanced_solar_panelrain": "高级雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.hybrid_solar_panelsun": "混合日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.hybrid_solar_panelrain": "混合雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.ultimate_solar_panelsun": "终极混合日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.ultimate_solar_panelrain": "终极混合雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.quantum_solar_panelsun": "量子日光太阳能发电机",
+  "block.ic2_120_industrial_upgrade.quantum_solar_panelrain": "量子雨能太阳能发电机"
 }

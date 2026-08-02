@@ -1,0 +1,64 @@
+package ic2_120_industrial_upgrade.content.block
+
+import ic2_120.registry.CreativeTab
+import ic2_120.registry.annotation.ModBlock
+import ic2_120.registry.annotation.ModBlockEntity
+import ic2_120.registry.annotation.RecipeProvider
+import ic2_120.registry.instance
+import ic2_120.registry.item
+import ic2_120.registry.type
+import ic2_120_industrial_upgrade.content.item.SunLinse
+import ic2_120_industrial_upgrade.IC2IndustrialUpgrade
+import net.minecraft.text.Text
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider.conditionsFromItem
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider.hasItem
+import net.minecraft.block.BlockState
+import net.minecraft.block.entity.BlockEntity
+import net.minecraft.block.entity.BlockEntityTicker
+import net.minecraft.block.entity.BlockEntityType
+import net.minecraft.data.server.recipe.RecipeJsonProvider
+import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
+import net.minecraft.recipe.book.RecipeCategory
+import net.minecraft.util.math.BlockPos
+import net.minecraft.world.World
+import java.util.function.Consumer
+
+// i18n: block.ic2_120_industrial_upgrade.spectral_solar_panelsun
+// zh_cn: 光谱日光太阳能发电机  en_us: Spectral Sun Panel
+@ModBlock(name = "spectral_solar_panelsun", registerItem = true, tab = CreativeTab.INDUSTRIAL_UPGRADE, group = "solar_panel")
+class SpectralSolarPanelSunBlock : IndustrialSolarPanelBlock() {
+    override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity =
+        SpectralSolarPanelSunBlockEntity(pos, state)
+
+    override fun <T : BlockEntity> getTicker(
+        world: World,
+        state: BlockState,
+        type: BlockEntityType<T>
+    ): BlockEntityTicker<T>? =
+        if (world.isClient) null
+        else checkType(type, SpectralSolarPanelSunBlockEntity::class.type()) { w, p, s, be -> be.tick(w, p, s) }
+
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            // "BA"：光谱太阳能发电机 + SunLinse（ASA）
+            ShapedRecipeJsonBuilder.create(RecipeCategory.MISC, SpectralSolarPanelSunBlock::class.item(), 1)
+                .pattern("B")
+                .pattern("A")
+                .input('B', SpectralSolarPanelBlock::class.item())
+                .input('A', SunLinse::class.instance())
+                .criterion(hasItem(SpectralSolarPanelBlock::class.item()), conditionsFromItem(SpectralSolarPanelBlock::class.item()))
+                .offerTo(exporter, IC2IndustrialUpgrade.id("spectral_solar_panelsun"))
+        }
+    }
+}
+
+@ModBlockEntity(block = SpectralSolarPanelSunBlock::class)
+class SpectralSolarPanelSunBlockEntity(pos: BlockPos, state: BlockState) : SunPanelBlockEntity(
+    SpectralSolarPanelSunBlockEntity::class.type(), pos, state,
+    dayPower = 16384, nightPower = 8192, maxStorage = 100000000L, tier = 6,
+    sunPower = 32768, activeProperty = SOLAR_ACTIVE
+) {
+    override fun getBlockName(): String = "spectral_solar_panelsun"
+    override fun getDisplayName(): Text = Text.translatable("block.${IC2IndustrialUpgrade.MOD_ID}.${getBlockName()}")
+}
