@@ -94,7 +94,20 @@ class WoodenRotorBlade : Item(FabricItemSettings()) {
 }
 
 @ModItem(name = "bronze_rotor_blade", tab = CreativeTab.IC2_MATERIALS, group = "rotor_blades")
-class BronzeRotorBlade : Item(FabricItemSettings())
+class BronzeRotorBlade : Item(FabricItemSettings()) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val plate = BronzePlate::class.instance()
+            ShapedRecipeJsonBuilder.create(RecipeCategory.MISC, BronzeRotorBlade::class.instance(), 1)
+                .pattern("xxx").pattern("yyy").pattern("xxx")
+                .input('x', Ingredient.fromTag(ModTags.Compat.Items.PLATES_BRONZE))
+                .input('y', Ingredient.fromTag(ModTags.Compat.Items.INGOTS_BRONZE))
+                .criterion(hasItem(plate), conditionsFromItem(plate))
+                .offerTo(exporter, BronzeRotorBlade::class.id())
+        }
+    }
+}
 
 @ModItem(name = "iron_rotor_blade", tab = CreativeTab.IC2_MATERIALS, group = "rotor_blades")
 class IronRotorBlade : Item(FabricItemSettings()) {
