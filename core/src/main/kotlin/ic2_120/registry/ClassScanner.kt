@@ -2,7 +2,6 @@ package ic2_120.registry
 
 import ic2_120.content.TickLimitedSidedEnergyContainer
 import ic2_120.Ic2_120
-import ic2_120.content.energy.EnergyTier
 import ic2_120.content.item.energy.IBatteryItem
 import ic2_120.content.item.energy.IElectricTool
 import ic2_120.content.item.ICreativeFullVariant
@@ -69,8 +68,8 @@ import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerType
 import net.fabricmc.fabric.api.transfer.v1.item.ItemStorage
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant
 import net.fabricmc.fabric.api.transfer.v1.storage.Storage
+import net.fabricmc.fabric.api.transfer.v1.context.ContainerItemContext
 import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext
-import net.fabricmc.fabric.api.transfer.v1.transaction.base.SnapshotParticipant
 import org.slf4j.LoggerFactory
 import kotlin.reflect.full.createInstance
 import kotlin.reflect.full.declaredMemberProperties
@@ -106,44 +105,6 @@ object ClassScanner {
     private val logger = LoggerFactory.getLogger("ic2_120/ClassScanner")
     private const val SINYTRA_CONNECTOR_RESOURCE_PROTOCOL = "union"
     private var currentModId: String = "ic2_120"
-
-    /** 每 tick 每物品栈的已传输量。key = ItemStack identity（System.identityHashCode），tick 滚动时自动清理。 */
-    private val tickInserted = mutableMapOf<Pair<Int, Long>, Long>()
-    private val tickExtracted = mutableMapOf<Pair<Int, Long>, Long>()
-
-    private fun remainingInsert(stack: net.minecraft.item.ItemStack, maxRate: Long): Long {
-        val tick = Ic2_120.serverTick
-        if (tick == 0L) return maxRate
-        val used = tickInserted[System.identityHashCode(stack) to tick] ?: 0L
-        return (maxRate - used).coerceAtLeast(0L)
-    }
-
-    private fun remainingExtract(stack: net.minecraft.item.ItemStack, maxRate: Long): Long {
-        val tick = Ic2_120.serverTick
-        if (tick == 0L) return maxRate
-        val used = tickExtracted[System.identityHashCode(stack) to tick] ?: 0L
-        return (maxRate - used).coerceAtLeast(0L)
-    }
-
-    private fun recordInsert(stack: net.minecraft.item.ItemStack, amount: Long) {
-        val tick = Ic2_120.serverTick
-        if (tick == 0L) return
-        val key = System.identityHashCode(stack) to tick
-        tickInserted[key] = (tickInserted[key] ?: 0L) + amount
-        if (tickInserted.size > 1024) {
-            tickInserted.keys.retainAll { it.second >= tick - 1 }
-        }
-    }
-
-    private fun recordExtract(stack: net.minecraft.item.ItemStack, amount: Long) {
-        val tick = Ic2_120.serverTick
-        if (tick == 0L) return
-        val key = System.identityHashCode(stack) to tick
-        tickExtracted[key] = (tickExtracted[key] ?: 0L) + amount
-        if (tickExtracted.size > 1024) {
-            tickExtracted.keys.retainAll { it.second >= tick - 1 }
-        }
-    }
 
     /** 扫描机器配方 [ModMachineRecipe] 的包 */
     private val machineRecipeScanPackages = listOf("ic2_120.content.recipes")
@@ -1147,101 +1108,86 @@ object ClassScanner {
         when (item) {
             is IBatteryItem -> {
                 EnergyStorage.ITEM.registerForItems(
-                    { stack, _ -> BatteryItemEnergyStorage(item, stack) },
+                    { _, ctx -> BatteryItemEnergyStorage(item, ctx) },
                     item
                 )
             }
             is IElectricTool -> {
                 EnergyStorage.ITEM.registerForItems(
-                    { stack, _ -> ElectricToolEnergyStorage(item, stack) },
+                    { _, ctx -> ElectricToolEnergyStorage(item, ctx) },
                     item
                 )
             }
         }
     }
 
-   private class BatteryItemEnergyStorage(
-       private val battery: IBatteryItem,
-       private val stack: net.minecraft.item.ItemStack
-   ) : EnergyStorage {
+    /**
+     * 通过 [ContainerItemContext] 读写 IC2 物品的 EU 电量。
+     *
+     * 注意：lookup 函数收到的 [ItemStack] 通常是**只读副本**（[ItemVariant.toStack] 会
+     * `new ItemStack` + 深拷贝 NBT），直接改它**不会**回写到玩家真实物品栏。
+     * 因此必须用 [ContainerItemContext.exchange] 把带新 NBT 的 variant 替换回去——
+     * 这是 Flux Networks 无线充电视角唯一能感知到的回写路径（参考 [ic2_120.content.item.CellsAndBuckets.FluidCellStorage]）。
+     */
+    private class BatteryItemEnergyStorage(
+        private val battery: IBatteryItem,
+        private val ctx: ContainerItemContext
+    ) : EnergyStorage {
 
         override fun supportsInsertion(): Boolean = battery.canCharge
         override fun supportsExtraction(): Boolean = true
 
-       override fun insert(amount: Long, transaction: TransactionContext): Long {
+        override fun insert(amount: Long, transaction: TransactionContext): Long {
             if (!battery.canCharge || amount <= 0) return 0
-            val limit = remainingInsert(stack, battery.transferSpeed.toLong())
-            if (limit <= 0) return 0
+            val stack = ctx.itemVariant.toStack()
             val current = battery.getCurrentCharge(stack)
             val space = battery.maxCapacity - current
-            val toInsert = minOf(amount, space, limit)
+            val toInsert = minOf(amount, space)
             if (toInsert <= 0) return 0
-            ChargeSnapshotParticipant(battery, stack).updateSnapshots(transaction)
             battery.setCurrentCharge(stack, current + toInsert)
-            recordInsert(stack, toInsert)
-            return toInsert
+            val newVariant = ItemVariant.of(stack)
+            return if (ctx.exchange(newVariant, 1, transaction) == 1L) toInsert else 0
         }
 
         override fun extract(amount: Long, transaction: TransactionContext): Long {
             if (amount <= 0) return 0
-            val limit = remainingExtract(stack, battery.transferSpeed.toLong())
-            if (limit <= 0) return 0
+            val stack = ctx.itemVariant.toStack()
             val current = battery.getCurrentCharge(stack)
-            val toExtract = minOf(amount, current, limit)
+            val toExtract = minOf(amount, current)
             if (toExtract <= 0) return 0
-            ChargeSnapshotParticipant(battery, stack).updateSnapshots(transaction)
             battery.setCurrentCharge(stack, current - toExtract)
-            recordExtract(stack, toExtract)
-            return toExtract
+            val newVariant = ItemVariant.of(stack)
+            return if (ctx.exchange(newVariant, 1, transaction) == 1L) toExtract else 0
         }
 
-        override fun getAmount(): Long = battery.getCurrentCharge(stack)
+        override fun getAmount(): Long = battery.getCurrentCharge(ctx.itemVariant.toStack())
         override fun getCapacity(): Long = battery.maxCapacity
     }
 
-   private class ElectricToolEnergyStorage(
-       private val tool: IElectricTool,
-       private val stack: net.minecraft.item.ItemStack
-   ) : EnergyStorage {
+    private class ElectricToolEnergyStorage(
+        private val tool: IElectricTool,
+        private val ctx: ContainerItemContext
+    ) : EnergyStorage {
 
         override fun supportsInsertion(): Boolean = true
         override fun supportsExtraction(): Boolean = false
 
         override fun insert(amount: Long, transaction: TransactionContext): Long {
             if (amount <= 0) return 0
-            val maxRate = EnergyTier.euPerTickFromTier(tool.tier)
-            val limit = remainingInsert(stack, maxRate)
-            if (limit <= 0) return 0
+            val stack = ctx.itemVariant.toStack()
             val current = tool.getEnergy(stack)
             val space = tool.maxCapacity - current
-            val toInsert = minOf(amount, space, limit)
+            val toInsert = minOf(amount, space)
             if (toInsert <= 0) return 0
-            ToolSnapshotParticipant(tool, stack).updateSnapshots(transaction)
             tool.setEnergy(stack, current + toInsert)
-            recordInsert(stack, toInsert)
-            return toInsert
+            val newVariant = ItemVariant.of(stack)
+            return if (ctx.exchange(newVariant, 1, transaction) == 1L) toInsert else 0
         }
 
         override fun extract(amount: Long, transaction: TransactionContext): Long = 0
 
-       override fun getAmount(): Long = tool.getEnergy(stack)
-      override fun getCapacity(): Long = tool.maxCapacity
-  }
-
-    private class ChargeSnapshotParticipant(
-        private val battery: IBatteryItem,
-        private val stack: net.minecraft.item.ItemStack
-    ) : SnapshotParticipant<Long>() {
-        override fun createSnapshot(): Long = battery.getCurrentCharge(stack)
-        override fun readSnapshot(snapshot: Long) = battery.setCurrentCharge(stack, snapshot)
-    }
-
-    private class ToolSnapshotParticipant(
-        private val tool: IElectricTool,
-        private val stack: net.minecraft.item.ItemStack
-    ) : SnapshotParticipant<Long>() {
-        override fun createSnapshot(): Long = tool.getEnergy(stack)
-        override fun readSnapshot(snapshot: Long) = tool.setEnergy(stack, snapshot)
+        override fun getAmount(): Long = tool.getEnergy(ctx.itemVariant.toStack())
+        override fun getCapacity(): Long = tool.maxCapacity
     }
 
     /**
