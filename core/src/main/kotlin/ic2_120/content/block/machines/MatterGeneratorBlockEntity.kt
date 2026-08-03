@@ -164,7 +164,8 @@ class MatterGeneratorBlockEntity(
 
     private val adjacentEnergyTransfer = AdjacentEnergyTransferComponent(this, sync)
     private val tankInternal = object : SingleVariantStorage<FluidVariant>() {
-        private val tankCapacity = FluidConstants.BUCKET * MatterGeneratorSync.TANK_CAPACITY_DROPLETS
+        /** 实际容量 = max(标称 10K, 读档存量)。只升到存量、不为存量而降，之后所有写入都被 capacity 封顶且只减不增，永不可能再超。 */
+        private var tankCapacity = MatterGeneratorSync.TANK_CAPACITY_DROPLETS.toLong()
 
         override fun getBlankVariant(): FluidVariant = FluidVariant.blank()
         override fun getCapacity(variant: FluidVariant): Long = tankCapacity
@@ -179,17 +180,24 @@ class MatterGeneratorBlockEntity(
 
         override fun onFinalCommit() {
             sync.fluidAmount = toMilliBuckets(amount)
+            sync.fluidCapacity = getEffectiveCapacity()
             markDirty()
         }
 
         fun getStoredAmount(): Long = amount
         fun getTankCapacity(): Long = tankCapacity
         fun availableSpace(): Long = (tankCapacity - amount).coerceAtLeast(0L)
+        fun getEffectiveCapacity(): Int = tankCapacity.toInt().coerceIn(0, Int.MAX_VALUE)
 
+        /** 方案 A：读档不截断存量；存量若超标称容量则把实际容量抬升到存量值，保全流体且保证后续不可能再被超出。 */
         fun setStoredAmount(newAmount: Long) {
-            amount = newAmount.coerceIn(0L, tankCapacity)
+            val stored = newAmount.coerceAtLeast(0L)
+            amount = stored
+            // 容量只升到存量、不因存量降低而回落（在存续期间保持“最高水位”作为不可再被超出的上限）。
+            tankCapacity = tankCapacity.coerceAtLeast(stored)
             variant = if (amount > 0L) FluidVariant.of(ModFluids.UU_MATTER_STILL) else FluidVariant.blank()
             sync.fluidAmount = toMilliBuckets(amount)
+            sync.fluidCapacity = getEffectiveCapacity()
         }
 
         fun insertInternal(toInsert: Long): Long {
@@ -316,7 +324,7 @@ class MatterGeneratorBlockEntity(
         sync.progress = nbt.getInt(NBT_PROGRESS).coerceAtLeast(0)
         scrapConsumedThisCycle = nbt.getInt(NBT_SCRAP_CONSUMED).coerceIn(0, MatterGeneratorSync.SCRAP_PER_MB)
         tankInternal.setStoredAmount(nbt.getLong(NBT_TANK_AMOUNT))
-        sync.fluidCapacity = MatterGeneratorSync.TANK_CAPACITY_DROPLETS
+        sync.fluidCapacity = tankInternal.getEffectiveCapacity()
         sync.mode = resolveDisplayedMode()
         redstoneInverted = if (nbt.contains("RedstoneInverted")) nbt.getBoolean("RedstoneInverted") else false
     }
@@ -347,7 +355,7 @@ class MatterGeneratorBlockEntity(
             FluidPipeUpgradeComponent.pullFluidFromNeighbors(world, pos, tankInternal, fluidPipeReceiverFilter, fluidPipeReceiverSides, upgradeCount = fluidPipePullingCount)
         }
         sync.energyCapacity = sync.getEffectiveCapacity().toInt().coerceIn(0, Int.MAX_VALUE)
-        sync.fluidCapacity = MatterGeneratorSync.TANK_CAPACITY_DROPLETS
+        sync.fluidCapacity = tankInternal.getEffectiveCapacity()
 
         EjectorUpgradeComponent.ejectIfUpgraded(world, pos, this, SLOT_UPGRADE_INDICES, SLOT_OUTPUT_INDICES)
         PullingUpgradeComponent.pullIfUpgraded(world, pos, this, SLOT_UPGRADE_INDICES, SLOT_INPUT_INDICES)

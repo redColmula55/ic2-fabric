@@ -125,6 +125,7 @@ object MaceratorRecipeDatagen {
         Entry("weed_to_bio_chaff", IngredientInput.item(Weed::class.instance()), BioChaff::class.instance(), 1, 32),
         Entry("diamond_to_diamond_dust", IngredientInput.item(Items.DIAMOND), DiamondDust::class.instance(), 1),
         Entry("glowstone_to_glowstone_dust", IngredientInput.item(Items.GLOWSTONE), Items.GLOWSTONE_DUST, 4),
+        Entry("quartz_block_to_quartz", IngredientInput.item(Items.QUARTZ_BLOCK), Items.QUARTZ, 4),
         // 金属锭 → 粉（用 tag 支持跨 mod 锭）
         Entry("copper_ingot_to_copper_dust", IngredientInput.tag(ModTags.Compat.Items.INGOTS_COPPER, Items.COPPER_INGOT), CopperDust::class.instance(), 1),
         Entry("tin_ingot_to_tin_dust", IngredientInput.tag(ModTags.Compat.Items.INGOTS_TIN, TinIngot::class.instance()), TinDust::class.instance(), 1),
