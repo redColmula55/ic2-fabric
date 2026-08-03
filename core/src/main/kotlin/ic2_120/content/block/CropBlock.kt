@@ -857,6 +857,7 @@ class CropBlockEntity(
             CropType.DARK_OAK_SAPLING -> {
                 val out = mutableListOf(ItemStack(Items.DARK_OAK_LOG))
                 if (world.random.nextInt(100) >= 75) out += ItemStack(Items.DARK_OAK_SAPLING)
+                if (world.random.nextInt(100) >= 75) out += ItemStack(Items.APPLE)
                 out
             }
             else -> CropSystem.definition(cropType).gainItem?.let { listOf(ItemStack(it, 1)) } ?: emptyList()

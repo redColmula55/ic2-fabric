@@ -346,7 +346,8 @@ object CropSystem {
         CropType.VENOMILIA -> listOf("venomilia")
         CropType.OAK_SAPLING -> listOf("sapling_apple")
         CropType.SPRUCE_SAPLING, CropType.BIRCH_SAPLING, CropType.JUNGLE_SAPLING,
-        CropType.ACACIA_SAPLING, CropType.DARK_OAK_SAPLING -> listOf("sapling_bonus")
+        CropType.ACACIA_SAPLING -> listOf("sapling_bonus")
+        CropType.DARK_OAK_SAPLING -> listOf("sapling_apple")
         CropType.FERRU -> listOf("root_iron")
         CropType.CYPRIUM -> listOf("root_copper")
         CropType.STAGNIUM -> listOf("root_tin")
