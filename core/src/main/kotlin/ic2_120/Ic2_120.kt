@@ -247,7 +247,11 @@ object Ic2_120 : ModInitializer {
         // ic2_120.content.uu.UuCostIndex.dumpOnRebuild = true
         // ic2_120.content.uu.UuCostIndex.dumpPath = "/tmp/uu_cost_table_kilt.txt"
         ic2_120.content.uu.UuCostIndex.onRebuild {
-            ic2_120.integration.jei.Ic2JeiPlugin.refreshReplicatorRecipes()
+            // JEI 是可选依赖：无 JEI 环境（如最小测试容器）不能引用其类，
+            // 否则 ClassNotFoundException 直接崩服务器启动。
+            if (net.fabricmc.loader.api.FabricLoader.getInstance().isModLoaded("jei")) {
+                ic2_120.integration.jei.Ic2JeiPlugin.refreshReplicatorRecipes()
+            }
         }
 
         logger.info("IC2 1.20 模组已加载（类注解驱动自动注册）")
