@@ -18,6 +18,7 @@ import ic2_120.registry.type
 import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider.conditionsFromItem
 import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider.hasItem
 import net.minecraft.block.AbstractBlock
+import net.minecraft.block.Block
 import net.minecraft.block.BlockState
 import net.minecraft.block.BlockRenderType
 import net.minecraft.block.Blocks
@@ -27,6 +28,8 @@ import net.minecraft.client.item.TooltipContext
 import net.minecraft.data.server.recipe.RecipeJsonProvider
 import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
 import net.minecraft.entity.player.PlayerEntity
+import net.minecraft.item.BlockItem
+import net.minecraft.item.Item
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.recipe.Ingredient
@@ -52,6 +55,12 @@ import java.util.function.Consumer
  * 类似潜影盒，破坏时保留物品内容。
  */
 abstract class StorageBoxBlock(settings: AbstractBlock.Settings) : BlockWithEntity(settings) {
+
+    /**
+     * 储物箱物品禁止堆叠：内容物保存在 BlockEntityTag NBT 中，堆叠会丢失/复制内容。
+     * 所有储物箱子类通过父类链继承该设置。
+     */
+    class StorageBoxBlockItem(block: Block, settings: Item.Settings) : BlockItem(block, settings.maxCount(1))
 
     override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity? {
         return StorageBoxBlockEntity(pos, state)

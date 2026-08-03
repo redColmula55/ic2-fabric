@@ -1064,33 +1064,39 @@ object ClassScanner {
     /**
      * 优先使用方块类内部定义的自定义 BlockItem（如 XxxBlockItem），
      * 若未找到则回退为默认 BlockItem。
+     * 沿类本身及其父类链查找：子类可复用基类中定义的 BlockItem 设置（如储物箱禁止堆叠）。
      */
     private fun createBlockItemForClass(
         blockClass: KClass<*>,
         block: Block,
         id: Identifier
     ): BlockItem {
-        val customItemClass = blockClass.nestedClasses.firstOrNull { nested ->
-            nested.simpleName?.endsWith("BlockItem") == true && nested.isSubclassOf(BlockItem::class)
-        } ?: return BlockItem(block, FabricItemSettings())
-
-        val ctor = customItemClass.constructors.firstOrNull { constructor ->
-            val params = constructor.parameters
-            params.size == 2 &&
-                params[0].type.classifier == Block::class &&
-                params[1].type.classifier == Item.Settings::class
-        } ?: run {
-            logger.warn("方块 {} 存在自定义 BlockItem 类 {}，但未找到 (Block, Item.Settings) 构造函数，回退默认 BlockItem", id, customItemClass.simpleName)
-            return BlockItem(block, FabricItemSettings())
+        var current: KClass<*>? = blockClass
+        while (current != null && current != Any::class) {
+            val customItemClass = current.nestedClasses.firstOrNull { nested ->
+                nested.simpleName?.endsWith("BlockItem") == true && nested.isSubclassOf(BlockItem::class)
+            }
+            if (customItemClass != null) {
+                val ctor = customItemClass.constructors.firstOrNull { constructor ->
+                    val params = constructor.parameters
+                    params.size == 2 &&
+                        params[0].type.classifier == Block::class &&
+                        params[1].type.classifier == Item.Settings::class
+                }
+                if (ctor != null) {
+                    return try {
+                        @Suppress("UNCHECKED_CAST")
+                        ctor.call(block, FabricItemSettings()) as BlockItem
+                    } catch (e: Exception) {
+                        logger.warn("创建方块 {} 的自定义 BlockItem 失败: {}，回退默认 BlockItem", id, e.message)
+                        BlockItem(block, FabricItemSettings())
+                    }
+                }
+                logger.debug("方块 {} 的父类 {} 存在自定义 BlockItem 类 {}，但未找到 (Block, Item.Settings) 构造函数，继续向上查找", id, current.simpleName, customItemClass.simpleName)
+            }
+            current = current.superclasses.firstOrNull()
         }
-
-        return try {
-            @Suppress("UNCHECKED_CAST")
-            ctor.call(block, FabricItemSettings()) as BlockItem
-        } catch (e: Exception) {
-            logger.warn("创建方块 {} 的自定义 BlockItem 失败: {}，回退默认 BlockItem", id, e.message)
-            BlockItem(block, FabricItemSettings())
-        }
+        return BlockItem(block, FabricItemSettings())
     }
 
     private fun registerItems(modId: String, itemClasses: List<ItemClassInfo>) {
