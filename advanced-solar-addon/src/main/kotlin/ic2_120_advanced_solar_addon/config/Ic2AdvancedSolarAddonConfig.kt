@@ -43,7 +43,7 @@ data class MolecularTransformerConfig(
 private val defaultRecipes = listOf(
     // ====== 特殊产物 ======
     MolecularTransformerRecipeConfig("minecraft:wither_skeleton_skull", "minecraft:nether_star", 250_000_000),
-    MolecularTransformerRecipeConfig("minecraft:iron_ingot", "ic2_120:iridium_ore_item", 9_000_000),
+    MolecularTransformerRecipeConfig("minecraft:iron_ingot", "ic2_120_advanced_solar_addon:iridium_ingot", 9_000_000),
 
     // ====== 基础转化 ======
     MolecularTransformerRecipeConfig("minecraft:charcoal", "minecraft:coal", 60_000),
