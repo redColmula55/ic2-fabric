@@ -17,7 +17,6 @@ allprojects {
 			url "https://jitpack.io"
 			content { includeGroupByRegex "com\\.github.*" }
 		}
-		maven { url "https://maven.terraformersmc.com/releases/" }
 		flatDir { dir rootProject.file('libs') }
 		}
 	}
