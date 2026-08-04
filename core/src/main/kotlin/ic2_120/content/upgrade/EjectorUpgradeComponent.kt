@@ -12,17 +12,30 @@ import net.minecraft.util.Identifier
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Direction
 import net.minecraft.world.World
+import kotlin.math.pow
 
 object EjectorUpgradeComponent {
     private const val NBT_ITEM_FILTER = "PipeItemFilter"
     private const val NBT_DIRECTION = "PipeItemDirection"
     private const val NBT_DIRECTIONS = "PipeItemDirections"
 
-    private data class EjectorConfig(val filter: Item?, val sides: Set<Direction>)
+    private data class EjectorConfig(val filter: Item?, val sides: Set<Direction>, val count: Int)
+
+    /**
+     * 对齐 ic2_origin：物品传输速率 = 4^(min(count, 4) - 1) 个/tick/候选，count=0 时返回 0。
+     */
+    fun itemTransferRate(upgradeCount: Int): Int {
+        if (upgradeCount <= 0) return 0
+        val capped = minOf(upgradeCount, 4)
+        return 4.0.pow(capped - 1).toInt()
+    }
 
     /**
      * 统一入口：扫描升级槽中的所有弹出升级，逐个独立弹出 outputSlotIndices 中的物品。
      * 每个弹出升级使用自己的过滤和方向配置。
+     * 轮询语义（对齐 ic2_origin）：每 tick 遍历全部 n 个候选方向，每个候选至多传输
+     * itemTransferRate(count) 个物品（配额跨输出槽共享）；每 tick 起始方向轮转一次，
+     * 避免低吞吐时第一个候选独占。开启方向过滤时，轮转只在过滤后的方向集内进行。
      * 使用 Fabric Transfer API 查找目标容器，兼容 vanilla Inventory 和 modded Storage。
      */
     fun ejectIfUpgraded(
@@ -39,37 +52,51 @@ object EjectorUpgradeComponent {
             val stack = inventory.getStack(idx)
             if (stack.isEmpty) continue
             if (stack.item is EjectorUpgrade) {
-                configs.add(EjectorConfig(readFilter(stack), readDirections(stack)))
+                configs.add(EjectorConfig(readFilter(stack), readDirections(stack), stack.count))
             }
         }
         if (configs.isEmpty()) return
 
         for (config in configs) {
-            val dirs = if (config.sides.isEmpty()) Direction.values().toList() else config.sides.toList()
+            val rate = itemTransferRate(config.count)
+            if (rate <= 0) continue
+            val dirs = if (config.sides.isEmpty()) {
+                Direction.values().toList()
+            } else {
+                Direction.values().filter { it in config.sides }
+            }
+            if (dirs.isEmpty()) continue
 
-            for (slotIndex in outputSlotIndices) {
-                val stack = inventory.getStack(slotIndex)
-                if (stack.isEmpty) continue
-                if (config.filter != null && stack.item != config.filter) continue
+            // 每 tick 轮转起始方向，使 n 个候选轮流获得优先服务
+            val start = Math.floorMod(world.time, dirs.size.toLong()).toInt()
+            for (i in 0 until dirs.size) {
+                val dir = dirs[(start + i) % dirs.size]
+                val target = ItemStorage.SIDED.find(world, pos.offset(dir), dir.opposite) ?: continue
 
-                var remaining = stack.count
-                val variant = ItemVariant.of(stack)
+                // 该候选本次 tick 的配额，跨所有输出槽共享（对齐原版 transfer(amount) 语义）
+                var remainingQuota = rate
+                for (slotIndex in outputSlotIndices) {
+                    if (remainingQuota <= 0) break
+                    val stack = inventory.getStack(slotIndex)
+                    if (stack.isEmpty) continue
+                    if (config.filter != null && stack.item != config.filter) continue
 
-                for (dir in dirs) {
-                    if (remaining <= 0) break
-                    val target = ItemStorage.SIDED.find(world, pos.offset(dir), dir.opposite) ?: continue
+                    val variant = ItemVariant.of(stack)
+                    val move = minOf(remainingQuota.toLong(), stack.count.toLong())
                     val tx = Transaction.openOuter()
-                    val moved = target.insert(variant, remaining.toLong(), tx)
+                    val moved = target.insert(variant, move, tx)
                     tx.commit()
-                    remaining -= moved.toInt()
-                }
+                    if (moved <= 0) continue
 
-                if (remaining <= 0) {
-                    inventory.setStack(slotIndex, ItemStack.EMPTY)
-                } else {
-                    val newStack = stack.copy()
-                    newStack.count = remaining
-                    inventory.setStack(slotIndex, newStack)
+                    remainingQuota -= moved.toInt()
+                    val left = stack.count - moved.toInt()
+                    if (left <= 0) {
+                        inventory.setStack(slotIndex, ItemStack.EMPTY)
+                    } else {
+                        val newStack = stack.copy()
+                        newStack.count = left
+                        inventory.setStack(slotIndex, newStack)
+                    }
                 }
             }
         }

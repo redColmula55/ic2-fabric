@@ -121,6 +121,8 @@ object FluidPipeUpgradeComponent {
 
     /**
      * 将储罐中的流体弹出到相邻方块。
+     * 轮询语义：每 tick 遍历全部候选方向，每个候选至多传输 ratePerTick；每 tick 起始方向
+     * 轮转一次，避免低吞吐时第一个候选独占；开启方向过滤时，轮转只在过滤后的方向集内进行。
      * @param upgradeCount 该机器上 fluid_ejector_upgrade 的数量（决定速率）
      */
     fun ejectFluidToNeighbors(
@@ -135,9 +137,15 @@ object FluidPipeUpgradeComponent {
         if (tank.amount <= 0L || tank.variant.isBlank) return
         val ratePerTick = fluidTransferRate(upgradeCount)
         if (ratePerTick <= 0L) return
-        for (dir in Direction.values()) {
-            if (blockedFace != null && dir == blockedFace) continue
-            if (configuredSides.isNotEmpty() && dir !in configuredSides) continue
+        val dirs = DIRECTION_ORDER.filter {
+            (blockedFace == null || it != blockedFace) && (configuredSides.isEmpty() || it in configuredSides)
+        }
+        if (dirs.isEmpty()) return
+
+        // 每 tick 轮转起始方向，使 n 个候选轮流获得优先服务
+        val start = Math.floorMod(world.time, dirs.size.toLong()).toInt()
+        for (i in 0 until dirs.size) {
+            val dir = dirs[(start + i) % dirs.size]
             val neighbor = FluidStorage.SIDED.find(world, pos.offset(dir), dir.opposite) ?: continue
             val resource = tank.variant
             if (filter != null && resource.fluid != filter) continue
@@ -162,6 +170,8 @@ object FluidPipeUpgradeComponent {
      *
      * [tank] 使用通用 [Storage] 接口，支持 SingleVariantStorage 和多流体储罐。
      * 通过 dry-run transaction 确定剩余容量，不依赖 capacity 字段。
+     * 轮询语义：每 tick 遍历全部候选方向，每个候选至多抽取 ratePerTick；每 tick 起始方向
+     * 轮转一次，避免低吞吐时第一个候选独占；开启方向过滤时，轮转只在过滤后的方向集内进行。
      * @param upgradeCount 该机器上 fluid_pulling_upgrade 的数量（决定速率）
      */
     fun pullFluidFromNeighbors(
@@ -175,9 +185,15 @@ object FluidPipeUpgradeComponent {
     ) {
         val ratePerTick = fluidTransferRate(upgradeCount)
         if (ratePerTick <= 0L) return
-        for (dir in Direction.values()) {
-            if (blockedFace != null && dir == blockedFace) continue
-            if (configuredSides.isNotEmpty() && dir !in configuredSides) continue
+        val dirs = DIRECTION_ORDER.filter {
+            (blockedFace == null || it != blockedFace) && (configuredSides.isEmpty() || it in configuredSides)
+        }
+        if (dirs.isEmpty()) return
+
+        // 每 tick 轮转起始方向，使 n 个候选轮流获得优先服务
+        val start = Math.floorMod(world.time, dirs.size.toLong()).toInt()
+        for (i in 0 until dirs.size) {
+            val dir = dirs[(start + i) % dirs.size]
             val neighborPos = pos.offset(dir)
             val neighbor = FluidStorage.SIDED.find(world, neighborPos, dir.opposite) ?: continue
             if (!neighbor.supportsExtraction()) continue
