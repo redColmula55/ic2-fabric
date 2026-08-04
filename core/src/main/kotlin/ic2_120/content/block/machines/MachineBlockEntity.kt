@@ -3,6 +3,8 @@ package ic2_120.content.block.machines
 import ic2_120.content.block.IOwned
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.sound.MachineSoundConfig
+import ic2_120.content.upgrade.ITransformerUpgradeSupport
+import ic2_120.content.upgrade.TransformerUpgradeComponent
 import net.minecraft.block.BlockState
 import net.minecraft.block.entity.BlockEntity
 import net.minecraft.block.entity.BlockEntityType
@@ -47,6 +49,7 @@ abstract class MachineBlockEntity(
         const val FUEL_SLOT = 0      // 燃料槽（子类可使用）
         const val BATTERY_SLOT = 1   // 电池充电/供电槽
         private const val NBT_OWNER_UUID = "OwnerUUID"
+        private const val NBT_VOLTAGE_TIER_BONUS = "VoltageTierBonus"
     }
 
     override var ownerUuid: UUID? = null
@@ -54,6 +57,14 @@ abstract class MachineBlockEntity(
     override fun readNbt(nbt: NbtCompound) {
         super.readNbt(nbt)
         ownerUuid = if (nbt.containsUuid(NBT_OWNER_UUID)) nbt.getUuid(NBT_OWNER_UUID) else null
+        if (this is ITransformerUpgradeSupport) {
+            // voltageTierBonus 是瞬态字段，正常由每 tick 的 TransformerUpgradeComponent.apply 写入；
+            // 此处立即从存档恢复，消除「BE 已加载但尚未首次 tick（bonus=0）」窗口：
+            // 电网超压检测在 END_SERVER_TICK 运行，电网 BFS / 其他 BE tick 可能在机器首次 tick
+            // 之前同步强载其区块，导致装了高压升级的机器被误判为耐压不足而爆炸。
+            // 子类 inventory 此时尚未载入内存，直接解析 "Items" NBT（与 Inventories 落盘键一致）。
+            voltageTierBonus = TransformerUpgradeComponent.countUpgradesInNbt(nbt)
+        }
     }
 
     /**
@@ -73,6 +84,11 @@ abstract class MachineBlockEntity(
     override fun writeNbt(nbt: NbtCompound) {
         super.writeNbt(nbt)
         ownerUuid?.let { nbt.putUuid(NBT_OWNER_UUID, it) }
+        if (this is ITransformerUpgradeSupport) {
+            // 持久化高压升级加成，作为 readNbt 扫描之外的纵深防御（升级在区块卸载期间不会变化，
+            // 存档值恒等于正确值；加载时仍优先按 "Items" 现扫，避免「插入升级后、下次 tick 前存档」的陈旧值）。
+            nbt.putInt(NBT_VOLTAGE_TIER_BONUS, voltageTierBonus)
+        }
     }
 
     /**
