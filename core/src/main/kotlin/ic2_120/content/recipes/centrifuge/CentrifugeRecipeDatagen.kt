@@ -246,6 +246,17 @@ object CentrifugeRecipeDatagen {
             )
         ),
 
+        // 浓缩铀核燃料X20 4000 -> 铀-235X7, 铀-238X112（单槽上限 64，拆为 64+48 两个输出槽）
+        Entry(
+            "enriched_uranium_to_isotopes",
+            IngredientInput.item(Uranium::class.instance()), 20, 4000,
+            listOf(
+                OutputEntry(Uranium235::class.instance(), 7),
+                OutputEntry(Uranium238::class.instance(), 64),
+                OutputEntry(Uranium238::class.instance(), 48)
+            )
+        ),
+
         // 炉渣 1500 -> 小撮金粉,碳粉X5 (碳粉用煤粉代替)
         Entry(
             "slag",
