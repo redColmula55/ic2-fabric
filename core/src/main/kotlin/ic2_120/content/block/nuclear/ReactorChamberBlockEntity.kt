@@ -97,6 +97,13 @@ class ReactorChamberBlockEntity(
 
         fun tick(world: World, pos: BlockPos, state: BlockState, be: ReactorChamberBlockEntity) {
             be.tickAdjacentEnergyTransfer()
+            // 红石中继：EU 模式下反应仓自身接收红石信号并推送给中心反应堆
+            // （对齐 IC2 原版 TileEntityReactorChamberElectric.redstone.linkTo(reactor.redstone)：
+            // 任意结构方块贴红石信号均可激活反应堆，guidebook 同承诺）
+            if (!world.isClient) {
+                val reactor = be.findAdjacentReactor() ?: return
+                reactor.updateChamberRedstoneState(pos, world.isReceivingRedstonePower(pos))
+            }
         }
     }
 }

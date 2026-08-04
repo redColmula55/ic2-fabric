@@ -180,6 +180,9 @@ class NuclearReactorBlockEntity(
     // 红石接口状态管理：存储所有红石接口的位置及其允许运行状态
     private val redstonePortStates = mutableMapOf<BlockPos, Boolean>()
 
+    // 反应仓红石中继状态：EU 模式下反应仓接收红石信号并传给中心反应堆（对齐 IC2 原版 chamber.redstone.linkTo）
+    private val chamberRedstoneStates = mutableMapOf<BlockPos, Boolean>()
+
     // 流体存储（冷却液和热冷却液）
     val inputTank = object : SingleVariantStorage<FluidVariant>() {
         private val tankCapacity = FluidConstants.BUCKET * NuclearReactorSync.COOLANT_TANK_CAPACITY_BUCKETS
@@ -734,6 +737,16 @@ class NuclearReactorBlockEntity(
     }
 
     /**
+     * 更新反应仓的红石中继状态
+     * @param chamberPos 反应仓的位置
+     * @param powered 该反应仓是否被红石充能
+     */
+    fun updateChamberRedstoneState(chamberPos: BlockPos, powered: Boolean) {
+        chamberRedstoneStates[chamberPos] = powered
+        markDirty()
+    }
+
+    /**
      * 检查所有红石接口是否允许运行
      * 如果有任何红石接口禁止运行，则反应堆不能运行
      */
@@ -997,6 +1010,12 @@ class NuclearReactorBlockEntity(
             blockAtPos !is ReactorRedstonePortBlock
         }
 
+        // 清理不再存在的反应仓红石中继状态
+        chamberRedstoneStates.keys.removeIf { chamberPos ->
+            val blockAtPos = world.getBlockState(chamberPos).block
+            blockAtPos !is ReactorChamberBlock
+        }
+
         val newCapacity = currentCapacity()
         sync.capacity1 = newCapacity
 
@@ -1015,13 +1034,13 @@ class NuclearReactorBlockEntity(
         }
 
         val shouldTick = (world.time + tickOffset) % 20L == 0L
-        // 红石控制（参考 ElectricHeatGenerator）：有红石接口时以接口为准；无接口时检查反应堆自身
-        // 仅在热模式（多方块结构完整）时使用红石接口；电模式下红石接口不连接，回退到反应堆自身信号
+        // 红石控制（参考 ElectricHeatGenerator）：热模式有红石接口时以接口为准（全部接口放行才运行）；
+        // 否则回退到反应堆自身信号 + 反应仓红石中继（EU 模式下任意结构方块贴红石均可激活，对齐 IC2 原版 OR 语义）
         val usePortControl = isThermalMode() && redstonePortStates.isNotEmpty()
         val redstoneAllowsRun = if (usePortControl) {
             checkRedstonePortsAllowRun()
         } else {
-            world.isReceivingRedstonePower(pos)
+            world.isReceivingRedstonePower(pos) || chamberRedstoneStates.values.any { it }
         }
         fuelActive = redstoneAllowsRun
         if (shouldTick) {
