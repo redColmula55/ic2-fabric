@@ -6,8 +6,6 @@ import ic2_120.content.AdjacentEnergyTransferComponent
 import ic2_120.content.block.IGenerator
 import ic2_120.content.block.IOwned
 import ic2_120.content.block.ITieredMachine
-import ic2_120.content.block.MachineBlock
-import ic2_120.content.block.cables.BaseCableBlock
 import ic2_120.integration.ftbchunks.ClaimProtection
 import ic2_120.content.fluid.ModFluids
 import ic2_120.content.item.ReactorHeatVentBase
@@ -41,6 +39,7 @@ import net.fabricmc.fabric.api.transfer.v1.storage.base.SingleVariantStorage
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction
 import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext
 import net.minecraft.block.AbstractFireBlock
+import net.minecraft.block.Block
 import net.minecraft.block.BlockState
 import net.minecraft.block.Blocks
 import net.minecraft.block.entity.BlockEntity
@@ -1583,7 +1582,11 @@ class NuclearReactorBlockEntity(
                 if (!world.isInBuildLimit(p)) continue
                 val state = world.getBlockState(p)
                 val block = state.block
-                if (block === Blocks.BEDROCK || block is NuclearReactorBlock || block is ReactorChamberBlock || block is MachineBlock || block is BaseCableBlock) continue
+                // 只允许替换原版方块（namespace == minecraft）：
+                // IC2 全系方块（防爆石/强化玻璃/机器/线缆/反应堆本身等）与其他模组方块一律不碰；
+                // 基岩与原版红石系列方块同样禁止替换。
+                if (Registries.BLOCK.getId(block).namespace != "minecraft") continue
+                if (block === Blocks.BEDROCK || block in VANILLA_REDSTONE_BLOCKS) continue
                 if (state.isSolidBlock(world, p) && state.getHardness(world, p) >= 0f) {
                     lavaTargets.add(p)
                 }
@@ -1624,6 +1627,59 @@ class NuclearReactorBlockEntity(
 
     companion object {
         private val LOG = LoggerFactory.getLogger("ic2_120/NuclearReactor")
+
+        /** 原版红石系列方块：高温熔岩化（HEAT_LAVA_THRESHOLD）时一律禁止替换，保护红石控制电路。 */
+        private val VANILLA_REDSTONE_BLOCKS: Set<Block> = setOf(
+            Blocks.REDSTONE_WIRE,
+            Blocks.REDSTONE_TORCH,
+            Blocks.REDSTONE_WALL_TORCH,
+            Blocks.REDSTONE_LAMP,
+            Blocks.REDSTONE_BLOCK,
+            Blocks.REPEATER,
+            Blocks.COMPARATOR,
+            Blocks.LEVER,
+            Blocks.OBSERVER,
+            Blocks.PISTON,
+            Blocks.STICKY_PISTON,
+            Blocks.PISTON_HEAD,
+            Blocks.MOVING_PISTON,
+            Blocks.TARGET,
+            Blocks.NOTE_BLOCK,
+            Blocks.DAYLIGHT_DETECTOR,
+            Blocks.TRAPPED_CHEST,
+            Blocks.DISPENSER,
+            Blocks.DROPPER,
+            // 按钮
+            Blocks.STONE_BUTTON,
+            Blocks.OAK_BUTTON,
+            Blocks.SPRUCE_BUTTON,
+            Blocks.BIRCH_BUTTON,
+            Blocks.JUNGLE_BUTTON,
+            Blocks.ACACIA_BUTTON,
+            Blocks.CHERRY_BUTTON,
+            Blocks.DARK_OAK_BUTTON,
+            Blocks.MANGROVE_BUTTON,
+            Blocks.BAMBOO_BUTTON,
+            Blocks.CRIMSON_BUTTON,
+            Blocks.WARPED_BUTTON,
+            Blocks.POLISHED_BLACKSTONE_BUTTON,
+            // 压力板
+            Blocks.STONE_PRESSURE_PLATE,
+            Blocks.OAK_PRESSURE_PLATE,
+            Blocks.SPRUCE_PRESSURE_PLATE,
+            Blocks.BIRCH_PRESSURE_PLATE,
+            Blocks.JUNGLE_PRESSURE_PLATE,
+            Blocks.ACACIA_PRESSURE_PLATE,
+            Blocks.CHERRY_PRESSURE_PLATE,
+            Blocks.DARK_OAK_PRESSURE_PLATE,
+            Blocks.MANGROVE_PRESSURE_PLATE,
+            Blocks.BAMBOO_PRESSURE_PLATE,
+            Blocks.CRIMSON_PRESSURE_PLATE,
+            Blocks.WARPED_PRESSURE_PLATE,
+            Blocks.POLISHED_BLACKSTONE_PRESSURE_PLATE,
+            Blocks.LIGHT_WEIGHTED_PRESSURE_PLATE,
+            Blocks.HEAVY_WEIGHTED_PRESSURE_PLATE
+        )
 
         /** 玩家 UUID → 上次爆炸时的 game time（tick） */
         val playerExplosionTimestamps = mutableMapOf<java.util.UUID, Long>()

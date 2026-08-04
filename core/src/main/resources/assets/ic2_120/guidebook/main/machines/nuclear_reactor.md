@@ -124,7 +124,7 @@ Installing **Reactor Plating** or **Containment Reactor Plating** in the grid ra
 | &gt; 4,000 | Random blocks within 5×5×5 may catch fire |
 | &gt; 5,000 | Random water within 5×5×5 may evaporate |
 | &gt; 7,000 | Entities within 7×7×7 take nuclear heat damage |
-| &gt; 8,500 | Random blocks within 5×5×5 may turn to lava |
+| &gt; 8,500 | Random **vanilla blocks** within 5×5×5 may turn to lava; IC2 blocks (reinforced stone/glass, machines, cables, etc.), other mod blocks, and vanilla redstone components are never affected |
 | ≥ 10,000 | **Nuclear reactor explosion** |
 
 A Hazmat Suit makes you immune to the **nuclear heat damage** above 7,000 (this is heat damage, not radiation).
