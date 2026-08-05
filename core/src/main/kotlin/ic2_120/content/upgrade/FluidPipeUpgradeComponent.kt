@@ -149,14 +149,22 @@ object FluidPipeUpgradeComponent {
             val neighbor = FluidStorage.SIDED.find(world, pos.offset(dir), dir.opposite) ?: continue
             val resource = tank.variant
             if (filter != null && resource.fluid != filter) continue
+            if (tank.amount <= 0L) break
             val maxPerTick = minOf(ratePerTick, tank.amount)
+
+            // 先 dry-run 探测邻居本次能接收的量，避免多抽后无法回退造成凭空消失
+            val neighborSpace = Transaction.openOuter().use { tx -> neighbor.insert(resource, maxPerTick, tx) }
+            if (neighborSpace <= 0L) continue
+
             Transaction.openOuter().use { tx ->
-                val extracted = tank.extract(resource, maxPerTick, tx)
+                val extracted = tank.extract(resource, neighborSpace, tx)
                 if (extracted <= 0L) return@use
                 val accepted = neighbor.insert(resource, extracted, tx)
                 if (accepted <= 0L) return@use
                 if (accepted < extracted) {
-                    tank.insert(resource, extracted - accepted, tx)
+                    // 回退失败（如输出罐 canInsert=false）时放弃本次传输：不提交任何部分结果，绝不凭空销毁流体
+                    val refunded = tank.insert(resource, extracted - accepted, tx)
+                    if (refunded < extracted - accepted) return@use
                 }
                 tx.commit()
             }
@@ -220,6 +228,7 @@ object FluidPipeUpgradeComponent {
                 if (extracted <= 0) return@use
                 val inserted = tank.insert(resourceToPull, extracted, tx)
                 if (inserted <= 0) return@use
+                if (inserted < extracted) return@use // 未能全部放入则放弃，避免竞态下凭空消失
                 tx.commit()
             }
         }
