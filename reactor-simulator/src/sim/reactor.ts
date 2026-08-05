@@ -182,8 +182,8 @@ export class CycleSimulator implements IReactor {
     const maxHeat = this.getMaxHeat();
     let hotCoolantMb = 0;
     if (this.mode === 'fluid') {
-      // 移植自 tick() 流体冷却转换：dissipatedHeat = min(产热, 散热)，按 HU_PER_BUCKET 转 mB
-      const dissipatedHeat = Math.min(this.totalHeatProduced, this.ventDissipatedHeat);
+      // 移植自 tick() 流体冷却转换（对齐 jadx：散热片散出的热全部可转热冷却液，无「产热上限」）
+      const dissipatedHeat = this.ventDissipatedHeat;
       // 1 桶冷却液 = HU_PER_BUCKET HU = 1000 mB；故 mB = heat / HU_PER_BUCKET * 1000
       hotCoolantMb = (dissipatedHeat / HU_PER_BUCKET) * 1000;
     }

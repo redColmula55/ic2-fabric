@@ -15,18 +15,25 @@ import net.fabricmc.fabric.api.item.v1.FabricItemSettings
 abstract class AbstractDamageableReactorComponent(
     settings: FabricItemSettings,
     protected val maxUse: Int
-) : AbstractReactorComponent(settings) {
+) : AbstractReactorComponent(settings.maxDamage(maxUse)) {
 
     protected fun getUse(stack: ItemStack): Int {
         val nbt = stack.nbt ?: return 0
         return nbt.getInt("use").coerceIn(0, maxUse)
     }
 
-    /** 燃料棒是否尚未枯竭（用于中子反射板等邻接判定） */
+    /**
+     * 燃料棒是否尚未枯竭（用于中子反射板等邻接判定）
+     */
     fun isOperationalFuelRod(stack: ItemStack): Boolean = getUse(stack) < maxUse - 1
 
     fun setUse(stack: ItemStack, use: Int) {
-        stack.orCreateNbt.putInt("use", use.coerceIn(0, maxUse))
+        val clamped = use.coerceIn(0, maxUse)
+        val nbt = stack.orCreateNbt
+        nbt.putInt("use", clamped)
+        // AE2 模糊卡按 NBT "Damage" 标签 + Item.getMaxDamage() 匹配耐久（Settings.maxDamage 已设 maxUse）；
+        // 同步镜像标签，让 AE2（及其他按 vanilla 耐久工作的 mod）能按热值过滤元件。
+        nbt.putInt("Damage", clamped)
     }
 
     protected fun incrementUse(stack: ItemStack) {

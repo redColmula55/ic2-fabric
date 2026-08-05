@@ -1089,10 +1089,11 @@ class NuclearReactorBlockEntity(
                 val HU_PER_BUCKET = 20_000L
                 val COOLANT_PER_BUCKET = FluidConstants.BUCKET
 
-                // 热模式下可用于冷却液转换的散热，不能超过本周期实际产热
-                val actualProducedHeat = totalHeatProduced.toLong().coerceAtLeast(0L)
+                // 对齐 jadx 原版（ItemReactorVent / ItemReactorVentSpread → addEmitHeat → EmitHeatbuffer）：
+                // 散热片散出的热全部可转热冷却液，不受「本周期燃料产热」上限约束；
+                // 因此无燃料棒的热堆也能把冷却单元里储存的热转成热冷却液。
                 val rawVentDissipatedHeat = ventDissipatedHeat.toLong().coerceAtLeast(0L)
-                val dissipatedHeat = minOf(actualProducedHeat, rawVentDissipatedHeat)
+                val dissipatedHeat = rawVentDissipatedHeat
                 val availableCoolant = inputTank.amount
                 val outputSpace = outputTank.capacity - outputTank.amount
                 val availableCoolantMb = dropletsToMb(availableCoolant)
@@ -1101,7 +1102,7 @@ class NuclearReactorBlockEntity(
                 // 每秒日志一次，避免刷屏
                 if (world.time % 20L == 0L) {
                     LOG.debug(
-                        "[冷却液转换] producedHeat=$actualProducedHeat " +
+                        "[冷却液转换] producedHeat=$totalHeatProduced " +
                             "ventDissipatedHeat=$rawVentDissipatedHeat " +
                             "effectiveDissipatedHeat=$dissipatedHeat " +
                             "availableCoolant=${availableCoolantMb}mB " +
@@ -1115,8 +1116,6 @@ class NuclearReactorBlockEntity(
                         LOG.debug("[冷却液转换] 跳过: 无冷却液 availableCoolant=0mB")
                     } else if (rawVentDissipatedHeat <= 0 && availableCoolant > 0) {
                         LOG.debug("[冷却液转换] 跳过: 无散热量 ventDissipatedHeat=0 (需散热片)")
-                    } else if (actualProducedHeat <= 0 && rawVentDissipatedHeat > 0 && availableCoolant > 0) {
-                        LOG.debug("[冷却液转换] 跳过: 本周期无实际产热，散热片散热不计入转换")
                     }
                 } else {
                     // 计算可转换的热量
