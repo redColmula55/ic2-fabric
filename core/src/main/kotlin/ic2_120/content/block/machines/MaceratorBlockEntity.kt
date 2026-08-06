@@ -91,8 +91,6 @@ class MaceratorBlockEntity(
     }
 
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
-    private var cachedRecipeItem: net.minecraft.item.Item? = null
-    private var cachedRecipe: MaceratorRecipe? = null
     @RegisterItemStorage
     val itemStorage = RoutedItemStorage(
         inventory = inventory,
@@ -265,12 +263,12 @@ class MaceratorBlockEntity(
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
+    // 注意：不要按 Item 缓存匹配结果。MaceratorRecipe.matches 还检查 stack.count >= inputCount
+    // （如甘蔗需 8 个），若首次以不足的数量查询会把 null 永久缓存，导致后续补足数量也不加工。
+    // 每 tick 查询 recipeManager 的开销可忽略（原版熔炉、Compressor 等均如此），故直接查询。
     private fun maceratorRecipeFor(input: ItemStack, world: World): MaceratorRecipe? {
-        if (cachedRecipeItem === input.item) return cachedRecipe
         val recipeInventory = SimpleInventory(input)
-        cachedRecipeItem = input.item
-        cachedRecipe = world.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, world).orElse(null)
-        return cachedRecipe
+        return world.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, world).orElse(null)
     }
 
     private fun isRecipeInput(stack: ItemStack): Boolean {
