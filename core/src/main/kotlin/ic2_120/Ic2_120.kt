@@ -59,6 +59,7 @@ import ic2_120.registry.type
 import net.fabricmc.api.ModInitializer
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerTickEvents
+import net.fabricmc.fabric.api.entity.event.v1.ServerEntityWorldChangeEvents
 import net.fabricmc.fabric.api.event.lifecycle.v1.ServerWorldEvents
 import net.fabricmc.fabric.api.itemgroup.v1.ItemGroupEvents
 import net.fabricmc.fabric.api.registry.FuelRegistry
@@ -233,6 +234,12 @@ object Ic2_120 : ModInitializer {
                 ConfigSyncPacket.REPLICATION_COSTS_ID,
                 Ic2Config.prettyAllReplicationCosts()
             )
+        }
+
+        // 玩家维度切换后客户端 ClientPlayerEntity 会被重建，allowFlying 被 vanilla 按
+        // 生存模式重置为 false；登记给 FlightManager 在下次 tick 强制重发 abilities 包兜底。
+        ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD.register { player, _, _ ->
+            FlightManager.onWorldChanged(player)
         }
 
         // 注册配置重载命令（/ic2config reload）

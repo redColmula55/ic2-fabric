@@ -29,6 +29,15 @@ import java.util.UUID
 object FlightManager {
     private val abilitySnapshots = mutableMapOf<UUID, FlightAbilitySnapshot>()
 
+    /**
+     * 维度切换后客户端的 ClientPlayerEntity 会被销毁重建，新实例的 allowFlying 会被 vanilla 的
+     * GameMode.setAbilities(SURVIVAL) 抹成 false（见 onPlayerRespawn 里的 copyAbilities + setGameModes）。
+     * 此处登记需要在下次 tick 强制重发一次 abilities 包的玩家，使客户端 allowFlying 重新与服务端对齐。
+     * 放到 tick 里发（而非维度切换事件回调里直接发）是为了保证它是维度切换流程中「最后一个」abilities 包，
+     * 不被后续的 setAbilities 覆盖。
+     */
+    private val pendingResync = java.util.concurrent.ConcurrentHashMap.newKeySet<UUID>()
+
     fun tick(server: MinecraftServer) {
         for (world in server.worlds) {
             for (player in world.players) {
@@ -41,6 +50,7 @@ object FlightManager {
         // 创造/旁观模式的飞行由游戏模式自己处理，不要插手
         if (player.isCreative || player.isSpectator) {
             abilitySnapshots.remove(player.uuid)
+            pendingResync.remove(player.uuid)
             return
         }
 
@@ -50,6 +60,7 @@ object FlightManager {
         // 否则会发两次 abilities 包让客户端闪一下，所以先做预检再决定授权。
         if (source == null || !source.hasEnergy(chest)) {
             restorePreviousFlightState(player)
+            pendingResync.remove(player.uuid)
             return
         }
 
@@ -59,6 +70,20 @@ object FlightManager {
         if (player.abilities.flying) {
             source.consume(chest)
         }
+
+        // 维度切换兜底：grantFlightPermission 在服务端 allowFlying 已为 true 时不会重发，
+        // 这里强制补发一次，把客户端被 setAbilities(SURVIVAL) 抹掉的 allowFlying 同步回来。
+        if (pendingResync.remove(player.uuid)) {
+            player.sendAbilitiesUpdate()
+        }
+    }
+
+    /**
+     * 玩家维度切换后调用（由 ServerEntityWorldChangeEvents.AFTER_PLAYER_CHANGE_WORLD 触发）。
+     * 这里只做登记，真正的 abilities 重发放到 [tickPlayer] 里执行，保证是维度切换流程中最后的包。
+     */
+    fun onWorldChanged(player: net.minecraft.server.network.ServerPlayerEntity) {
+        pendingResync.add(player.uuid)
     }
 
     private fun grantFlightPermission(player: PlayerEntity) {
