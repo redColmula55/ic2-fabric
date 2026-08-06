@@ -255,10 +255,15 @@ class PipeNetwork {
     }
 
     private fun resolveProviderVariant(storage: Storage<FluidVariant>, filterFluid: net.minecraft.fluid.Fluid?): FluidVariant? {
+        // 探测量必须 ≥ 1 mB（FluidConstants.BUCKET / 1000 = 81 droplets）。
+        // 否则经 ForgeCompatUtil.toForgeBucket 桥接到 Forge IFluidHandler 时会被截断成 0 mB，
+        // handler.drain(0 mB) 恒返回 0，导致所有 Forge 流体容器探测失败、泵附件抽不到它们的流体。
+        // Fabric 原生 storage 按 droplet 精确计量的，不受此影响。
+        val probe = FluidConstants.BUCKET / 1000L
         if (filterFluid != null) {
             val filtered = FluidVariant.of(filterFluid)
             val available = Transaction.openOuter().use { tx ->
-                storage.extract(filtered, 1L, tx) > 0L
+                storage.extract(filtered, probe, tx) > 0L
             }
             return if (available) filtered else null
         }
@@ -267,7 +272,7 @@ class PipeNetwork {
             if (view.isResourceBlank || view.amount <= 0L) continue
             val resource = view.resource
             Transaction.openOuter().use { tx ->
-                if (view.extract(resource, 1L, tx) > 0L) return resource
+                if (view.extract(resource, probe, tx) > 0L) return resource
             }
         }
         return null
