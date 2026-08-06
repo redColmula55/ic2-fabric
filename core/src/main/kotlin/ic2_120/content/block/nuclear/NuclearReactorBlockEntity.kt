@@ -250,26 +250,22 @@ class NuclearReactorBlockEntity(
         override fun iterator(): MutableIterator<StorageView<FluidVariant>> {
             val views = mutableListOf<StorageView<FluidVariant>>()
 
-            if (!inputTank.variant.isBlank && inputTank.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = inputTank.variant
                     override fun getAmount(): Long = inputTank.amount
                     override fun getCapacity(): Long = inputTank.capacity
                     override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long = 0L
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = inputTank.variant.isBlank
                 })
-            }
 
-            if (!outputTank.variant.isBlank && outputTank.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = outputTank.variant
                     override fun getAmount(): Long = outputTank.amount
                     override fun getCapacity(): Long = outputTank.capacity
                     override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long =
                         outputTank.extract(resource, maxAmount, transaction)
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = outputTank.variant.isBlank
                 })
-            }
 
             return views.iterator()
         }

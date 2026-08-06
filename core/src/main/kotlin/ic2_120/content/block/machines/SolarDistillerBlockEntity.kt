@@ -324,7 +324,6 @@ class SolarDistillerBlockEntity(
         // 提供储罐视图（用于外部查询储罐内容，如 JEI、流体管道等）
         override fun iterator(): MutableIterator<StorageView<FluidVariant>> {
             val views = mutableListOf<StorageView<FluidVariant>>()
-            if (!inputTankInternal.variant.isBlank && inputTankInternal.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = inputTankInternal.variant
                     override fun getAmount(): Long = inputTankInternal.amount
@@ -335,10 +334,8 @@ class SolarDistillerBlockEntity(
                         transaction: TransactionContext
                     ): Long = 0L
 
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = inputTankInternal.variant.isBlank
                 })
-            }
-            if (!outputTankInternal.variant.isBlank && outputTankInternal.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = outputTankInternal.variant
                     override fun getAmount(): Long = outputTankInternal.amount
@@ -350,9 +347,8 @@ class SolarDistillerBlockEntity(
                     ): Long =
                         outputTankInternal.extract(resource, maxAmount, transaction)
 
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = outputTankInternal.variant.isBlank
                 })
-            }
             return views.iterator()
         }
     }

@@ -302,25 +302,21 @@ class FermenterBlockEntity(
 
         override fun iterator(): MutableIterator<StorageView<FluidVariant>> {
             val views = mutableListOf<StorageView<FluidVariant>>()
-            if (!inputTankInternal.variant.isBlank && inputTankInternal.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = inputTankInternal.variant
                     override fun getAmount(): Long = inputTankInternal.amount
                     override fun getCapacity(): Long = inputTankInternal.getTankCapacity()
                     override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long = 0L
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = inputTankInternal.variant.isBlank
                 })
-            }
-            if (!outputTankInternal.variant.isBlank && outputTankInternal.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = outputTankInternal.variant
                     override fun getAmount(): Long = outputTankInternal.amount
                     override fun getCapacity(): Long = outputTankInternal.getTankCapacity()
                     override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long =
                         outputTankInternal.extract(resource, maxAmount, transaction)
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = outputTankInternal.variant.isBlank
                 })
-            }
             return views.iterator()
         }
     }

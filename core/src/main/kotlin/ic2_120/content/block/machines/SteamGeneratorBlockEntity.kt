@@ -268,25 +268,21 @@ class SteamGeneratorBlockEntity(
 
         override fun iterator(): MutableIterator<StorageView<FluidVariant>> {
             val views = mutableListOf<StorageView<FluidVariant>>()
-            if (!waterTank.variant.isBlank && waterTank.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = waterTank.variant
                     override fun getAmount(): Long = waterTank.amount
                     override fun getCapacity(): Long = WATER_TANK_CAPACITY
                     override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long = 0L
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = waterTank.variant.isBlank
                 })
-            }
-            if (!steamTank.variant.isBlank && steamTank.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = steamTank.variant
                     override fun getAmount(): Long = steamTank.amount
                     override fun getCapacity(): Long = STEAM_TANK_CAPACITY
                     override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long =
                         steamTank.extract(resource, maxAmount, transaction)
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = steamTank.variant.isBlank
                 })
-            }
             return views.iterator()
         }
     }

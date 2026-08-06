@@ -244,9 +244,6 @@ class MatterGeneratorBlockEntity(
         }
 
         override fun iterator(): MutableIterator<StorageView<FluidVariant>> {
-            if (tankInternal.amount <= 0L || tankInternal.variant.isBlank) {
-                return mutableListOf<StorageView<FluidVariant>>().iterator()
-            }
             return mutableListOf(object : StorageView<FluidVariant> {
                 override fun getResource(): FluidVariant = tankInternal.variant
                 override fun getAmount(): Long = tankInternal.amount
@@ -256,7 +253,7 @@ class MatterGeneratorBlockEntity(
                     if (!isUuMatter(resource.fluid)) return 0L
                     return tankInternal.extract(FluidVariant.of(ModFluids.UU_MATTER_STILL), maxAmount, transaction)
                 }
-                override fun isResourceBlank(): Boolean = false
+                override fun isResourceBlank(): Boolean = tankInternal.variant.isBlank
             }).iterator()
         }
     }

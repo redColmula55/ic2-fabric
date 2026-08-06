@@ -257,24 +257,20 @@ class CropmatronBlockEntity(
 
         override fun iterator(): MutableIterator<StorageView<FluidVariant>> {
             val views = mutableListOf<StorageView<FluidVariant>>()
-            if (!waterTankInternal.variant.isBlank && waterTankInternal.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = waterTankInternal.variant
                     override fun getAmount(): Long = waterTankInternal.amount
                     override fun getCapacity(): Long = waterTankCapacity
                     override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long = 0L
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = waterTankInternal.variant.isBlank
                 })
-            }
-            if (!weedExTankInternal.variant.isBlank && weedExTankInternal.amount > 0L) {
                 views.add(object : StorageView<FluidVariant> {
                     override fun getResource(): FluidVariant = weedExTankInternal.variant
                     override fun getAmount(): Long = weedExTankInternal.amount
                     override fun getCapacity(): Long = weedExTankCapacity
                     override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long = 0L
-                    override fun isResourceBlank(): Boolean = false
+                    override fun isResourceBlank(): Boolean = weedExTankInternal.variant.isBlank
                 })
-            }
             return views.iterator()
         }
     }

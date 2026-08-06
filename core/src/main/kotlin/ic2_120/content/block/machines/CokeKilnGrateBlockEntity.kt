@@ -68,16 +68,14 @@ class CokeKilnGrateBlockEntity(
 
         override fun iterator(): MutableIterator<StorageView<FluidVariant>> {
             val views = mutableListOf<StorageView<FluidVariant>>()
-            if (!creosoteTank.variant.isBlank && creosoteTank.amount > 0) {
-                views.add(object : StorageView<FluidVariant> {
-                    override fun getResource(): FluidVariant = creosoteTank.variant
-                    override fun getAmount(): Long = creosoteTank.amount
-                    override fun getCapacity(): Long = TANK_CAPACITY
-                    override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long =
-                        creosoteTank.extract(resource, maxAmount, transaction)
-                    override fun isResourceBlank(): Boolean = false
-                })
-            }
+            views.add(object : StorageView<FluidVariant> {
+                override fun getResource(): FluidVariant = creosoteTank.variant
+                override fun getAmount(): Long = creosoteTank.amount
+                override fun getCapacity(): Long = TANK_CAPACITY
+                override fun extract(resource: FluidVariant, maxAmount: Long, transaction: TransactionContext): Long =
+                    creosoteTank.extract(resource, maxAmount, transaction)
+                override fun isResourceBlank(): Boolean = creosoteTank.variant.isBlank
+            })
             return views.iterator()
         }
     }
