@@ -1,11 +1,14 @@
 package ic2_120.content.recipes
 
+import ic2_120.Ic2_120
 import ic2_120.registry.instance
 import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput
 import net.fabricmc.fabric.api.datagen.v1.provider.FabricTagProvider
 import net.minecraft.block.Block
+import net.minecraft.block.Blocks
 import net.minecraft.item.Item
 import net.minecraft.item.Items
+import net.minecraft.registry.Registries
 import net.minecraft.registry.RegistryKeys
 import net.minecraft.registry.tag.TagKey
 import net.minecraft.util.Identifier
@@ -50,6 +53,16 @@ class ModItemTagProvider(
                 val path = if (parts.size == 2) parts[1] else parts[0]
                 val tagKey = TagKey.of(RegistryKeys.ITEM, Identifier(namespace, path))
                 getOrCreateTagBuilder(tagKey).add(item)
+            }
+        }
+
+        // 橡胶木系列原木（含 stripped 变体）：填入 `ic2_120:rubber_logs` 标签，供
+        // [ModTags.RUBBER_LOGS] 在合成配方里允许任意橡胶原木输入。
+        listOf("rubber_log", "rubber_wood", "stripped_rubber_log", "stripped_rubber_wood").forEach { path ->
+            val id = Identifier(Ic2_120.MOD_ID, path)
+            val block = Registries.BLOCK.get(id)
+            if (block !== Blocks.AIR && block.asItem() !== Items.AIR) {
+                getOrCreateTagBuilder(ModTags.RUBBER_LOGS).add(block.asItem())
             }
         }
 

@@ -2,17 +2,30 @@ package ic2_120.content.block
 
 import ic2_120.Ic2_120
 import ic2_120.config.Ic2Config
+import ic2_120.content.recipes.ModTags
 import ic2_120.registry.CreativeTab
 import ic2_120.registry.annotation.ModBlockEntity
+import ic2_120.registry.annotation.RecipeProvider
+import ic2_120.registry.id
 import ic2_120.registry.item
+import ic2_120.registry.recipeId
 import ic2_120.registry.type
 import ic2_120.registry.annotation.ModBlock
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider.conditionsFromItem
+import net.fabricmc.fabric.api.datagen.v1.provider.FabricRecipeProvider.hasItem
+import net.fabricmc.fabric.api.registry.FlammableBlockRegistry
+import net.fabricmc.fabric.api.registry.StrippableBlockRegistry
 import net.minecraft.block.*
 import net.minecraft.block.entity.BlockEntity
+import net.minecraft.data.server.recipe.RecipeJsonProvider
+import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
+import net.minecraft.data.server.recipe.ShapelessRecipeJsonBuilder
 import net.minecraft.enchantment.EnchantmentHelper
 import net.minecraft.enchantment.Enchantments
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
+import net.minecraft.recipe.Ingredient
+import net.minecraft.recipe.book.RecipeCategory
 import net.minecraft.loot.context.LootContextParameterSet
 import net.minecraft.registry.RegistryKey
 import net.minecraft.registry.RegistryKeys
@@ -34,6 +47,7 @@ import net.minecraft.world.gen.chunk.ChunkGenerator
 import net.minecraft.world.gen.feature.ConfiguredFeature
 import net.minecraft.server.world.ServerWorld
 import java.util.ArrayDeque
+import java.util.function.Consumer
 
 // ========== 原木 / 木材 ==========
 
@@ -41,7 +55,19 @@ import java.util.ArrayDeque
 @ModBlock(name = "rubber_wood", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
 class RubberWood : PillarBlock(
     AbstractBlock.Settings.copy(Blocks.OAK_LOG).strength(2.0f)
-)
+) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val log = RubberLogBlock::class.item()
+            ShapedRecipeJsonBuilder.create(RecipeCategory.BUILDING_BLOCKS, RubberWood::class.item(), 3)
+                .pattern("LL").pattern("LL")
+                .input('L', log)
+                .criterion(hasItem(log), conditionsFromItem(log))
+                .offerTo(exporter, RubberWood::class.id())
+        }
+    }
+}
 
 /** 橡胶树原木侧面橡胶状态：无槽位、湿（可提取）、干（已提取） */
 enum class RubberFaceState(private val id: String) : StringIdentifiable {
@@ -214,42 +240,156 @@ class RubberLogBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.c
 class StrippedRubberLogBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.STRIPPED_OAK_LOG).strength(2.0f)) : PillarBlock(settings)
 
 @ModBlock(name = "stripped_rubber_wood", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class StrippedRubberWoodBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.STRIPPED_OAK_WOOD).strength(2.0f)) : PillarBlock(settings)
+class StrippedRubberWoodBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.STRIPPED_OAK_WOOD).strength(2.0f)) : PillarBlock(settings) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val log = StrippedRubberLogBlock::class.item()
+            ShapedRecipeJsonBuilder.create(RecipeCategory.BUILDING_BLOCKS, StrippedRubberWoodBlock::class.item(), 3)
+                .pattern("LL").pattern("LL")
+                .input('L', log)
+                .criterion(hasItem(log), conditionsFromItem(log))
+                .offerTo(exporter, StrippedRubberWoodBlock::class.id())
+        }
+    }
+}
 
 @ModBlock(name = "rubber_planks", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberPlanksBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_PLANKS).strength(2.0f)) : Block(settings)
+class RubberPlanksBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_PLANKS).strength(2.0f)) : Block(settings) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val log = RubberLogBlock::class.item()
+            ShapelessRecipeJsonBuilder.create(RecipeCategory.BUILDING_BLOCKS, RubberPlanksBlock::class.item(), 4)
+                .input(Ingredient.fromTag(ModTags.RUBBER_LOGS))
+                .criterion(hasItem(log), conditionsFromItem(log))
+                .offerTo(exporter, RubberPlanksBlock::class.id())
+        }
+    }
+}
 
 // ========== 台阶 / 楼梯 ==========
 
 @ModBlock(name = "rubber_slab", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberSlabBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_SLAB).strength(2.0f)) : SlabBlock(settings)
+class RubberSlabBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_SLAB).strength(2.0f)) : SlabBlock(settings) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val planks = RubberPlanksBlock::class.item()
+            ShapedRecipeJsonBuilder.create(RecipeCategory.BUILDING_BLOCKS, RubberSlabBlock::class.item(), 6)
+                .pattern("PPP").input('P', planks)
+                .criterion(hasItem(planks), conditionsFromItem(planks))
+                .offerTo(exporter, RubberSlabBlock::class.id())
+        }
+    }
+}
 
 @ModBlock(name = "rubber_stairs", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberStairsBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_STAIRS).strength(2.0f)) : StairsBlock(Blocks.OAK_PLANKS.defaultState, settings)
+class RubberStairsBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_STAIRS).strength(2.0f)) : StairsBlock(Blocks.OAK_PLANKS.defaultState, settings) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val planks = RubberPlanksBlock::class.item()
+            ShapedRecipeJsonBuilder.create(RecipeCategory.BUILDING_BLOCKS, RubberStairsBlock::class.item(), 4)
+                .pattern("P  ").pattern("PP ").pattern("PPP").input('P', planks)
+                .criterion(hasItem(planks), conditionsFromItem(planks))
+                .offerTo(exporter, RubberStairsBlock::class.id())
+        }
+    }
+}
 
 // ========== 栅栏 / 栅栏门 ==========
 
 @ModBlock(name = "rubber_fence", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberFenceBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_FENCE).strength(2.0f)) : FenceBlock(settings)
+class RubberFenceBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_FENCE).strength(2.0f)) : FenceBlock(settings) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val planks = RubberPlanksBlock::class.item()
+            val sticks = Items.STICK
+            ShapedRecipeJsonBuilder.create(RecipeCategory.MISC, RubberFenceBlock::class.item(), 3)
+                .pattern("PSP").pattern("PSP").input('P', planks).input('S', sticks)
+                .criterion(hasItem(planks), conditionsFromItem(planks))
+                .offerTo(exporter, RubberFenceBlock::class.id())
+        }
+    }
+}
 
 @ModBlock(name = "rubber_fence_gate", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberFenceGateBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_FENCE_GATE).strength(2.0f)) : FenceGateBlock(settings, WoodType.OAK)
+class RubberFenceGateBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_FENCE_GATE).strength(2.0f)) : FenceGateBlock(settings, WoodType.OAK) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val planks = RubberPlanksBlock::class.item()
+            val sticks = Items.STICK
+            ShapedRecipeJsonBuilder.create(RecipeCategory.REDSTONE, RubberFenceGateBlock::class.item(), 1)
+                .pattern("SPS").pattern("SPS").input('P', planks).input('S', sticks)
+                .criterion(hasItem(planks), conditionsFromItem(planks))
+                .offerTo(exporter, RubberFenceGateBlock::class.id())
+        }
+    }
+}
 
 // ========== 门 / 活板门 ==========
 
 @ModBlock(name = "rubber_door", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberDoorBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_DOOR).strength(2.0f)) : DoorBlock(settings, BlockSetType.OAK)
+class RubberDoorBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_DOOR).strength(2.0f)) : DoorBlock(settings, BlockSetType.OAK) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val planks = RubberPlanksBlock::class.item()
+            val sticks = Items.STICK
+            ShapedRecipeJsonBuilder.create(RecipeCategory.REDSTONE, RubberDoorBlock::class.item(), 3)
+                .pattern("PP").pattern("PP").pattern("SS").input('P', planks).input('S', sticks)
+                .criterion(hasItem(planks), conditionsFromItem(planks))
+                .offerTo(exporter, RubberDoorBlock::class.id())
+        }
+    }
+}
 
 @ModBlock(name = "rubber_trapdoor", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberTrapdoorBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_TRAPDOOR).strength(2.0f)) : TrapdoorBlock(settings, BlockSetType.OAK)
+class RubberTrapdoorBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_TRAPDOOR).strength(2.0f)) : TrapdoorBlock(settings, BlockSetType.OAK) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val planks = RubberPlanksBlock::class.item()
+            ShapedRecipeJsonBuilder.create(RecipeCategory.REDSTONE, RubberTrapdoorBlock::class.item(), 2)
+                .pattern("PPP").pattern("PPP").input('P', planks)
+                .criterion(hasItem(planks), conditionsFromItem(planks))
+                .offerTo(exporter, RubberTrapdoorBlock::class.id())
+        }
+    }
+}
 
 // ========== 按钮 / 压力板 ==========
 
 @ModBlock(name = "rubber_button", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberButtonBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_BUTTON).strength(2.0f)) : ButtonBlock(settings, BlockSetType.OAK, 30, true)
+class RubberButtonBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_BUTTON).strength(2.0f)) : ButtonBlock(settings, BlockSetType.OAK, 30, true) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val planks = RubberPlanksBlock::class.item()
+            ShapelessRecipeJsonBuilder.create(RecipeCategory.REDSTONE, RubberButtonBlock::class.item(), 1)
+                .input(planks)
+                .criterion(hasItem(planks), conditionsFromItem(planks))
+                .offerTo(exporter, RubberButtonBlock::class.id())
+        }
+    }
+}
 
 @ModBlock(name = "rubber_pressure_plate", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
-class RubberPressurePlateBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_PRESSURE_PLATE).strength(2.0f)) : PressurePlateBlock(PressurePlateBlock.ActivationRule.EVERYTHING, settings, BlockSetType.OAK)
+class RubberPressurePlateBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_PRESSURE_PLATE).strength(2.0f)) : PressurePlateBlock(PressurePlateBlock.ActivationRule.EVERYTHING, settings, BlockSetType.OAK) {
+    companion object {
+        @RecipeProvider
+        fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
+            val planks = RubberPlanksBlock::class.item()
+            ShapedRecipeJsonBuilder.create(RecipeCategory.REDSTONE, RubberPressurePlateBlock::class.item(), 1)
+                .pattern("PP").input('P', planks)
+                .criterion(hasItem(planks), conditionsFromItem(planks))
+                .offerTo(exporter, RubberPressurePlateBlock::class.id())
+        }
+    }
+}
 
 // ========== 树叶 / 树苗 ==========
 

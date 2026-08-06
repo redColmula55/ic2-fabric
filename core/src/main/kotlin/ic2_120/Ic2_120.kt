@@ -5,6 +5,8 @@ import ic2_120.content.CreativeGeneratorItemEntityHandler
 import ic2_120.content.ChainsawHandler
 import ic2_120.content.RubberTreetapHandler
 import ic2_120.content.WrenchHandler
+import ic2_120.content.block.RubberWoodFlammables
+import ic2_120.content.block.RubberWoodStrippables
 import ic2_120.content.block.nuclear.NuclearExplosionManager
 import ic2_120.content.block.nuclear.NuclearReactorBlockEntity
 import ic2_120.content.block.nuclear.ReactorChamberBlock
@@ -142,6 +144,11 @@ object Ic2_120 : ModInitializer {
 
         // 木龙头/电动树脂提取器与橡胶树原木交互（提取粘性树脂）
         RubberTreetapHandler.register()
+
+        // 橡胶木系列：可燃注册（与原版橡木对齐：log/wood=5/5、planks/slab/stairs/fence/fence_gate=5/20、leaves=30/60）
+        RubberWoodFlammables.register()
+        // 橡胶木系列：斧头去皮（rubber_log/rubber_wood → stripped_*，AXIS 保留）
+        RubberWoodStrippables.register()
 
         // 传动轴/伞齿轮 BlockEntity（仅用于 BER 动画渲染）
         // 核反应仓能量能力注册（Fabric Transfer API）

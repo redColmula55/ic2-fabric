@@ -12,6 +12,13 @@ import net.minecraft.util.Identifier
  */
 object ModTags {
 
+    /**
+     * 橡胶木系列原木（含 stripped 变体），用于在配方里允许任意橡胶原木输入。
+     * 内容由 [ic2_120.content.recipes.ModItemTagProvider] 在 datagen 时填充。
+     */
+    val RUBBER_LOGS: TagKey<Item> =
+        TagKey.of(RegistryKeys.ITEM, Identifier(Ic2_120.MOD_ID, "rubber_logs"))
+
     object Compat {
         object Items {
             val INGOTS_IRON = item("ingots/iron")

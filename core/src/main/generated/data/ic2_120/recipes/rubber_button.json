@@ -1,0 +1,12 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "redstone",
+  "ingredients": [
+    {
+      "item": "ic2_120:rubber_planks"
+    }
+  ],
+  "result": {
+    "item": "ic2_120:rubber_button"
+  }
+}
