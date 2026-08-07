@@ -39,7 +39,7 @@ class SolarPanelScreenHandler(
     val sync = SolarPanelSync(
         schema = SyncedDataView(propertyDelegate),
         capacity = 1L,
-        tier = 1,
+        maxOutputPerTick = 1L,
         getFacing = { Direction.NORTH },
         currentTickProvider = { null }
     )

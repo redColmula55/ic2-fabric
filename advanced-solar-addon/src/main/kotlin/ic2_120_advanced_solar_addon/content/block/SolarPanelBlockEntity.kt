@@ -49,7 +49,13 @@ abstract class SolarPanelBlockEntity(
     override val tier: Int,
     activeProperty: BooleanProperty,
     /** Rain 变体专用：RAIN 状态发电功率（默认 0，不影响既有面板）。 */
-    val rainPower: Int = 0
+    val rainPower: Int = 0,
+    /**
+     * 每 tick 最大输出 EU/t，默认按 tier 取 32×4^(tier−1)。
+     * 产能超过 tier 标称值的变体（如 Sun 变体 sunPower 可达 dayPower×2）可覆盖此值，
+     * 否则面板产得出、送不走，存满后浪费（积压）。产能速度不变。
+     */
+    val maxOutput: Long = ic2_120.content.energy.EnergyTier.euPerTickFromTier(tier)
 ) : MachineBlockEntity(type, pos, state), IGenerator, ExtendedScreenHandlerFactory, Inventory {
 
     companion object {
@@ -68,7 +74,7 @@ abstract class SolarPanelBlockEntity(
     val sync = SolarPanelSync(
         schema = syncedData,
         capacity = maxStorage,
-        tier = tier,
+        maxOutputPerTick = maxOutput,
         getFacing = { world?.getBlockState(pos)?.get(Properties.HORIZONTAL_FACING) ?: Direction.NORTH },
         currentTickProvider = { world?.time }
     )
@@ -130,7 +136,10 @@ abstract class SolarPanelBlockEntity(
         // These values are tier constants, not per-tick state.
         sync.dayPower = dayPower
         sync.nightPower = nightPower
-        sync.maxOutput = ic2_120.content.energy.EnergyTier.euPerTickFromTier(tier).toInt()
+        sync.maxOutput = maxOutput.toInt()
+        // 容量镜像在构造时即写入。capacitySync 原本只在 onEnergyCommitted（能量发生流动）时刷新，
+        // 导致 Rain 变体晴天完全不发电时永远是默认 0，GUI 经 coerceAtLeast(1) 显示成 “0/1EU”。
+        sync.capacitySync = maxStorage.toInt().coerceIn(0, Int.MAX_VALUE)
     }
 
     override fun getInventory(): Inventory? = this

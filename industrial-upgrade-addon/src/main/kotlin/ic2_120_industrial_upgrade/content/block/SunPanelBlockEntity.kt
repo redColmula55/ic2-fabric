@@ -31,7 +31,10 @@ abstract class SunPanelBlockEntity(
     type, pos, state,
     dayPower = sunPower, nightPower = 0,
     maxStorage = maxStorage, tier = tier,
-    activeProperty = activeProperty
+    activeProperty = activeProperty,
+    // Sun 变体产能 = dayPower×2，可能超过 tier 标称输出（如 Ultimate: sunPower=1024 > tier3=512），
+    // 将每 tick 输出上限抬高到至少等于产能，避免积压；产能速度本身不变。
+    maxOutput = maxOf(ic2_120.content.energy.EnergyTier.euPerTickFromTier(tier), sunPower.toLong())
 ) {
 
     override fun checkSky() {

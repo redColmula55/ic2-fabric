@@ -8,21 +8,22 @@ import net.minecraft.util.math.Direction
 class SolarPanelSync(
     schema: SyncSchema,
     capacity: Long,
-    tier: Int,
+    /** 每 tick 最大输出 EU/t（默认由 SolarPanelBlockEntity 按 tier 传入，变体可覆盖）。 */
+    maxOutputPerTick: Long,
     private val getFacing: () -> Direction,
     currentTickProvider: () -> Long?
 ) : TickLimitedSidedEnergyContainer(
     baseCapacity = capacity,
     maxInsertPerTick = 0L,
-    maxExtractPerTick = EnergyTier.euPerTickFromTier(tier),
+    maxExtractPerTick = maxOutputPerTick,
     currentTickProvider = currentTickProvider
 ) {
     companion object {
         const val NBT_ENERGY = "Energy"
     }
 
-    private val minOutput = EnergyTier.euPerTickFromTier(tier)
-    private val maxExtract = EnergyTier.euPerTickFromTier(tier)
+    private val minOutput = maxOutputPerTick
+    private val maxExtract = maxOutputPerTick
 
     var energy by schema.int("Energy")
     var capacitySync by schema.int("Capacity")
