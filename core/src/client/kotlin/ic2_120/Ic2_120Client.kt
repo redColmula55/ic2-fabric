@@ -33,12 +33,25 @@ import ic2_120.analytics.AnalyticsClientReporter
 import ic2_120.integration.jei.ClientLiveRecipeSource
 import ic2_120.integration.jei.LiveRecipeSource
 import net.fabricmc.api.ClientModInitializer
+import net.fabricmc.loader.api.FabricLoader
+import net.minecraft.client.MinecraftClient
 
 object Ic2_120Client : ClientModInitializer {
 	override fun onInitializeClient() {
 		// 注入客户端 RecipeManager 提供者，供 JEI plugin 收集运行时实际加载的配方
 		// （与机器判定逻辑同源，覆盖 core + 所有附属命名空间）
 		LiveRecipeSource.instance = ClientLiveRecipeSource
+
+		// 注入客户端主线程调度器：JEI RecipeManager 操作必须在客户端主线程执行，
+		// 而 UU 索引重建由 SERVER_STARTED 在 Server thread 触发 refreshReplicatorRecipes，
+		// 需经此切回主线程，否则 ErrorUtil.assertMainThread 抛异常导致进世界必崩。
+		// 仅在装了 JEI 时注入（Ic2JeiPlugin 引用 JEI API，无 JEI 时不可加载其类）。
+		if (FabricLoader.getInstance().isModLoaded("jei")) {
+			ic2_120.integration.jei.Ic2JeiPlugin.scheduleOnClientThread = { action ->
+				val client = MinecraftClient.getInstance()
+				if (client.isOnThread) false else { client.execute(action); true }
+			}
+		}
 
 		ModFluidClient.register()
 		ClientScreenRegistrar.registerScreens(Ic2_120.MOD_ID, listOf("ic2_120.client"))
