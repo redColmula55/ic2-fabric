@@ -398,7 +398,9 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
         EjectorUpgradeComponent.ejectIfUpgraded(world, pos, this, SLOT_UPGRADE_INDICES, SLOT_ITEM_OUTPUT_INDICES)
         PullingUpgradeComponent.pullIfUpgraded(world, pos, this, SLOT_UPGRADE_INDICES, SLOT_ITEM_INPUT_INDICES)
         if (fluidPipeReceiverEnabled) {
-            FluidPipeUpgradeComponent.pullFluidFromNeighbors(world, pos, waterTankInternal, fluidPipeReceiverFilter, fluidPipeReceiverSides, upgradeCount = fluidPipePullingCount)
+            // 传 ioStorage 而非 waterTankInternal：作物监管机有水 + 除草剂两个输入槽，
+            // ioStorage.insert 会按流体种类自动分流，使流体抽入升级同时覆盖除草剂槽。
+            FluidPipeUpgradeComponent.pullFluidFromNeighbors(world, pos, ioStorage, fluidPipeReceiverFilter, fluidPipeReceiverSides, upgradeCount = fluidPipePullingCount)
         }
         processWaterInputContainer()
         processWeedExInputContainer()
