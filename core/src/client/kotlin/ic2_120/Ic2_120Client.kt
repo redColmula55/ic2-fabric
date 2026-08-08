@@ -46,14 +46,17 @@ object Ic2_120Client : ClientModInitializer {
 		// 而 UU 索引重建由 SERVER_STARTED 在 Server thread 触发 refreshReplicatorRecipes，
 		// 需经此切回主线程，否则 ErrorUtil.assertMainThread 抛异常导致进世界必崩。
 		//
-		// 无条件注入（不判 isModLoaded("jei")）：本 lambda 只用 MinecraftClient，不引用任何 JEI 类；
-		// 真正引用 JEI 类的是 refreshReplicatorRecipes 方法体，已由 jeiRuntime==null 兑底。
-		// 在 Forge+Sinytra Connector 环境下，jei 是 Forge 原生 mod，FabricLoader 视野里可能
-		// 查不到 "jei"（Ic2_120.kt 的 onRebuild 回调却查得到，行为不一致），导致本该注入的
-		// 调度器被跳过 → refreshReplicatorRecipes 同步在 Server thread 调 hideRecipes 而崩溃。
-		ic2_120.integration.jei.Ic2JeiPlugin.scheduleOnClientThread = { action ->
-			val client = MinecraftClient.getInstance()
-			if (client.isOnThread) false else { client.execute(action); true }
+		// 仅在装了 JEI 时注入；且字段位于 LiveRecipeSource（不引用 JEI 类）而非 Ic2JeiPlugin。
+		// 历史教训：曾把字段放在 Ic2JeiPlugin（继承 mezz.jei.api.IModPlugin），即便用
+		// isModLoaded 守卫，赋值左侧 `Ic2JeiPlugin.scheduleOnClientThread` 仍会触发
+		// Ic2JeiPlugin 类初始化 → 父类 IModPlugin 解析 → 无 JEI 时 NoClassDefFoundError
+		// （Connector + 仅 EMI 客户端环境，client entrypoint 阶段必崩）。挪到 LiveRecipeSource
+		// 后，isModLoaded 守卫即可彻底挡住对 JEI 类图的触碰。
+		if (FabricLoader.getInstance().isModLoaded("jei")) {
+			ic2_120.integration.jei.LiveRecipeSource.scheduleOnClientThread = { action ->
+				val client = MinecraftClient.getInstance()
+				if (client.isOnThread) false else { client.execute(action); true }
+			}
 		}
 
 		ModFluidClient.register()

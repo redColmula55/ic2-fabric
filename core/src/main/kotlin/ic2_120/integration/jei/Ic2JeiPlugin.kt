@@ -87,16 +87,6 @@ class Ic2JeiPlugin : IModPlugin {
         private var replicatorRecipes: List<ReplicatorJeiRecipe> = emptyList()
         private var replicatorRefreshPending = false
 
-        /**
-         * 由 client source set 注入：把给定 action 调度到客户端主线程执行。
-         * 返回 true=已调度（调用方应 return）；false=当前已在主线程（调用方继续同步执行）。
-         *
-         * 不直接引用 MinecraftClient：本文件在 main source set，而 MinecraftClient 是
-         * client-only 类，loom splitEnvironmentSourceSets 下 main 编译期不可见，故用注入。
-         */
-        @Volatile
-        var scheduleOnClientThread: ((() -> Unit) -> Boolean)? = null
-
         fun refreshReplicatorRecipes() {
             val runtime = jeiRuntime
             if (runtime == null) {
@@ -106,7 +96,9 @@ class Ic2JeiPlugin : IModPlugin {
             // JEI RecipeManager 必须在客户端主线程操作；SERVER_STARTED 在 Server thread 触发
             // UU 索引重建→本方法时，经 scheduleOnClientThread 调度回客户端主线程，
             // 否则 ErrorUtil.assertMainThread 抛 IllegalStateException（装了 JEI 时每次进世界必崩）。
-            if (scheduleOnClientThread?.invoke { refreshReplicatorRecipes() } == true) {
+            // scheduleOnClientThread 字段位于 LiveRecipeSource（不引用 JEI 类），避免 Connector
+            // + 仅 EMI（无 JEI）环境下 client entrypoint 阶段触发 Ic2JeiPlugin 类加载崩溃。
+            if (LiveRecipeSource.scheduleOnClientThread?.invoke { refreshReplicatorRecipes() } == true) {
                 return
             }
             val oldRecipes = replicatorRecipes
