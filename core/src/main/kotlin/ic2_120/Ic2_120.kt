@@ -1,5 +1,6 @@
 package ic2_120
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.analytics.AnalyticsReporter
 import ic2_120.content.CreativeGeneratorItemEntityHandler
 import ic2_120.content.ChainsawHandler
@@ -197,6 +198,12 @@ object Ic2_120 : ModInitializer {
         // 匿名使用统计：服务端每次启动上报一次（覆盖独立服务端 + 集成服务端）
         ServerLifecycleEvents.SERVER_STARTED.register {
             AnalyticsReporter.report("server")
+        }
+
+        // 数据包重载完成后使全部机器配方缓存失效（缓存 epoch +1），
+        // 避免 /reload 后已加载机器继续使用旧配方。
+        ServerLifecycleEvents.END_DATA_PACK_RELOAD.register { _, _, _ ->
+            RecipeCacheEpoch.invalidate()
         }
 
         // 杂交作物初始种子袋（三维属性 1/1/1）加入作物种子物品栏

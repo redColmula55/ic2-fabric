@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.item.IBlockCuttingBlade
 import ic2_120.content.item.IUpgradeItem
 import ic2_120.content.item.energy.IBatteryItem
@@ -202,13 +203,14 @@ class BlockCutterBlockEntity(
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedRecipe: BlockCutterRecipe? = null
     private var cachedRecipeQueryCount = 0
+    private var cachedRecipeEpoch = -1
 
     /**
      * 获取当前输入的配方（不考虑刀片硬度）
      */
     private fun getRecipeForInput(input: ItemStack): BlockCutterRecipe? {
         if (input.isEmpty) return null
-        if (cachedRecipeItem === input.item) {
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) {
             val cached = cachedRecipe
             if (cached != null && input.count >= cached.inputCount) return cached
             if (cached == null && input.count <= cachedRecipeQueryCount) return null
@@ -216,6 +218,7 @@ class BlockCutterBlockEntity(
         val w = world ?: return null
         val inv = SimpleInventory(input)
         val recipe = w.recipeManager.getFirstMatch(getRecipeType<BlockCutterRecipe>(), inv, w).orElse(null)
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedRecipe = recipe
         cachedRecipeQueryCount = input.count
@@ -352,13 +355,15 @@ class BlockCutterBlockEntity(
     // 类型判定缓存：isRecipeInput 用 maxCount 查询（仅依赖物品类型），按 item 缓存安全。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack) || stack.item is IUpgradeItem || stack.item is IBlockCuttingBlade) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(stack.maxCount))
         val found = w.recipeManager.getFirstMatch(getRecipeType<BlockCutterRecipe>(), inv, w).isPresent
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found

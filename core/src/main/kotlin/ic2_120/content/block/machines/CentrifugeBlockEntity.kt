@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.block.CentrifugeBlock
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.energy.charge.BatteryDischargerComponent
@@ -316,6 +317,7 @@ class CentrifugeBlockEntity(
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedRecipe: CentrifugeRecipe? = null
     private var cachedRecipeQueryCount = 0
+    private var cachedRecipeEpoch = -1
 
     /**
      * 获取当前输入的配方
@@ -324,7 +326,7 @@ class CentrifugeBlockEntity(
         val input = getStack(SLOT_INPUT)
         if (input.isEmpty) return null
 
-        if (cachedRecipeItem === input.item) {
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) {
             val cached = cachedRecipe
             if (cached != null && input.count >= cached.inputCount) return cached
             if (cached == null && input.count <= cachedRecipeQueryCount) return null
@@ -340,6 +342,7 @@ class CentrifugeBlockEntity(
         )
 
         val recipe = optionalRecipe.orElse(null)
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedRecipe = recipe
         cachedRecipeQueryCount = input.count
@@ -351,13 +354,15 @@ class CentrifugeBlockEntity(
     // 类型判定缓存：isRecipeInput 始终用 maxCount 查询（仅依赖物品类型），按 item 缓存安全。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(stack.maxCount))
         val found = w.recipeManager.getFirstMatch(getRecipeType<CentrifugeRecipe>(), inv, w).isPresent
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found

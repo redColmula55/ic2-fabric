@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.Ic2_120
 import ic2_120.content.block.CannerBlock
 import ic2_120.content.fluid.ModFluids
@@ -450,10 +451,11 @@ class CannerBlockEntity(
     private var cachedContainerCount = 0
     private var cachedMaterialCount = 0
     private var cachedSolidCannerRecipe: SolidCannerRecipe? = null
+    private var cachedRecipeEpoch = -1
 
     private fun solidCanningRecipeFor(container: ItemStack, material: ItemStack): SolidCannerRecipe? {
         val world = world ?: return null
-        if (cachedContainerItem === container.item && cachedMaterialItem === material.item) {
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedContainerItem === container.item && cachedMaterialItem === material.item) {
             val r = cachedSolidCannerRecipe
             if (r != null && container.count >= r.slot0Count && material.count >= r.slot1Count) return r
             if (r == null && container.count <= cachedContainerCount && material.count <= cachedMaterialCount) return null
@@ -463,6 +465,7 @@ class CannerBlockEntity(
         val recipeInventory = SimpleInventory(container, material)
         val match = world.recipeManager.getFirstMatch(recipeType, recipeInventory, world) ?: return null
         val recipe = if (match.isEmpty) null else match.get()
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedContainerItem = container.item
         cachedMaterialItem = material.item
         cachedContainerCount = container.count

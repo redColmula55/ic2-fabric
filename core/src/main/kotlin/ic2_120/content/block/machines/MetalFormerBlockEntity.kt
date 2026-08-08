@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.recipes.getRecipeType
 import ic2_120.content.recipes.metalformer.MetalFormerRecipe
 import ic2_120.content.recipes.metalformer.MetalFormerRecipeSerializer
@@ -297,9 +298,10 @@ class MetalFormerBlockEntity(
     private var cachedQueryItem: net.minecraft.item.Item? = null
     private var cachedQueryMode: MetalFormerSync.Mode? = null
     private var cachedRecipe: MetalFormerRecipe? = null
+    private var cachedRecipeEpoch = -1
 
     private fun findRecipe(world: World, input: ItemStack, mode: MetalFormerSync.Mode): MetalFormerRecipe? {
-        if (cachedQueryItem === input.item && cachedQueryMode == mode) return cachedRecipe
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedQueryItem === input.item && cachedQueryMode == mode) return cachedRecipe
 
         // 根据当前模式获取对应的配方类
         val recipeType = when (mode) {
@@ -314,6 +316,7 @@ class MetalFormerBlockEntity(
         val recipe = recipeManager.listAllOfType(getRecipeType<MetalFormerRecipe>())
             .filterIsInstance(recipeType.java)
             .firstOrNull { it.matches(recipeInput, world) }
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedQueryItem = input.item
         cachedQueryMode = mode
         cachedRecipe = recipe
@@ -322,12 +325,13 @@ class MetalFormerBlockEntity(
 
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (!isInputItem(stack)) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val currentWorld = world ?: return true
         val input = MetalFormerRecipe.Input(stack.copyWithCount(1))
         val found = currentWorld.recipeManager
             .listAllOfType(getRecipeType<MetalFormerRecipe>())
             .any { it.matches(input, currentWorld) }
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found
@@ -337,5 +341,6 @@ class MetalFormerBlockEntity(
     // 结果仅依赖 item，按 item 缓存安全。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
 }

@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.block.OreWashingPlantBlock
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.fluid.ModFluids
@@ -307,18 +308,20 @@ class OreWashingPlantBlockEntity(
     // item，因此按 item 缓存（含 null）安全，避免每 tick 重复查询 recipeManager。
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedRecipe: OreWashingRecipe? = null
+    private var cachedRecipeEpoch = -1
 
     /**
      * 获取当前输入的配方
      */
     private fun getRecipeForInput(input: ItemStack): OreWashingRecipe? {
         if (input.isEmpty) return null
-        if (cachedRecipeItem === input.item) return cachedRecipe
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) return cachedRecipe
 
         val inv = OreWashingRecipe.Input(input)
         val recipeManager = world?.recipeManager ?: return null
 
         val recipe = recipeManager.getFirstMatch(getRecipeType<OreWashingRecipe>(), inv, world ?: return null).orElse(null)
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedRecipe = recipe
         return recipe

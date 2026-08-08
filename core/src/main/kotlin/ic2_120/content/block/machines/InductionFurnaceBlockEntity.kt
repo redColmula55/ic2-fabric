@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.sync.InductionFurnaceSync
 import ic2_120.content.AdjacentEnergyTransferComponent
 import ic2_120.content.block.InductionFurnaceBlock
@@ -299,13 +300,15 @@ class InductionFurnaceBlockEntity(
     // （含 null）安全，避免每 tick 重复查询 recipeManager。
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedRecipeOutput: ItemStack? = null
+    private var cachedRecipeEpoch = -1
 
     private fun findSmeltingRecipe(world: World, input: ItemStack): ItemStack? {
         if (input.isEmpty) return null
-        if (cachedRecipeItem === input.item) return cachedRecipeOutput
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) return cachedRecipeOutput
         val inv = SimpleInventory(1).apply { setStack(0, input) }
         val match = world.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, world)
         val result = if (match.isPresent) match.get().getOutput(world.registryManager).copy() else null
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedRecipeOutput = result
         return result
@@ -336,13 +339,15 @@ class InductionFurnaceBlockEntity(
     // 结果仅依赖 item，按 item 缓存安全。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
     private fun isSmeltingInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(1))
         val found = w.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, w).isPresent
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found

@@ -82,10 +82,11 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
         val indexLow = entries.size
         entries.add(Entry("${name}_Low", default and 0xFFFF))
         // 为每个属性维护独立的滑动窗口；windowSum 增量维护，避免每次读写 O(n) 求和。
+        // 注意：不能对等值写入做短路——窗口按“每次写入”滑动，等值写入同样会推出
+        // 旧样本（如稳态 32 EU/t 会把停机期的 0 推出窗口）；若跳过，平均值会卡在
+        // 历史混合值永不收敛到稳态（EnergyFlowSync/HeatFlowSync 每 tick 恒定写入）。
         val window = ArrayDeque<Int>()
         var windowSum = 0
-        var hasSet = false
-        var lastSetValue = 0
         return object : ReadWriteProperty<Any?, Int> {
             override fun getValue(thisRef: Any?, property: KProperty<*>): Int {
                 // 返回滑动窗口的平均值
@@ -96,11 +97,6 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
                 } else windowSum / window.size
             }
             override fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) {
-                // 等值短路：值未变时跳过窗口更新与持久化（窗口平均语义不受影响——
-                // 加入相同值不改变均值，跳过只是不扩充窗口）。
-                if (hasSet && value == lastSetValue) return
-                hasSet = true
-                lastSetValue = value
                 val oldAverage = (entries[indexHigh].value shl 16) or (entries[indexLow].value and 0xFFFF)
                 // 更新滑动窗口
                 window.addLast(value)

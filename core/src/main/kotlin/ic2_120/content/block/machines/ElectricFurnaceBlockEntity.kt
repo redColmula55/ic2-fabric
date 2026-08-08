@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.sync.ElectricFurnaceSync
 import ic2_120.content.AdjacentEnergyTransferComponent
 import ic2_120.content.block.ElectricFurnaceBlock
@@ -99,6 +100,7 @@ class ElectricFurnaceBlockEntity(
     private var storedExperience: Float = 0f
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedRecipe: SmeltingRecipe? = null
+    private var cachedRecipeEpoch = -1
     @RegisterItemStorage
     val itemStorage = RoutedItemStorage(
         inventory = inventory,
@@ -309,8 +311,9 @@ class ElectricFurnaceBlockEntity(
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
     private fun smeltingRecipeFor(input: ItemStack, world: World): SmeltingRecipe? {
-        if (cachedRecipeItem === input.item) return cachedRecipe
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) return cachedRecipe
         val inputInv = SimpleInventory(1).apply { setStack(0, input) }
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedRecipe = world.recipeManager.getFirstMatch(RecipeType.SMELTING, inputInv, world).orElse(null)
         return cachedRecipe
@@ -329,13 +332,15 @@ class ElectricFurnaceBlockEntity(
     // 结果仅依赖 item，按 item 缓存安全。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
     private fun isSmeltingInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(1))
         val found = w.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, w).isPresent
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found

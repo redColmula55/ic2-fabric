@@ -1,5 +1,6 @@
 ﻿package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.block.IronFurnaceBlock
 import ic2_120.content.screen.IronFurnaceScreenHandler
 import ic2_120.content.sound.MachineSoundConfig
@@ -274,11 +275,13 @@ class IronFurnaceBlockEntity(
     // getFirstMatch（hasRecipe / canAcceptOutput / 烧制完成），命中缓存全部跳过。
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedSmeltingRecipe: net.minecraft.recipe.SmeltingRecipe? = null
+    private var cachedRecipeEpoch = -1
 
     private fun smeltingRecipeFor(input: ItemStack, world: World): net.minecraft.recipe.SmeltingRecipe? {
-        if (cachedRecipeItem === input.item) return cachedSmeltingRecipe
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) return cachedSmeltingRecipe
         val inputInv = SimpleInventory(1).apply { setStack(0, input) }
         val recipe = world.recipeManager.getFirstMatch(RecipeType.SMELTING, inputInv, world).orElse(null)
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedSmeltingRecipe = recipe
         return recipe
@@ -288,13 +291,15 @@ class IronFurnaceBlockEntity(
     // 结果仅依赖 item，按 item 缓存安全。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
     private fun isSmeltingInput(stack: ItemStack): Boolean {
         if (stack.isEmpty) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(1))
         val found = w.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, w).isPresent
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found

@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.block.ExtractorBlock
 import ic2_120.content.sound.MachineSoundConfig
 import ic2_120.content.block.ITieredMachine
@@ -246,14 +247,16 @@ class ExtractorBlockEntity(
     // item，因此按 item 缓存（含 null）安全，避免每 tick 重复查询 recipeManager。
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedRecipe: ExtractorRecipe? = null
+    private var cachedRecipeEpoch = -1
 
     private fun getRecipe(world: World, input: ItemStack): ExtractorRecipe? {
         if (input.isEmpty) return null
-        if (cachedRecipeItem === input.item) return cachedRecipe
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) return cachedRecipe
         val inventory = SimpleInventory(input)
         val recipeManager = world.recipeManager
         val optionalRecipe = recipeManager.getFirstMatch(getRecipeType<ExtractorRecipe>(), inventory, world)
         val recipe = optionalRecipe.orElse(null)
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedRecipe = recipe
         return recipe
@@ -265,13 +268,15 @@ class ExtractorBlockEntity(
     // 结果仅依赖物品类型，按 item 缓存安全。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(1))
         val found = w.recipeManager.getFirstMatch(getRecipeType<ExtractorRecipe>(), inv, w).isPresent
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found

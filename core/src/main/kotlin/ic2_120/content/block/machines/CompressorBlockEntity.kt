@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.recipes.compressor.CompressorRecipe
 import ic2_120.content.sync.CompressorSync
 import ic2_120.content.AdjacentEnergyTransferComponent
@@ -293,21 +294,45 @@ class CompressorBlockEntity(
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedRecipe: CompressorRecipe? = null
     private var cachedRecipeQueryCount = 0
+    private var cachedRecipeEpoch = -1
 
     private fun getRecipe(world: World, input: ItemStack): CompressorRecipe? {
         if (input.isEmpty) return null
-        if (cachedRecipeItem === input.item) {
+        // recipeManager 缓存与水容器判定分离：
+        // 水容器配方依赖流体内容（NBT），不能并入按 item 的缓存——否则空罐缓存 null 后
+        // 原位替换成满水罐（item/count 均不变）会永久命中 null 缓存导致不再加工。
+        val recipe = recipeFromManagerCached(world, input)
+        if (recipe != null) return recipe
+        return waterContainerRecipeCached(input)
+    }
+
+    private fun recipeFromManagerCached(world: World, input: ItemStack): CompressorRecipe? {
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) {
             val cached = cachedRecipe
             if (cached != null && input.count >= cached.inputCount) return cached
             if (cached == null && input.count <= cachedRecipeQueryCount) return null
         }
         val inventory = SimpleInventory(input)
-        val recipeManager = world.recipeManager
-        val optionalRecipe = recipeManager.getFirstMatch(getRecipeType<CompressorRecipe>(), inventory, world)
-        val recipe = optionalRecipe.orElse(null) ?: getWaterContainerRecipe(input)
+        val recipe = world.recipeManager
+            .getFirstMatch(getRecipeType<CompressorRecipe>(), inventory, world)
+            .orElse(null)
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedRecipe = recipe
         cachedRecipeQueryCount = input.count
+        return recipe
+    }
+
+    // 水容器判定缓存：按完整 ItemStack 相等（item/count/NBT）缓存——流体内容变化
+    // （NBT 不同）必然失效，因此空罐→满水罐原位替换也能正确重判。
+    private var cachedWaterStack: ItemStack = ItemStack.EMPTY
+    private var cachedWaterRecipe: CompressorRecipe? = null
+
+    private fun waterContainerRecipeCached(input: ItemStack): CompressorRecipe? {
+        if (input == cachedWaterStack) return cachedWaterRecipe
+        val recipe = getWaterContainerRecipe(input)
+        cachedWaterStack = input.copy()
+        cachedWaterRecipe = recipe
         return recipe
     }
 
@@ -349,13 +374,15 @@ class CompressorBlockEntity(
     // 类型判定缓存：isRecipeInput 始终用 maxCount 查询（仅依赖物品类型），按 item 缓存安全。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(stack.maxCount))
         val found = w.recipeManager.getFirstMatch(getRecipeType<CompressorRecipe>(), inv, w).isPresent
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found

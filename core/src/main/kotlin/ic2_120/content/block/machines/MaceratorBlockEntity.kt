@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.sync.MaceratorSync
 import ic2_120.content.energy.charge.BatteryDischargerComponent
 import ic2_120.content.upgrade.EjectorUpgradeComponent
@@ -272,15 +273,17 @@ class MaceratorBlockEntity(
     private var cachedRecipeItem: net.minecraft.item.Item? = null
     private var cachedRecipe: MaceratorRecipe? = null
     private var cachedRecipeQueryCount = 0
+    private var cachedRecipeEpoch = -1
 
     private fun maceratorRecipeFor(input: ItemStack, world: World): MaceratorRecipe? {
-        if (cachedRecipeItem === input.item) {
+        if (RecipeCacheEpoch.current() == cachedRecipeEpoch && cachedRecipeItem === input.item) {
             val cached = cachedRecipe
             if (cached != null && input.count >= cached.inputCount) return cached
             if (cached == null && input.count <= cachedRecipeQueryCount) return null
         }
         val recipeInventory = SimpleInventory(input)
         val recipe = world.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, world).orElse(null)
+        cachedRecipeEpoch = RecipeCacheEpoch.current()
         cachedRecipeItem = input.item
         cachedRecipe = recipe
         cachedRecipeQueryCount = input.count
@@ -291,14 +294,16 @@ class MaceratorBlockEntity(
     // 因此按 item 缓存布尔结果是安全的，且可命中 isValid / 物流路由 matcher 的重复调用。
     private var cachedInputItem: net.minecraft.item.Item? = null
     private var cachedIsInput = false
+    private var cachedInputEpoch = -1
 
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
-        if (cachedInputItem === stack.item) return cachedIsInput
+        if (RecipeCacheEpoch.current() == cachedInputEpoch && cachedInputItem === stack.item) return cachedIsInput
         val currentWorld = world ?: return true
         // 仅用于识别物品类型时，必须提供足够大的虚拟堆叠；部分配方需要多个输入。
         val recipeInventory = SimpleInventory(stack.copyWithCount(stack.maxCount))
         val found = currentWorld.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, currentWorld).isPresent
+        cachedInputEpoch = RecipeCacheEpoch.current()
         cachedInputItem = stack.item
         cachedIsInput = found
         return found

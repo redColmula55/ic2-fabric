@@ -1,5 +1,6 @@
 package ic2_120.content.block.machines
 
+import ic2_120.content.RecipeCacheEpoch
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.block.SolidCannerBlock
 import ic2_120.content.energy.charge.BatteryDischargerComponent
@@ -295,15 +296,17 @@ class SolidCannerBlockEntity(
     private var cachedCanItem: net.minecraft.item.Item? = null
     private var cachedFoodItem: net.minecraft.item.Item? = null
     private var cachedSolidCanningMatch: java.util.Optional<ic2_120.content.recipes.solidcanner.SolidCannerRecipe>? = null
+    private var cachedMatchEpoch = -1
 
     private fun solidCanningRecipeFor(
         world: World,
         tinCan: ItemStack,
         food: ItemStack
     ): java.util.Optional<ic2_120.content.recipes.solidcanner.SolidCannerRecipe> {
-        if (cachedCanItem === tinCan.item && cachedFoodItem === food.item) return cachedSolidCanningMatch!!
+        if (RecipeCacheEpoch.current() == cachedMatchEpoch && cachedCanItem === tinCan.item && cachedFoodItem === food.item) return cachedSolidCanningMatch!!
         val recipeInventory = SimpleInventory(tinCan.copyWithCount(1), food.copyWithCount(1))
         val match = world.recipeManager.getFirstMatch(getRecipeType<ic2_120.content.recipes.solidcanner.SolidCannerRecipe>(), recipeInventory, world)
+        cachedMatchEpoch = RecipeCacheEpoch.current()
         cachedCanItem = tinCan.item
         cachedFoodItem = food.item
         cachedSolidCanningMatch = match
