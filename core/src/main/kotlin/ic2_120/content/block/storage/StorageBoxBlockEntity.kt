@@ -2,8 +2,12 @@ package ic2_120.content.block.storage
 
 import ic2_120.content.screen.StorageBoxScreenHandler
 import ic2_120.registry.annotation.ModBlockEntity
+import ic2_120.registry.annotation.RegisterItemStorage
 import ic2_120.registry.type
 import net.fabricmc.fabric.api.screenhandler.v1.ExtendedScreenHandlerFactory
+import net.fabricmc.fabric.api.transfer.v1.item.InventoryStorage
+import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage
 import net.minecraft.block.BlockState
 import net.minecraft.block.entity.BlockEntity
 import net.minecraft.inventory.Inventories
@@ -67,6 +71,23 @@ class StorageBoxBlockEntity(
 
     /** 物品栏内容 */
     private var inventory: DefaultedList<ItemStack> = createInventory()
+
+    /**
+     * 对外暴露的 Fabric ItemStorage。
+     *
+     * 仅用 `implements Inventory` 时，物品栏会被 FFFAPI（ForgifiedFabricAPI）的
+     * `ItemStorage.SIDED` fallback（vanilla Inventory 兜底）处理；但该 fallback 在
+     * `TransferApiForgeCompat` 的 capability 桥（`getCapability(ITEM_HANDLER)` 反查
+     * `ItemStorage.SIDED.find()`）置 `COMPUTING_CAPABILITY_LOCK` 时会被显式跳过，导致
+     * AE2 总线 / Create 溜槽等走 Forge 能力的物流拿不到储物箱能力。
+     *
+     * 改为走和其他机器（RoutedItemStorage + @RegisterItemStorage）相同的显式
+     * `registerForBlockEntity` 路径后，能力分发不经过上述 fallback，故不受该锁影响，
+     * 所有走能力 / 走 Fabric Storage 的物流（AE2、溜槽、管道）都能读写储物箱。
+     * `direction = null` 表示无视侧面、全向暴露（与储物箱无方向语义一致）。
+     */
+    @RegisterItemStorage
+    val itemStorage: Storage<ItemVariant> = InventoryStorage.of(this, null)
 
     /** 根据方块类型获取对应容量 */
     private fun getCapacity(): Int {
