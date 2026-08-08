@@ -325,10 +325,19 @@ class ElectricFurnaceBlockEntity(
         FurnaceExperienceHelper.getExperienceFromRecipe(recipe)
     }
 
+    // 类型判定缓存：isSmeltingInput 用 copyWithCount(1) 查询（配方只看物品类型），
+    // 结果仅依赖 item，按 item 缓存安全。
+    private var cachedInputItem: net.minecraft.item.Item? = null
+    private var cachedIsInput = false
+
     private fun isSmeltingInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
+        if (cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(1))
-        return w.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, w).isPresent
+        val found = w.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, w).isPresent
+        cachedInputItem = stack.item
+        cachedIsInput = found
+        return found
     }
 }

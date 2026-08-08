@@ -442,15 +442,39 @@ class CannerBlockEntity(
             beforeRightVariant != rightTankInternal.variant
     }
 
-    private fun trySolidCanning(container: ItemStack, material: ItemStack, outputSlot: ItemStack): Boolean {
-        if (container.isEmpty || material.isEmpty) return false
-        if (container.item != tinCanItem && container.item !is EmptyFuelRodItem) return false
+    // 双输入数量安全缓存（SolidCannerRecipe.matches 检查 slot0/slot1 数量）：
+    // 非 null 仅当两槽数量均 >= 对应 slotXCount；null 仅当两槽数量均未增加
+    // （任一槽增加都可能让此前数量不足的配方匹配）。
+    private var cachedContainerItem: net.minecraft.item.Item? = null
+    private var cachedMaterialItem: net.minecraft.item.Item? = null
+    private var cachedContainerCount = 0
+    private var cachedMaterialCount = 0
+    private var cachedSolidCannerRecipe: SolidCannerRecipe? = null
+
+    private fun solidCanningRecipeFor(container: ItemStack, material: ItemStack): SolidCannerRecipe? {
+        val world = world ?: return null
+        if (cachedContainerItem === container.item && cachedMaterialItem === material.item) {
+            val r = cachedSolidCannerRecipe
+            if (r != null && container.count >= r.slot0Count && material.count >= r.slot1Count) return r
+            if (r == null && container.count <= cachedContainerCount && material.count <= cachedMaterialCount) return null
+        }
         val recipeType = ModMachineRecipes.recipeType(SolidCannerRecipe::class)
         // 配方匹配包含 slot0/slot1 的数量要求，不能将输入堆叠压成 1 个。
         val recipeInventory = SimpleInventory(container, material)
-        val match = world?.recipeManager?.getFirstMatch(recipeType, recipeInventory, world) ?: return false
-        if (match.isEmpty) return false
-        val recipe = match.get()
+        val match = world.recipeManager.getFirstMatch(recipeType, recipeInventory, world) ?: return null
+        val recipe = if (match.isEmpty) null else match.get()
+        cachedContainerItem = container.item
+        cachedMaterialItem = material.item
+        cachedContainerCount = container.count
+        cachedMaterialCount = material.count
+        cachedSolidCannerRecipe = recipe
+        return recipe
+    }
+
+    private fun trySolidCanning(container: ItemStack, material: ItemStack, outputSlot: ItemStack): Boolean {
+        if (container.isEmpty || material.isEmpty) return false
+        if (container.item != tinCanItem && container.item !is EmptyFuelRodItem) return false
+        val recipe = solidCanningRecipeFor(container, material) ?: return false
         if (container.count < recipe.slot0Count || material.count < recipe.slot1Count) return false
         if (!canAcceptOutput(outputSlot, recipe.output.copy())) return false
         return true
@@ -650,12 +674,7 @@ class CannerBlockEntity(
         val container = getStack(SLOT_INPUT)
         val material = getStack(SLOT_MATERIAL)
         val outputSlot = getStack(SLOT_OUTPUT)
-        val recipeType = ModMachineRecipes.recipeType(SolidCannerRecipe::class)
-        // 配方匹配包含 slot0/slot1 的数量要求，不能将输入堆叠压成 1 个。
-        val recipeInventory = SimpleInventory(container, material)
-        val match = world?.recipeManager?.getFirstMatch(recipeType, recipeInventory, world) ?: return
-        if (match.isEmpty) return
-        val recipe = match.get()
+        val recipe = solidCanningRecipeFor(container, material) ?: return
         container.decrement(recipe.slot0Count)
         material.decrement(recipe.slot1Count)
         if (container.isEmpty) setStack(SLOT_INPUT, ItemStack.EMPTY)

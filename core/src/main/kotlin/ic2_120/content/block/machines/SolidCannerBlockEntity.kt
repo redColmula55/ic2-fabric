@@ -208,8 +208,9 @@ class SolidCannerBlockEntity(
             return
         }
 
-        val recipeInventory = SimpleInventory(tinCan.copyWithCount(1), food.copyWithCount(1))
-        val match = world.recipeManager.getFirstMatch(getRecipeType<SolidCannerRecipe>(), recipeInventory, world)
+        // 配方匹配查询本身用 copyWithCount(1)（每槽 1 个），结果只依赖 (can, food)
+        // 物品类型；数量要求由下方 slot0Count/slot1Count 单独检查，故按 item 缓存安全。
+        val match = solidCanningRecipeFor(world, tinCan, food)
 
         val result: ItemStack
         val slot0InputCount: Int
@@ -288,6 +289,26 @@ class SolidCannerBlockEntity(
     }
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
+
+    // 配方缓存：匹配查询用 copyWithCount(1)（数量恒 1），结果只依赖两槽物品类型，
+    // 按 (can.item, food.item) 缓存（含 null）安全，避免每 tick 重复查询 recipeManager。
+    private var cachedCanItem: net.minecraft.item.Item? = null
+    private var cachedFoodItem: net.minecraft.item.Item? = null
+    private var cachedSolidCanningMatch: java.util.Optional<ic2_120.content.recipes.solidcanner.SolidCannerRecipe>? = null
+
+    private fun solidCanningRecipeFor(
+        world: World,
+        tinCan: ItemStack,
+        food: ItemStack
+    ): java.util.Optional<ic2_120.content.recipes.solidcanner.SolidCannerRecipe> {
+        if (cachedCanItem === tinCan.item && cachedFoodItem === food.item) return cachedSolidCanningMatch!!
+        val recipeInventory = SimpleInventory(tinCan.copyWithCount(1), food.copyWithCount(1))
+        val match = world.recipeManager.getFirstMatch(getRecipeType<ic2_120.content.recipes.solidcanner.SolidCannerRecipe>(), recipeInventory, world)
+        cachedCanItem = tinCan.item
+        cachedFoodItem = food.item
+        cachedSolidCanningMatch = match
+        return match
+    }
 
     private fun isContainerInput(stack: ItemStack): Boolean =
         !stack.isEmpty && (

@@ -295,13 +295,20 @@ class InductionFurnaceBlockEntity(
         markDirty()
     }
 
+    // 配方缓存：SMELTING 配方 matches 只看物品类型（不看数量），按 item 缓存
+    // （含 null）安全，避免每 tick 重复查询 recipeManager。
+    private var cachedRecipeItem: net.minecraft.item.Item? = null
+    private var cachedRecipeOutput: ItemStack? = null
+
     private fun findSmeltingRecipe(world: World, input: ItemStack): ItemStack? {
         if (input.isEmpty) return null
+        if (cachedRecipeItem === input.item) return cachedRecipeOutput
         val inv = SimpleInventory(1).apply { setStack(0, input) }
         val match = world.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, world)
-        return if (match.isPresent) {
-            match.get().getOutput(world.registryManager).copy()
-        } else null
+        val result = if (match.isPresent) match.get().getOutput(world.registryManager).copy() else null
+        cachedRecipeItem = input.item
+        cachedRecipeOutput = result
+        return result
     }
 
     private fun canAcceptOutput(currentOutput: ItemStack, recipeOutput: ItemStack): Boolean {
@@ -325,10 +332,19 @@ class InductionFurnaceBlockEntity(
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
+    // 类型判定缓存：isSmeltingInput 用 copyWithCount(1) 查询（配方只看物品类型），
+    // 结果仅依赖 item，按 item 缓存安全。
+    private var cachedInputItem: net.minecraft.item.Item? = null
+    private var cachedIsInput = false
+
     private fun isSmeltingInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
+        if (cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(1))
-        return w.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, w).isPresent
+        val found = w.recipeManager.getFirstMatch(RecipeType.SMELTING, inv, w).isPresent
+        cachedInputItem = stack.item
+        cachedIsInput = found
+        return found
     }
 }
