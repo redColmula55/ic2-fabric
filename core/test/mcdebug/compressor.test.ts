@@ -75,4 +75,17 @@ export const compressorTests = defineTests([
     await waitTicks(ctx, 200);
     await assertSlotHas(ctx, ctx.origin, 0, 'minecraft:clay_ball');
   }),
+
+  // 多对一配方缓存回归：先放 1 个（配方需 4 个），让机器带着“数量不足”状态
+  // 跑若干 tick，再补足到 4 个。若实现按“刚放入一个”缓存了 null 结果，
+  // 补足后机器也不会开始压缩——本用例防止该回归。
+  defineTest('compressor:multi_input:partial_then_fill', async (ctx) => {
+    await setupCompressor(ctx);
+    await insertItem(ctx, ctx.origin, 'minecraft:clay_ball', 1, 0);
+    await waitTicks(ctx, 20);
+    await assertSlotHas(ctx, ctx.origin, 0, 'minecraft:clay_ball');
+    await insertItem(ctx, ctx.origin, 'minecraft:clay_ball', 3, 0);
+    await waitUntil(ctx, invItemEquals(ctx.origin, 1, 'minecraft:clay'), 15 * 20);
+    await assertSlotHas(ctx, ctx.origin, 1, 'minecraft:clay');
+  }),
 ]);

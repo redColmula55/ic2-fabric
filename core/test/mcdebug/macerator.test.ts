@@ -184,4 +184,19 @@ export const maceratorTests = defineTests([
     await waitUntil(ctx, `block[${ctx.origin[0]},${ctx.origin[1]},${ctx.origin[2]}].id == "minecraft:air"`, 15 * 20);
     await assertBlockId(ctx, ctx.origin, 'minecraft:air');
   }),
+
+  // 多对一配方缓存回归：先放 1 个（不足 8 个），让机器带着“数量不足”状态
+  // 跑若干 tick，再补足到 8 个。若实现按“刚放入一个”缓存了 null 结果，
+  // 补足后机器也不会开始加工——这是本用例要防止的回归。
+  defineTest('macerator:multi_input:partial_then_fill', async (ctx) => {
+    await setupMacerator(ctx);
+    // 先放 1 片西瓜（配方需 8 片），让机器空转 20 tick（足够触发多次配方判定）。
+    await insertItem(ctx, ctx.origin, 'minecraft:melon_slice', 1, 0);
+    await waitTicks(ctx, 20);
+    await assertSlotHas(ctx, ctx.origin, 0, 'minecraft:melon_slice');
+    // 补足到 8 片后应当正常开始加工。
+    await insertItem(ctx, ctx.origin, 'minecraft:melon_slice', 7, 0);
+    await tracedWait(ctx, invItemEquals(ctx.origin, 1, 'ic2_120:bio_chaff'), 15 * 20);
+    await assertSlotCount(ctx, ctx.origin, 1, 1);
+  }),
 ]);

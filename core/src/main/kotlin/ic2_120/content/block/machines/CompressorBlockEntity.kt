@@ -286,12 +286,29 @@ class CompressorBlockEntity(
         sync.syncCurrentTickFlow()
     }
 
+    // 配方缓存——安全处理多对一配方（inputCount > 1）：
+    // CompressorRecipe.matches 检查 stack.count >= inputCount，匹配结果依赖输入数量。
+    // 规则：非 null 缓存仅在 input.count >= recipe.inputCount 时有效；
+    // null 缓存仅在输入数量未增加时有效（数量增加可能让此前不足量的配方匹配）。
+    private var cachedRecipeItem: net.minecraft.item.Item? = null
+    private var cachedRecipe: CompressorRecipe? = null
+    private var cachedRecipeQueryCount = 0
+
     private fun getRecipe(world: World, input: ItemStack): CompressorRecipe? {
         if (input.isEmpty) return null
+        if (cachedRecipeItem === input.item) {
+            val cached = cachedRecipe
+            if (cached != null && input.count >= cached.inputCount) return cached
+            if (cached == null && input.count <= cachedRecipeQueryCount) return null
+        }
         val inventory = SimpleInventory(input)
         val recipeManager = world.recipeManager
         val optionalRecipe = recipeManager.getFirstMatch(getRecipeType<CompressorRecipe>(), inventory, world)
-        return optionalRecipe.orElse(null) ?: getWaterContainerRecipe(input)
+        val recipe = optionalRecipe.orElse(null) ?: getWaterContainerRecipe(input)
+        cachedRecipeItem = input.item
+        cachedRecipe = recipe
+        cachedRecipeQueryCount = input.count
+        return recipe
     }
 
     private fun getWaterContainerRecipe(input: ItemStack): CompressorRecipe? {
@@ -329,11 +346,19 @@ class CompressorBlockEntity(
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
+    // 类型判定缓存：isRecipeInput 始终用 maxCount 查询（仅依赖物品类型），按 item 缓存安全。
+    private var cachedInputItem: net.minecraft.item.Item? = null
+    private var cachedIsInput = false
+
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
+        if (cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(stack.maxCount))
-        return w.recipeManager.getFirstMatch(getRecipeType<CompressorRecipe>(), inv, w).isPresent
+        val found = w.recipeManager.getFirstMatch(getRecipeType<CompressorRecipe>(), inv, w).isPresent
+        cachedInputItem = stack.item
+        cachedIsInput = found
+        return found
     }
 
     /**

@@ -263,19 +263,44 @@ class MaceratorBlockEntity(
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
-    // 注意：不要按 Item 缓存匹配结果。MaceratorRecipe.matches 还检查 stack.count >= inputCount
-    // （如甘蔗需 8 个），若首次以不足的数量查询会把 null 永久缓存，导致后续补足数量也不加工。
-    // 每 tick 查询 recipeManager 的开销可忽略（原版熔炉、Compressor 等均如此），故直接查询。
+    // 配方缓存——安全处理多对一配方（inputCount > 1，如甘蔗需 8 个）：
+    // MaceratorRecipe.matches 检查 stack.count >= inputCount，因此配方匹配结果依赖输入数量。
+    // 缓存规则保证任何数量变化都正确失效：
+    //   1. 非 null 缓存仅在 input.count >= recipe.inputCount 时有效（数量不足即重查）；
+    //   2. null 缓存仅在输入数量未增加时有效（数量增加可能让此前数量不足的配方匹配）。
+    // 这样既不会因“刚放入一个就缓存”锁死多对一机器，也避免了每 tick 重复查询 recipeManager。
+    private var cachedRecipeItem: net.minecraft.item.Item? = null
+    private var cachedRecipe: MaceratorRecipe? = null
+    private var cachedRecipeQueryCount = 0
+
     private fun maceratorRecipeFor(input: ItemStack, world: World): MaceratorRecipe? {
+        if (cachedRecipeItem === input.item) {
+            val cached = cachedRecipe
+            if (cached != null && input.count >= cached.inputCount) return cached
+            if (cached == null && input.count <= cachedRecipeQueryCount) return null
+        }
         val recipeInventory = SimpleInventory(input)
-        return world.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, world).orElse(null)
+        val recipe = world.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, world).orElse(null)
+        cachedRecipeItem = input.item
+        cachedRecipe = recipe
+        cachedRecipeQueryCount = input.count
+        return recipe
     }
+
+    // 类型判定缓存：isRecipeInput 始终用 maxCount 查询（仅依赖物品类型，与数量无关），
+    // 因此按 item 缓存布尔结果是安全的，且可命中 isValid / 物流路由 matcher 的重复调用。
+    private var cachedInputItem: net.minecraft.item.Item? = null
+    private var cachedIsInput = false
 
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
+        if (cachedInputItem === stack.item) return cachedIsInput
         val currentWorld = world ?: return true
         // 仅用于识别物品类型时，必须提供足够大的虚拟堆叠；部分配方需要多个输入。
         val recipeInventory = SimpleInventory(stack.copyWithCount(stack.maxCount))
-        return currentWorld.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, currentWorld).isPresent
+        val found = currentWorld.recipeManager.getFirstMatch(getRecipeType<MaceratorRecipe>(), recipeInventory, currentWorld).isPresent
+        cachedInputItem = stack.item
+        cachedIsInput = found
+        return found
     }
 }

@@ -81,8 +81,11 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
         entries.add(Entry("${name}_High", default ushr 16))
         val indexLow = entries.size
         entries.add(Entry("${name}_Low", default and 0xFFFF))
-        // 为每个属性维护独立的滑动窗口
+        // 为每个属性维护独立的滑动窗口；windowSum 增量维护，避免每次读写 O(n) 求和。
         val window = ArrayDeque<Int>()
+        var windowSum = 0
+        var hasSet = false
+        var lastSetValue = 0
         return object : ReadWriteProperty<Any?, Int> {
             override fun getValue(thisRef: Any?, property: KProperty<*>): Int {
                 // 返回滑动窗口的平均值
@@ -90,17 +93,23 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
                     val high = entries[indexHigh].value
                     val low = entries[indexLow].value
                     (high shl 16) or (low and 0xFFFF)
-                } else window.sum() / window.size
+                } else windowSum / window.size
             }
             override fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) {
+                // 等值短路：值未变时跳过窗口更新与持久化（窗口平均语义不受影响——
+                // 加入相同值不改变均值，跳过只是不扩充窗口）。
+                if (hasSet && value == lastSetValue) return
+                hasSet = true
+                lastSetValue = value
                 val oldAverage = (entries[indexHigh].value shl 16) or (entries[indexLow].value and 0xFFFF)
                 // 更新滑动窗口
                 window.addLast(value)
+                windowSum += value
                 if (window.size > windowSize) {
-                    window.removeFirst()
+                    windowSum -= window.removeFirst()
                 }
                 // 同步平均值到 entry（用于 NBT 序列化）
-                val avg = window.sum() / window.size
+                val avg = windowSum / window.size
                 entries[indexHigh].value = avg ushr 16
                 entries[indexLow].value = avg and 0xFFFF
                 if (persist && oldAverage != avg) {
