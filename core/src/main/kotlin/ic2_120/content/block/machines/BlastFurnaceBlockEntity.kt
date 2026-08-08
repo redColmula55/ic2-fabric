@@ -488,7 +488,7 @@ class BlastFurnaceBlockEntity(
 
         // AirCell / FluidCellItem[compressed_air]：消耗 1 个，返还 empty_cell
         if (airItem is AirCell || airItem is FluidCellItem) {
-            if (airItem is FluidCellItem && !isCompressedAirFluidCell(airSlot)) return
+            if (airItem is FluidCellItem && !isCompressedAirFluidCellCached(airSlot)) return
             val emptySlot = getStack(SLOT_OUTPUT_EMPTY)
             val emptyCell = ItemStack(Registries.ITEM.get(Identifier(Ic2_120.MOD_ID, "empty_cell")))
             val canAcceptEmpty = emptySlot.isEmpty ||
@@ -547,6 +547,20 @@ class BlastFurnaceBlockEntity(
             }
         }
         return false
+    }
+
+    // 压缩空气判定缓存：fillAirTankFromSlot 每 tick 调用，而任意流体容器的判定需要
+    // 创建 ContainerItemContext + 遍历 fluid storage views，开销不小。槽位物品未变时
+    // （ItemStack 相等含 item/count/NBT）结果必然不变，直接复用缓存跳过重复遍历。
+    private var cachedAirCheckStack: ItemStack = ItemStack.EMPTY
+    private var cachedAirIsCompressed = false
+
+    private fun isCompressedAirFluidCellCached(stack: ItemStack): Boolean {
+        if (stack == cachedAirCheckStack) return cachedAirIsCompressed
+        val result = isCompressedAirFluidCell(stack)
+        cachedAirCheckStack = stack.copy()
+        cachedAirIsCompressed = result
+        return result
     }
 
     private fun canAcceptOutput(steel: ItemStack, slag: ItemStack): Boolean {
