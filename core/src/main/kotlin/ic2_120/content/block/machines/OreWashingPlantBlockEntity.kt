@@ -303,16 +303,25 @@ class OreWashingPlantBlockEntity(
         return waterTank
     }
 
+    // 配方缓存：OreWashingRecipe.matches 只检查物品类型（不看数量），结果仅依赖
+    // item，因此按 item 缓存（含 null）安全，避免每 tick 重复查询 recipeManager。
+    private var cachedRecipeItem: net.minecraft.item.Item? = null
+    private var cachedRecipe: OreWashingRecipe? = null
+
     /**
      * 获取当前输入的配方
      */
     private fun getRecipeForInput(input: ItemStack): OreWashingRecipe? {
         if (input.isEmpty) return null
+        if (cachedRecipeItem === input.item) return cachedRecipe
 
         val inv = OreWashingRecipe.Input(input)
         val recipeManager = world?.recipeManager ?: return null
 
-        return recipeManager.getFirstMatch(getRecipeType<OreWashingRecipe>(), inv, world ?: return null).orElse(null)
+        val recipe = recipeManager.getFirstMatch(getRecipeType<OreWashingRecipe>(), inv, world ?: return null).orElse(null)
+        cachedRecipeItem = input.item
+        cachedRecipe = recipe
+        return recipe
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {

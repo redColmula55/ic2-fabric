@@ -242,21 +242,39 @@ class ExtractorBlockEntity(
         sync.syncCurrentTickFlow()
     }
 
+    // 配方缓存：ExtractorRecipe.matches 只检查物品类型（不看数量），结果仅依赖
+    // item，因此按 item 缓存（含 null）安全，避免每 tick 重复查询 recipeManager。
+    private var cachedRecipeItem: net.minecraft.item.Item? = null
+    private var cachedRecipe: ExtractorRecipe? = null
+
     private fun getRecipe(world: World, input: ItemStack): ExtractorRecipe? {
         if (input.isEmpty) return null
+        if (cachedRecipeItem === input.item) return cachedRecipe
         val inventory = SimpleInventory(input)
         val recipeManager = world.recipeManager
         val optionalRecipe = recipeManager.getFirstMatch(getRecipeType<ExtractorRecipe>(), inventory, world)
-        return optionalRecipe.orElse(null)
+        val recipe = optionalRecipe.orElse(null)
+        cachedRecipeItem = input.item
+        cachedRecipe = recipe
+        return recipe
     }
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
+    // 类型判定缓存：isRecipeInput 用 copyWithCount(1) 查询（Extractor 配方不看数量），
+    // 结果仅依赖物品类型，按 item 缓存安全。
+    private var cachedInputItem: net.minecraft.item.Item? = null
+    private var cachedIsInput = false
+
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (stack.isEmpty || isBatteryItem(stack)) return false
+        if (cachedInputItem === stack.item) return cachedIsInput
         val w = world ?: return true
         val inv = SimpleInventory(stack.copyWithCount(1))
-        return w.recipeManager.getFirstMatch(getRecipeType<ExtractorRecipe>(), inv, w).isPresent
+        val found = w.recipeManager.getFirstMatch(getRecipeType<ExtractorRecipe>(), inv, w).isPresent
+        cachedInputItem = stack.item
+        cachedIsInput = found
+        return found
     }
 
     /**

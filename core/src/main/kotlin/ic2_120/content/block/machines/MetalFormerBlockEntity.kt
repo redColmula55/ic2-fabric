@@ -221,21 +221,7 @@ class MetalFormerBlockEntity(
         }
 
         val currentMode = sync.getMode()
-
-        // 根据当前模式获取对应的配方类
-        val recipeType = when (currentMode) {
-            MetalFormerSync.Mode.ROLLING -> ic2_120.content.recipes.metalformer.RollingRecipe::class
-            MetalFormerSync.Mode.CUTTING -> ic2_120.content.recipes.metalformer.CuttingRecipe::class
-            MetalFormerSync.Mode.EXTRUDING -> ic2_120.content.recipes.metalformer.ExtrudingRecipe::class
-        }
-
-        // 通过 RecipeManager 查找配方
-        val recipeManager = world.recipeManager ?: return
-        val recipeInput = MetalFormerRecipe.Input(input)
-        // 遍历所有匹配该 RecipeType 的配方，找到当前模式对应的
-        val recipe = recipeManager.listAllOfType(getRecipeType<MetalFormerRecipe>())
-            .filterIsInstance(recipeType.java)
-            .firstOrNull { it.matches(recipeInput, world) }
+        val recipe = findRecipe(world, input, currentMode)
         val result = recipe?.let { MetalFormerRecipe.getOutput(it) } ?: run {
             if (sync.progress != 0) sync.progress = 0
             setActiveState(world, pos, state, false)
@@ -305,13 +291,51 @@ class MetalFormerBlockEntity(
 
     private fun isBatteryItem(stack: ItemStack): Boolean = !stack.isEmpty && stack.item is IBatteryItem
 
+    // 配方缓存：MetalFormerRecipe.matches 只检查物品类型（不看数量），且结果同时
+    // 依赖输入物品与当前模式（rolling/cutting/extruding），因此按 (item, mode) 缓存。
+    // listAllOfType 每 tick 全量遍历所有金属成型配方，命中缓存可完全跳过。
+    private var cachedQueryItem: net.minecraft.item.Item? = null
+    private var cachedQueryMode: MetalFormerSync.Mode? = null
+    private var cachedRecipe: MetalFormerRecipe? = null
+
+    private fun findRecipe(world: World, input: ItemStack, mode: MetalFormerSync.Mode): MetalFormerRecipe? {
+        if (cachedQueryItem === input.item && cachedQueryMode == mode) return cachedRecipe
+
+        // 根据当前模式获取对应的配方类
+        val recipeType = when (mode) {
+            MetalFormerSync.Mode.ROLLING -> ic2_120.content.recipes.metalformer.RollingRecipe::class
+            MetalFormerSync.Mode.CUTTING -> ic2_120.content.recipes.metalformer.CuttingRecipe::class
+            MetalFormerSync.Mode.EXTRUDING -> ic2_120.content.recipes.metalformer.ExtrudingRecipe::class
+        }
+
+        // 通过 RecipeManager 查找配方
+        val recipeManager = world.recipeManager ?: return null
+        val recipeInput = MetalFormerRecipe.Input(input)
+        val recipe = recipeManager.listAllOfType(getRecipeType<MetalFormerRecipe>())
+            .filterIsInstance(recipeType.java)
+            .firstOrNull { it.matches(recipeInput, world) }
+        cachedQueryItem = input.item
+        cachedQueryMode = mode
+        cachedRecipe = recipe
+        return recipe
+    }
+
     private fun isRecipeInput(stack: ItemStack): Boolean {
         if (!isInputItem(stack)) return false
+        if (cachedInputItem === stack.item) return cachedIsInput
         val currentWorld = world ?: return true
         val input = MetalFormerRecipe.Input(stack.copyWithCount(1))
-        return currentWorld.recipeManager
+        val found = currentWorld.recipeManager
             .listAllOfType(getRecipeType<MetalFormerRecipe>())
             .any { it.matches(input, currentWorld) }
+        cachedInputItem = stack.item
+        cachedIsInput = found
+        return found
     }
+
+    // 类型判定缓存：isRecipeInput 用 copyWithCount(1) 查询（配方只看物品类型），
+    // 结果仅依赖 item，按 item 缓存安全。
+    private var cachedInputItem: net.minecraft.item.Item? = null
+    private var cachedIsInput = false
 
 }
