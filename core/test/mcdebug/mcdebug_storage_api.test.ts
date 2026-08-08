@@ -77,7 +77,9 @@ export const mcdebugStorageApiTests = defineTests([
     assert.equal(inserted.inserted, 1);
 
     const storage = assertStorageKind(await ctx.api.storage.get(target, FABRIC_ITEM), "item");
-    const inputSlot = storage.slots.find((slot) => slot.index === 0);
+    // fabric:item 的槽位由 visibleSlots 按路由顺序枚举（升级槽在前，输入槽 index 4），
+    // 与 vanilla inventory 的 index 不同——按物品内容定位输入槽，与枚举顺序解耦。
+    const inputSlot = storage.slots.find((slot) => slot.stack.item === "minecraft:cobblestone");
     assert.equal(inputSlot?.stack.item, "minecraft:cobblestone");
     assert.equal(inputSlot?.stack.count, 1);
 

@@ -88,4 +88,25 @@ export const compressorTests = defineTests([
     await waitUntil(ctx, invItemEquals(ctx.origin, 1, 'minecraft:clay'), 15 * 20);
     await assertSlotHas(ctx, ctx.origin, 1, 'minecraft:clay');
   }),
+
+  // 水容器压缩基线：满水 fluid_cell → 雪块（产出后 pending 返还 empty_cell）。
+  defineTest('compressor:water_cell:full_to_snow', async (ctx) => {
+    await setupCompressor(ctx);
+    await setSlot(ctx, ctx.origin, 0, 'ic2_120:fluid_cell', 1, { FluidVariant: { fluid: 'minecraft:water' } });
+    await waitUntil(ctx, invItemEquals(ctx.origin, 1, 'minecraft:snow_block'), 15 * 20);
+    await assertSlotHas(ctx, ctx.origin, 1, 'minecraft:snow_block');
+  }),
+
+  // 水容器配方缓存回归：先放空 fluid_cell（无 NBT）让机器缓存 null 结果，
+  // 再原位替换为满水 fluid_cell（item/count 不变、仅 NBT 变化，不经过空槽中间态）。
+  // 若按 item 缓存 null 结果，替换后机器也不会开始压缩——本用例防止该回归。
+  defineTest('compressor:water_cell:empty_then_fill_in_place', async (ctx) => {
+    await setupCompressor(ctx);
+    await insertItem(ctx, ctx.origin, 'ic2_120:fluid_cell', 1, 0);
+    await waitTicks(ctx, 20);
+    await assertSlotHas(ctx, ctx.origin, 0, 'ic2_120:fluid_cell');
+    await setSlot(ctx, ctx.origin, 0, 'ic2_120:fluid_cell', 1, { FluidVariant: { fluid: 'minecraft:water' } });
+    await waitUntil(ctx, invItemEquals(ctx.origin, 1, 'minecraft:snow_block'), 15 * 20);
+    await assertSlotHas(ctx, ctx.origin, 1, 'minecraft:snow_block');
+  }),
 ]);
