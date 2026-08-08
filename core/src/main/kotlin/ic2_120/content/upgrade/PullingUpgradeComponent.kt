@@ -3,6 +3,8 @@ package ic2_120.content.upgrade
 import ic2_120.content.item.PullingUpgrade
 import net.fabricmc.fabric.api.transfer.v1.item.ItemStorage
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant
+import net.fabricmc.fabric.api.transfer.v1.storage.Storage
+import net.minecraft.item.Item
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
@@ -11,6 +13,9 @@ import net.minecraft.util.math.Direction
 import net.minecraft.world.World
 
 object PullingUpgradeComponent {
+
+    /** 静态全方向列表，避免每次调用重新分配 Direction.values().toList() */
+    private val ALL_DIRECTIONS: List<Direction> = Direction.values().toList()
 
     /**
      * 扫描升级槽中的所有抽入升级，从相邻容器抽取物品到机器的输入槽。
@@ -29,6 +34,10 @@ object PullingUpgradeComponent {
     ) {
         if (inputSlotIndices.isEmpty()) return
 
+        // 预解析每个抽入升级的有效方向与速率，并收集全部需要查找的方向——
+        // 多个抽入升级共享同一方向的 capability 查找结果，避免重复 find。
+        val active = mutableListOf<Triple<Int, Item?, List<Direction>>>()  // (rate, filter, dirs)
+        val neededDirs = LinkedHashSet<Direction>()
         for (idx in upgradeSlotIndices) {
             val upgradeStack = inventory.getStack(idx)
             if (upgradeStack.isEmpty || upgradeStack.item !is PullingUpgrade) continue
@@ -38,17 +47,28 @@ object PullingUpgradeComponent {
             val filter = EjectorUpgradeComponent.readFilter(upgradeStack)
             val configuredSides = EjectorUpgradeComponent.readDirections(upgradeStack)
             val dirs = if (configuredSides.isEmpty()) {
-                Direction.values().toList()
+                ALL_DIRECTIONS
             } else {
-                Direction.values().filter { it in configuredSides }
+                ALL_DIRECTIONS.filter { it in configuredSides }
             }
             if (dirs.isEmpty()) continue
+            active.add(Triple(rate, filter, dirs))
+            neededDirs.addAll(dirs)
+        }
+        if (active.isEmpty()) return
 
+        // 一次性查找所有需要方向的源容器（内容实时读取，引用可复用）
+        val sources = HashMap<Direction, Storage<ItemVariant>?>(neededDirs.size)
+        for (dir in neededDirs) {
+            sources[dir] = ItemStorage.SIDED.find(world, pos.offset(dir), dir.opposite)
+        }
+
+        for ((rate, filter, dirs) in active) {
             // 每 tick 轮转起始方向，使 n 个候选轮流获得优先服务
             val start = Math.floorMod(world.time, dirs.size.toLong()).toInt()
             for (i in 0 until dirs.size) {
                 val dir = dirs[(start + i) % dirs.size]
-                val source = ItemStorage.SIDED.find(world, pos.offset(dir), dir.opposite) ?: continue
+                val source = sources[dir] ?: continue
 
                 // 该候选本次 tick 的配额，跨所有输入槽共享（对齐原版 transfer(amount) 语义）
                 var remainingQuota = rate
