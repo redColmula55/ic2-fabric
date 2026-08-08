@@ -28,6 +28,27 @@ class AdjacentEnergyTransferComponent(
     private val energy: TickLimitedSidedEnergyContainer
 ) {
 
+    companion object {
+        /**
+         * 邻居缓存强制重查间隔（tick）。
+         *
+         * Fabric yarn 的 BlockEntity 没有 neighborUpdate 回调，无法在方块替换时
+         * 精确失效缓存。用固定间隔全方向重查作为兜底：
+         * - 有 BE 的邻居被替换（含区块卸载/重载）→ 旧 BE isRemoved() 实时兜底，无需等间隔；
+         * - 无 BE 的邻居被替换（如石头→电池盒）→ 最多延迟一个间隔感知（默认 20 tick）。
+         */
+        private const val NEIGHBOR_VERIFY_INTERVAL = 20
+    }
+
+    /**
+     * 每台组件构造时随机生成的重查相位（0..INTERVAL-1）。
+     *
+     * 强制重查按 `floorMod(worldTime + phase, INTERVAL) == 0` 触发，各机器相位不同，
+     * 把全服务器的 20 tick 重查分散到不同 tick——避免所有机器在同一 tick 同时
+     * 重查（否则会形成周期性的 CPU 采样尖峰）。
+     */
+    private val verifyPhase: Int = kotlin.random.Random.nextInt(NEIGHBOR_VERIFY_INTERVAL)
+
     /**
      * Energy API capability lookup is relatively expensive and the adjacent block
      * usually does not change between ticks. Keep the lookup result tied to the
@@ -47,32 +68,35 @@ class AdjacentEnergyTransferComponent(
 
         val selfMachine = owner as? ITieredMachine ?: return 0L
         var total = 0L
+        val nowTick = world.time
 
         for (side in Direction.values()) {
             val selfStorage = energy.getSideStorage(side)
             val neighborPos = owner.pos.offset(side)
-            val neighborState = world.getBlockState(neighborPos)
-            val neighborBe = world.getBlockEntity(neighborPos)
             val cache = neighborStorageCache[side.ordinal] ?: NeighborStorageCache().also {
                 neighborStorageCache[side.ordinal] = it
             }
-            val neighborStorage = if (cache.state == neighborState && cache.blockEntity === neighborBe) {
-                cache.storage
+
+            // 缓存有效判定：
+            //  1. 已初始化（state != null）；
+            //  2. 未到强制重查相位 tick（防“无 BE 邻居被替换”漏检，相位随机分散）；
+            //  3. 非空 BE 缓存未 removed（isRemoved 实时兜底，捕捉方块替换/区块重载的
+            //     BE 实例替换——被移除的旧实例标记为 removed，无需等重查间隔）。
+            val dueVerify = Math.floorMod(nowTick + verifyPhase, NEIGHBOR_VERIFY_INTERVAL.toLong()) == 0L
+            val cacheValid = cache.state != null && !dueVerify &&
+                (cache.blockEntity == null || !cache.blockEntity!!.isRemoved)
+
+            val neighborBe: BlockEntity? = if (cacheValid) {
+                cache.blockEntity
             } else {
-                val resolved = EnergyStorage.SIDED.find(world, neighborPos, side.opposite)
+                val neighborState = world.getBlockState(neighborPos)
+                val be = world.getBlockEntity(neighborPos)
                 cache.state = neighborState
-                if (neighborBe != null) {
-                    cache.blockEntity = neighborBe
-                    cache.storage = resolved
-                } else {
-                    // Keep a negative result too.  Empty/ordinary neighbors
-                    // are common and should not trigger capability lookup on
-                    // every machine tick.
-                    cache.blockEntity = null
-                    cache.storage = resolved
-                }
-                resolved
-            } ?: continue
+                cache.blockEntity = be
+                cache.storage = EnergyStorage.SIDED.find(world, neighborPos, side.opposite)
+                be
+            }
+            val neighborStorage = cache.storage ?: continue
 
             if (neighborBe is CableBlockEntity) continue
 
