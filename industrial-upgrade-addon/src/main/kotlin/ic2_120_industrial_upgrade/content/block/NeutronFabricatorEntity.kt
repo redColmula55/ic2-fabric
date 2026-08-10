@@ -3,11 +3,23 @@ package ic2_120_industrial_upgrade.content.block
 import ic2_120.content.AdjacentEnergyTransferComponent
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.block.machines.MachineBlockEntity
-import ic2_120.content.item.energy.IBatteryItem
-import ic2_120.content.item.energy.IElectricTool
+import ic2_120.content.item.IUpgradeItem
+import ic2_120.content.item.OverclockerUpgrade
 import ic2_120.content.item.isFluidCellEmpty
 import ic2_120.content.item.setFluidCellVariant
 import ic2_120.content.syncs.SyncedData
+import ic2_120.content.upgrade.EjectorUpgradeComponent
+import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
+import ic2_120.content.upgrade.FluidPipeUpgradeComponent
+import ic2_120.content.upgrade.IEjectorUpgradeSupport
+import ic2_120.content.upgrade.IEnergyStorageUpgradeSupport
+import ic2_120.content.upgrade.IFluidPipeUpgradeSupport
+import ic2_120.content.upgrade.IRedstoneInverterUpgradeSupport
+import ic2_120.content.upgrade.ITransformerUpgradeSupport
+import ic2_120.content.upgrade.PullingUpgradeComponent
+import ic2_120.content.upgrade.RedstoneControlComponent
+import ic2_120.content.upgrade.RedstoneInverterUpgradeComponent
+import ic2_120.content.upgrade.TransformerUpgradeComponent
 import ic2_120.registry.annotation.ModBlockEntity
 import ic2_120.registry.annotation.RegisterEnergy
 import ic2_120.registry.annotation.RegisterFluidStorage
@@ -33,6 +45,7 @@ import net.minecraft.inventory.Inventory
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.nbt.NbtCompound
+import net.minecraft.nbt.NbtElement
 import net.minecraft.network.PacketByteBuf
 import net.minecraft.registry.Registries
 import net.minecraft.screen.ScreenHandler
@@ -49,7 +62,9 @@ import net.minecraft.world.World
 @ModBlockEntity(block = NeutronFabricatorBlock::class)
 class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
     MachineBlockEntity(NeutronFabricatorBlockEntity::class.type(), pos, state),
-    ITieredMachine, ExtendedScreenHandlerFactory, Inventory {
+    ITieredMachine, ExtendedScreenHandlerFactory, Inventory,
+    IEnergyStorageUpgradeSupport, ITransformerUpgradeSupport,
+    IFluidPipeUpgradeSupport, IEjectorUpgradeSupport, IRedstoneInverterUpgradeSupport {
 
     companion object {
         const val TIER = 11
@@ -57,14 +72,17 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
         const val ENERGY_PER_MB: Long = 15_625_000L
         const val TANK_CAPACITY_DROPLETS = FluidConstants.BUCKET * 10L // 10 桶
 
-        // 槽位索引
-        const val SLOT_CHARGE_0 = 0
-        const val SLOT_CHARGE_1 = 1
-        const val SLOT_CHARGE_2 = 2
-        const val SLOT_CONTAINER_INPUT = 3
-        const val SLOT_CONTAINER_OUTPUT = 4
-        const val INVENTORY_SIZE = 5
-        val SLOT_CHARGE_INDICES = intArrayOf(SLOT_CHARGE_0, SLOT_CHARGE_1, SLOT_CHARGE_2)
+        // 槽位索引（对齐物质生成机：升级槽 0-3 + 容器输入 4 + 容器输出 5）
+        const val SLOT_UPGRADE_0 = 0
+        const val SLOT_UPGRADE_1 = 1
+        const val SLOT_UPGRADE_2 = 2
+        const val SLOT_UPGRADE_3 = 3
+        const val SLOT_CONTAINER_INPUT = 4
+        const val SLOT_CONTAINER_OUTPUT = 5
+        val SLOT_UPGRADE_INDICES = intArrayOf(SLOT_UPGRADE_0, SLOT_UPGRADE_1, SLOT_UPGRADE_2, SLOT_UPGRADE_3)
+        val SLOT_OUTPUT_INDICES = intArrayOf(SLOT_CONTAINER_OUTPUT)
+        val SLOT_INPUT_INDICES = intArrayOf(SLOT_CONTAINER_INPUT)
+        const val INVENTORY_SIZE = 6
 
         @Volatile
         private var fluidLookupRegistered = false
@@ -83,6 +101,20 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
     override val tier: Int = TIER
     override val activeProperty = NeutronFabricatorBlock.ACTIVE
 
+    // ====== 升级接口实现（对齐物质生成机）======
+    override var capacityBonus: Long = 0L
+    override var redstoneInverted: Boolean = false
+    override var voltageTierBonus: Int = 0
+
+    override var fluidPipeProviderEnabled: Boolean = false
+    override var fluidPipeReceiverEnabled: Boolean = false
+    override var fluidPipeProviderFilter: net.minecraft.fluid.Fluid? = null
+    override var fluidPipeReceiverFilter: net.minecraft.fluid.Fluid? = null
+    override var fluidPipeProviderSides: MutableSet<Direction> = mutableSetOf()
+    override var fluidPipeReceiverSides: MutableSet<Direction> = mutableSetOf()
+    override var fluidPipeEjectorCount: Int = 0
+    override var fluidPipePullingCount: Int = 0
+
     @Suppress("unused")
     val syncedData = SyncedData(this)
 
@@ -92,7 +124,9 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
         capacity = ENERGY_PER_MB,
         tier = TIER,
         getFacing = { world?.getBlockState(pos)?.get(Properties.HORIZONTAL_FACING) ?: Direction.NORTH },
-        currentTickProvider = { world?.time }
+        currentTickProvider = { world?.time },
+        capacityBonusProvider = { capacityBonus },
+        maxInsertPerTickProvider = { TransformerUpgradeComponent.maxInsertForTier(TIER + voltageTierBonus) }
     )
 
     private val adjacentEnergyTransfer = AdjacentEnergyTransferComponent(this, sync)
@@ -201,16 +235,9 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
     override fun isEmpty(): Boolean = inventory.all { it.isEmpty }
     override fun canPlayerUse(player: PlayerEntity): Boolean = Inventory.canPlayerUse(this, player)
 
-    /** 槽位校验：充电槽接受电池/电动工具；容器输入槽接受空桶/空单元 */
-    fun isValidForSlot(slot: Int, stack: ItemStack): Boolean = when (slot) {
-        in SLOT_CHARGE_INDICES -> {
-            val item = stack.item
-            when {
-                item is IElectricTool -> true
-                item is IBatteryItem && item.canCharge -> item.tier <= TIER
-                else -> false
-            }
-        }
+    /** 槽位校验：升级槽接受已注册且本机实现的升级（不含超频）；容器输入槽接受空桶/空单元 */
+    override fun isValid(slot: Int, stack: ItemStack): Boolean = when (slot) {
+        in SLOT_UPGRADE_INDICES -> stack.item is IUpgradeItem && stack.item !is OverclockerUpgrade
         SLOT_CONTAINER_INPUT -> isFillableContainer(stack)
         else -> false
     }
@@ -232,23 +259,48 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
         return current.isEmpty || (ItemStack.canCombine(current, toInsert) && current.count < current.maxCount)
     }
 
-    // ====== tick 逻辑：能量满 → 产中子流体；容器槽自动装填 ======
+    // ====== tick 逻辑：应用升级 → 产中子流体；容器槽自动装填 ======
     fun tick(world: World, pos: BlockPos, state: BlockState) {
         if (world.isClient) return
+
+        // 应用升级效果（对齐物质生成机）：储能/高压/红石反转/流体管道/物品弹出抽入
+        EnergyStorageUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES, this)
+        TransformerUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES, this)
+        RedstoneInverterUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES, this)
+        FluidPipeUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES)
+        if (fluidPipeProviderEnabled) {
+            FluidPipeUpgradeComponent.ejectFluidToNeighbors(
+                world, pos, tankInternal,
+                fluidPipeProviderFilter, fluidPipeProviderSides,
+                upgradeCount = fluidPipeEjectorCount
+            )
+        }
+        if (fluidPipeReceiverEnabled) {
+            FluidPipeUpgradeComponent.pullFluidFromNeighbors(
+                world, pos, tankInternal,
+                fluidPipeReceiverFilter, fluidPipeReceiverSides,
+                upgradeCount = fluidPipePullingCount
+            )
+        }
+        EjectorUpgradeComponent.ejectIfUpgraded(world, pos, this, SLOT_UPGRADE_INDICES, SLOT_OUTPUT_INDICES)
+        PullingUpgradeComponent.pullIfUpgraded(world, pos, this, SLOT_UPGRADE_INDICES, SLOT_INPUT_INDICES)
+
         adjacentEnergyTransfer.tick()
 
+        // 容器槽自动装填：把产出的中子流体灌入空桶/空单元（不受红石门控，与物质生成机一致）
+        fillContainersFromTank()
+
         var active = false
-        // 能量达到阈值且流体槽未满 → 消耗能量产流体（1 mB = 81 droplets = BUCKET/1000... 实际 1mb=81droplet）
-        if (sync.amount >= ENERGY_PER_MB && tankInternal.amount < TANK_CAPACITY_DROPLETS) {
+        // 红石门控 + 能量达到阈值且流体槽未满 → 消耗能量产流体（1 mB = BUCKET/1000 droplets）
+        if (RedstoneControlComponent.canRun(world, pos, this) &&
+            sync.amount >= ENERGY_PER_MB && tankInternal.amount < TANK_CAPACITY_DROPLETS
+        ) {
             val produced = tankInternal.insertInternal(FluidConstants.BUCKET / 1000L) // 1 mB
             if (produced > 0L) {
                 sync.consumeEnergy(ENERGY_PER_MB)
                 active = true
             }
         }
-
-        // 容器槽自动装填：把产出的中子流体灌入空桶/空单元
-        fillContainersFromTank()
 
         // 同步 GUI 数据
         sync.fluidAmount = tankInternal.amount.toInt().coerceIn(0, Int.MAX_VALUE)
@@ -300,7 +352,12 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
     override fun getDisplayName(): Text = Text.translatable("block.ic2_120_industrial_upgrade.neutron_fabricator")
 
     override fun createMenu(syncId: Int, playerInventory: PlayerInventory, player: PlayerEntity?): ScreenHandler =
-        NeutronFabricatorScreenHandler(syncId, playerInventory, ScreenHandlerContext.create(world!!, pos), syncedData, this)
+        NeutronFabricatorScreenHandler(
+            syncId, playerInventory,
+            ScreenHandlerContext.create(world!!, pos),
+            syncedData, this,
+            INVENTORY_SIZE
+        )
 
     override fun writeScreenOpeningData(player: ServerPlayerEntity, buf: PacketByteBuf) {
         buf.writeBlockPos(pos)
@@ -312,10 +369,29 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
         super.readNbt(nbt)
         sync.restoreEnergy(nbt.getLong(NeutronFabricatorSync.NBT_ENERGY).coerceIn(0L, sync.capacity))
         syncedData.readNbt(nbt)
-        Inventories.readNbt(nbt.getCompound("Inv"), inventory)
+        readInventoryWithMigration(nbt)
         val tankAmount = nbt.getLong("TankAmount")
         tankInternal.amount = tankAmount.coerceIn(0L, TANK_CAPACITY_DROPLETS)
         if (tankInternal.amount > 0L) tankInternal.variant = FluidVariant.of(NeutronFluid.NEUTRON_STILL)
+        redstoneInverted = if (nbt.contains("RedstoneInverted")) nbt.getBoolean("RedstoneInverted") else false
+    }
+
+    /**
+     * 读档并迁移旧 5 槽布局（0.4：0-2 充电 + 3 容器输入 + 4 容器输出）→ 新 6 槽布局
+     * （0-3 升级 + 4 容器输入 + 5 容器输出）：旧槽 3/4 顺移为 4/5；旧充电槽 0-2 保留原位
+     * （新布局下变成升级槽，若存有电池由玩家自行取出）。
+     */
+    private fun readInventoryWithMigration(nbt: NbtCompound) {
+        val invNbt = nbt.getCompound("Inv")
+        val oldSize = if (invNbt.contains("Size")) invNbt.getInt("Size") else INVENTORY_SIZE
+        val items = invNbt.getList("Items", NbtElement.COMPOUND_TYPE.toInt())
+        for (i in 0 until items.size) {
+            val slotNbt = items.getCompound(i)
+            val oldSlot = slotNbt.getInt("Slot")
+            val newSlot = if (oldSize <= 5 && oldSlot >= SLOT_CONTAINER_INPUT) oldSlot + 1 else oldSlot
+            if (newSlot !in inventory.indices) continue
+            inventory[newSlot] = ItemStack.fromNbt(slotNbt)
+        }
     }
 
     override fun writeNbt(nbt: NbtCompound) {
@@ -324,5 +400,6 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
         syncedData.writeNbt(nbt)
         nbt.put("Inv", Inventories.writeNbt(NbtCompound(), inventory))
         nbt.putLong("TankAmount", tankInternal.amount)
+        nbt.putBoolean("RedstoneInverted", redstoneInverted)
     }
 }

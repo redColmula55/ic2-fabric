@@ -1,6 +1,6 @@
 package ic2_120_industrial_upgrade.content.sync
 
-import ic2_120.content.TickLimitedSidedEnergyContainer
+import ic2_120.content.UpgradeableTickLimitedSidedEnergyContainer
 import ic2_120.content.energy.EnergyTier
 import ic2_120.content.syncs.SyncSchema
 import net.fabricmc.fabric.api.transfer.v1.fluid.FluidConstants
@@ -10,7 +10,7 @@ import net.minecraft.util.math.Direction
  * 中子制造机同步数据。参照 core 的 MatterGeneratorSync。
  *
  * 字段：
- * - amount/capacity：来自父类 TickLimitedSidedEnergyContainer（能量存储）
+ * - amount/capacity：来自父类 UpgradeableTickLimitedSidedEnergyContainer（能量存储，支持储能/高压升级）
  * - fluidAmount/fluidCapacity：中子流体槽当前量/容量（droplets）
  * - progress：当前 1mB 生成周期内的能量进度百分比（0..100）
  */
@@ -19,12 +19,16 @@ class NeutronFabricatorSync(
     capacity: Long,
     tier: Int,
     private val getFacing: () -> Direction,
-    currentTickProvider: () -> Long?
-) : TickLimitedSidedEnergyContainer(
+    currentTickProvider: () -> Long?,
+    capacityBonusProvider: () -> Long = { 0L },
+    maxInsertPerTickProvider: (() -> Long)? = null
+) : UpgradeableTickLimitedSidedEnergyContainer(
     baseCapacity = capacity,
+    capacityBonusProvider = capacityBonusProvider,
     maxInsertPerTick = EnergyTier.euPerTickFromTier(tier),
-    maxExtractPerTick = EnergyTier.euPerTickFromTier(tier),
-    currentTickProvider = currentTickProvider
+    maxExtractPerTick = 0L,
+    currentTickProvider = currentTickProvider,
+    maxInsertPerTickProvider = maxInsertPerTickProvider
 ) {
     companion object {
         const val NBT_ENERGY = "Energy"

@@ -2,10 +2,9 @@ package ic2_120_industrial_upgrade.content.screen
 
 import ic2_120.content.item.EmptyCell
 import ic2_120.content.item.FluidCellItem
-import ic2_120.content.item.energy.IBatteryItem
-import ic2_120.content.item.energy.IElectricTool
 import ic2_120.content.screen.slot.PredicateSlot
 import ic2_120.content.screen.slot.SlotSpec
+import ic2_120.content.screen.slot.UpgradeSlotLayout
 import ic2_120.content.syncs.SyncedDataView
 import ic2_120.registry.annotation.ModScreenHandler
 import ic2_120.registry.annotation.ScreenFactory
@@ -32,8 +31,7 @@ class NeutronFabricatorScreenHandler(
     private val context: ScreenHandlerContext,
     propertyDelegate: PropertyDelegate,
     blockInventory: Inventory? = null,
-    private val machineSlotCount: Int = 0,
-    private val chargeTier: Int = 11
+    private val machineSlotCount: Int = 0
 ) : ScreenHandler(NeutronFabricatorScreenHandler::class.type(), syncId) {
 
     /** 客户端通过 SyncedDataView 包装 propertyDelegate 读取同步字段，供 Screen 渲染使用 */
@@ -45,11 +43,16 @@ class NeutronFabricatorScreenHandler(
         currentTickProvider = { null }
     )
 
+    /** 升级槽：仅接受 UpgradeItemRegistry 注册且本机实现了对应接口的升级（与物质生成机一致） */
+    private val upgradeSlotSpec: SlotSpec by lazy {
+        UpgradeSlotLayout.slotSpec { context.get({ world, pos -> world.getBlockEntity(pos) }, null) }
+    }
+
     companion object {
         private const val SLOT_SIZE = 18
-        // 充电槽：贴图左侧升级槽位区域（152 列），3 个纵向排列
-        private const val CHARGE_SLOT_X = 152
-        private const val CHARGE_SLOT_Y_0 = 8
+        // 升级槽：贴图左侧 152 列，纵向 8/26/44/62（对齐物质生成机的 4 个升级格子）
+        private const val UPGRADE_SLOT_X = 152
+        private val UPGRADE_SLOT_YS = intArrayOf(8, 26, 44, 62)
         // 容器输入/输出槽：贴图右侧（125 列）
         private const val CONTAINER_INPUT_X = 125
         private const val CONTAINER_INPUT_Y = 23
@@ -58,18 +61,6 @@ class NeutronFabricatorScreenHandler(
         private const val PLAYER_INV_X = 8
         private const val PLAYER_INV_Y = 84
         private const val HOTBAR_Y = 142
-
-        private fun chargeSlotSpec(maxTier: Int): SlotSpec = SlotSpec(
-            canInsert = { stack ->
-                val item = stack.item
-                when {
-                    item is IElectricTool -> true
-                    item is IBatteryItem && item.canCharge -> item.tier <= maxTier
-                    else -> false
-                }
-            },
-            maxItemCount = 1
-        )
 
         /** 容器输入槽：接受空桶 / 空单元 / 流体单元（具体是否可装由 BlockEntity 服务端逻辑判定） */
         private val containerInputSpec = SlotSpec(
@@ -90,7 +81,7 @@ class NeutronFabricatorScreenHandler(
             val propertyDelegate = ArrayPropertyDelegate(propertyCount)
             // 客户端用临时 SimpleInventory 占位（真实数据由服务端同步）
             val inv = SimpleInventory(NeutronFabricatorBlockEntity.INVENTORY_SIZE)
-            return NeutronFabricatorScreenHandler(syncId, playerInventory, context, propertyDelegate, inv, NeutronFabricatorBlockEntity.INVENTORY_SIZE, 11)
+            return NeutronFabricatorScreenHandler(syncId, playerInventory, context, propertyDelegate, inv, NeutronFabricatorBlockEntity.INVENTORY_SIZE)
         }
     }
 
@@ -99,13 +90,13 @@ class NeutronFabricatorScreenHandler(
 
         if (blockInventory != null) {
             checkSize(blockInventory, NeutronFabricatorBlockEntity.INVENTORY_SIZE)
-            // 充电槽（BlockEntity slot 0-2）：贴图左侧 152 列，纵向 8/26/44
-            for (i in 0 until 3) {
-                addSlot(PredicateSlot(blockInventory, i, CHARGE_SLOT_X, CHARGE_SLOT_Y_0 + i * SLOT_SIZE, chargeSlotSpec(chargeTier)))
+            // 升级槽（BlockEntity slot 0-3）：贴图左侧 152 列，纵向 8/26/44/62
+            for (i in 0 until UpgradeSlotLayout.SLOT_COUNT) {
+                addSlot(PredicateSlot(blockInventory, NeutronFabricatorBlockEntity.SLOT_UPGRADE_INDICES[i], UPGRADE_SLOT_X, UPGRADE_SLOT_YS[i], upgradeSlotSpec))
             }
-            // 容器输入槽（BlockEntity slot 3）：125, 23
+            // 容器输入槽（BlockEntity slot 4）：125, 23
             addSlot(PredicateSlot(blockInventory, NeutronFabricatorBlockEntity.SLOT_CONTAINER_INPUT, CONTAINER_INPUT_X, CONTAINER_INPUT_Y, containerInputSpec))
-            // 容器输出槽（BlockEntity slot 4）：125, 59
+            // 容器输出槽（BlockEntity slot 5）：125, 59
             addSlot(PredicateSlot(blockInventory, NeutronFabricatorBlockEntity.SLOT_CONTAINER_OUTPUT, CONTAINER_INPUT_X, CONTAINER_OUTPUT_Y, SlotSpec()))
         }
         // 玩家背包（3×9）
