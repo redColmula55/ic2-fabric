@@ -103,7 +103,12 @@ class OdScannerItem : Item(FabricItemSettings().maxCount(1)), IElectricTool {
             if (world.isClient) return TypedActionResult.pass(stack)
 
             player.openHandledScreen(object : ExtendedScreenHandlerFactory {
-                override fun getDisplayName(): Text = Text.translatable("item.ic2_120.scanner")
+                override fun getDisplayName(): Text {
+                    // OD/OV 共用 GUI：标题必须跟随实际扫描仪类型，不能写死 OD 的 key
+                    val t = getScannerType(player.getStackInHand(hand))
+                    val key = if (t == ScannerType.OV) "item.ic2_120.advanced_scanner" else "item.ic2_120.scanner"
+                    return Text.translatable(key)
+                }
                 override fun writeScreenOpeningData(serverPlayer: net.minecraft.server.network.ServerPlayerEntity, buf: PacketByteBuf) {
                     val s = serverPlayer.getStackInHand(hand)
                     val t = getScannerType(s)
@@ -206,7 +211,7 @@ class AdvancedScannerItem : Item(FabricItemSettings().maxCount(1)), IElectricToo
         val uses = OdScannerItem.getUsesRemaining(stack)
         tooltip.add(Text.literal("剩余使用次数: $uses").formatted(net.minecraft.util.Formatting.GRAY))
         tooltip.add(Text.literal("扫描范围: ${ScannerType.OV.scanRadius * 2 + 1}×${ScannerType.OV.scanRadius * 2 + 1}").formatted(net.minecraft.util.Formatting.GRAY))
-        tooltip.add(Text.literal("⚠ OV 扫描仪 - 扫描范围更大").formatted(net.minecraft.util.Formatting.YELLOW))
+        tooltip.add(Text.translatable("item.ic2_120.advanced_scanner.tooltip").formatted(net.minecraft.util.Formatting.YELLOW))
     }
 
     override fun isItemBarVisible(stack: ItemStack): Boolean = true

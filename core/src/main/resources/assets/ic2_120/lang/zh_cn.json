@@ -854,15 +854,14 @@
   "item.ic2_120.animalmatron.tooltip.extra_products": "额外产物（蛋每10分钟、羊毛每2分钟）：",
   "item.ic2_120.animalmatron.tooltip.extra_product_auto": "（自动）",
   "item.ic2_120.animalmatron.tooltip.extra_product_shears": "（需剪刀）",
-
   "gui.ic2_120.input_eu": "输入 %s EU/t",
-  "gui.ic2_120.consume_eu": "耗能 %s EU/t",
+  "gui.ic2_120.consume_eu": "耗能: %s EU/t",
   "gui.ic2_120.energy_tooltip": "储能: %s / %s EU",
   "gui.ic2_120.upgrade_slots": "可支持的升级",
   "gui.ic2_120.uv_lamp_upgrade": "升级槽",
   "gui.ic2_120.uv_lamp_growth": "生长加速: %s",
   "gui.ic2_120.uv_lamp_eu_per_tick": "耗电: %s/t",
- "gui.ic2_120.output_eu": "输出 %s EU/t",
+  "gui.ic2_120.output_eu": "输出 %s EU/t",
   "gui.ic2_120.battery_charge": "电池充电",
   "gui.ic2_120.battery_discharge": "电池放电",
   "gui.ic2_120.generate_eu": "发电 %s EU/t",
@@ -889,7 +888,6 @@
   "gui.ic2_120.count_items": "共 %s 个",
   "gui.ic2_120.scan": "扫描",
   "gui.ic2_120.cannot_scan": "无法扫描",
-
   "gui.ic2_120.electric_heat_generator.coils": "线圈 %s/10",
   "gui.ic2_120.animalmatron.monitored_animals": "监管动物 %s 只",
   "gui.ic2_120.animal_slaughterer.animal_count": "动物: %1$s/32 %2$s",
@@ -951,7 +949,7 @@
   "gui.ic2_120.wind_meter.gust_bonus": "随机增益: %s",
   "gui.ic2_120.wind_meter.effective_wind": "有效风力: %s",
   "gui.ic2_120.wind_meter.rotor_output": "%1$s转子理论输出: %2$s KU/t",
-  "gui.ic2_120.wind_meter.rotor_need_height": "%1$s转子理论输出: %2$s KU/t (不可启动，需Y\u2265%3$s)",
+  "gui.ic2_120.wind_meter.rotor_need_height": "%1$s转子理论输出: %2$s KU/t (不可启动，需Y≥%3$s)",
   "gui.ic2_120.wind_meter.rotor_no_weather": "%1$s转子理论输出: %2$s KU/t (此天气下不可启动)",
   "gui.ic2_120.wind_meter.wood": "木",
   "gui.ic2_120.wind_meter.bronze": "青铜",
@@ -1064,11 +1062,11 @@
   "gui.ic2_120.blast_furnace.air_usage": "空气: %1$s/%2$s 瓶/周期",
   "gui.ic2_120.blast_furnace.air": "压缩空气",
   "gui.ic2_120.blast_furnace.air_tooltip": "压缩空气: %1$s / %2$s mB",
- "gui.ic2_120.blast_furnace.heat_tooltip": "炉内温度: %1$s / %2$s °C",
- "gui.ic2_120.blast_furnace.heat_info_warmup": "升温至少需要 50 HU/t，温度越高所需越多",
- "gui.ic2_120.blast_furnace.heat_info_maintain": "最终稳定温度完全取决于热量输入",
- "gui.ic2_120.blast_furnace.heat_info_faster": "温度越高，冶炼速度越快",
- "gui.ic2_120.blast_furnace.heat_info_lower": "温度越高，维持温度所需的热量越多",
+  "gui.ic2_120.blast_furnace.heat_tooltip": "炉内温度: %1$s / %2$s °C",
+  "gui.ic2_120.blast_furnace.heat_info_warmup": "升温至少需要 50 HU/t，温度越高所需越多",
+  "gui.ic2_120.blast_furnace.heat_info_maintain": "最终稳定温度完全取决于热量输入",
+  "gui.ic2_120.blast_furnace.heat_info_faster": "温度越高，冶炼速度越快",
+  "gui.ic2_120.blast_furnace.heat_info_lower": "温度越高，维持温度所需的热量越多",
   "gui.ic2_120.blast_furnace.hu_tooltip": "HU 输入: %1$s",
   "gui.ic2_120.coke_kiln.structure_valid": "结构: 有效",
   "gui.ic2_120.coke_kiln.structure_invalid": "结构: 无效",
@@ -1122,14 +1120,10 @@
   "tooltip.ic2_120.weed_ex.amount": "剩余容量: %s/%s mB",
   "tooltip.ic2_120.weed_ex.low": "除草剂不足！",
   "tooltip.ic2_120.pipe.flow_rate": "流量: %s mB/s (%s 桶/秒)",
-
   "jei.ic2_120.replicator.uu_cost": "UU消耗：%s uB",
-
   "tooltip.ic2_120.status.on": "开启",
   "tooltip.ic2_120.status.off": "关闭",
-
   "block.ic2_120.leash_kinetic_generator": "拴绳动能发生机",
-
   "gui.ic2_120.leash_kinetic.generated": "生成: %s KU/t",
   "gui.ic2_120.leash_kinetic.output": "输出: %s KU/t",
   "gui.ic2_120.leash_kinetic.animal_status": "动物: %s",
@@ -1140,16 +1134,13 @@
   "gui.ic2_120.leash_kinetic.status": "状态: %s",
   "gui.ic2_120.leash_kinetic.running": "运行中",
   "gui.ic2_120.leash_kinetic.idle": "待机",
-
   "message.ic2_120.leash_kinetic.already_leashed": "该机器已经连接了一只动物!",
   "message.ic2_120.leash_kinetic.attached": "已拴住 %s",
   "message.ic2_120.leash_kinetic.no_mob": "附近没有拴绳的动物",
   "message.ic2_120.leash_kinetic.detached": "已解除拴绳",
-
   "ic2_120.jade.leash_kinetic.generated": "生成: %s KU/t",
   "ic2_120.jade.leash_kinetic.velocity": "角速度: %s °/s",
   "ic2_120.jade.leash_kinetic.animal": "动物: %s",
-
   "ic2_120.jade.teleporter.header": "[传送机诊断]",
   "ic2_120.jade.teleporter.mfe_energy": "相邻储能: %s EU",
   "ic2_120.jade.teleporter.cooldown": "冷却: %s tick",
@@ -1166,45 +1157,37 @@
   "ic2_120.jade.teleporter.check.charging": "充能中",
   "ic2_120.jade.teleporter.check.energy_insufficient": "能量不足 (%s)",
   "ic2_120.jade.teleporter.check.energy_sufficient": "能量充足 (%s)",
-
   "ic2_120.jade.electric_heat.buffer": "缓存: %s / %s EU",
   "ic2_120.jade.electric_heat.generating": "产热: %s HU/t",
   "ic2_120.jade.electric_heat.coils": "线圈: %s",
   "ic2_120.jade.electric_heat.running": "状态: 运行中",
   "ic2_120.jade.electric_heat.stopped_no_signal": "状态: 已停机（无红石信号）",
   "ic2_120.jade.electric_heat.stopped_inverted": "状态: 已停机（反转模式下收到红石信号）",
-
   "key.ic2_120.toggle_speed": "神行键",
   "key.ic2_120.toggle_jump": "大跳键",
-
   "tooltip.ic2_120.armor.damage_reduction": "减伤: %s%%",
   "tooltip.ic2_120.quantum_boots.damage_reduction": "减伤: %s%% | 落地免伤",
   "tooltip.ic2_120.quantum_helmet.features": "减伤: %s%% | 水下呼吸 | 夜视 | 饱食不满自动吃满锡罐",
   "tooltip.ic2_120.quantum_helmet.full_set": "全套时: 消除debuff",
-
   "tooltip.ic2_120.quantum_boots.jump": "大跳: %s | 剩余: %s次",
   "tooltip.ic2_120.quantum_leggings.speed": "神行: %s | 剩余: %s",
   "tooltip.ic2_120.quantum_chestplate.flight_time": "飞行剩余: %s",
   "tooltip.ic2_120.quantum_helmet.night_vision": "夜视: %s | 剩余: %s",
   "tooltip.ic2_120.nano_helmet.night_vision": "夜视: %s | 剩余: %s",
-
   "tooltip.ic2_120.armor.speed_tier.off": "关",
   "tooltip.ic2_120.armor.speed_tier.1": "1档",
   "tooltip.ic2_120.armor.speed_tier.2": "2档",
-
   "tooltip.ic2_120.armor.key.flight_double_tap": "双击空格飞行",
   "tooltip.ic2_120.armor.key.vision": "夜视按键: ",
   "tooltip.ic2_120.armor.key.speed": "神行按键: ",
   "tooltip.ic2_120.armor.key.jump": "大跳按键: ",
   "item.ic2_120.recall_scroll": "传送卷轴",
-
   "tooltip.ic2_120.harvest": "收获: ",
   "tooltip.ic2_120.harvest.sep": " 或 ",
   "tooltip.ic2_120.harvest.qty_n": " ×%d",
   "tooltip.ic2_120.harvest.qty_age": " ×年龄",
   "tooltip.ic2_120.harvest.qty_rng": " ×%d~%d",
   "tooltip.ic2_120.harvest.chance": " (%d%%)",
-
   "tooltip.ic2_120.harvest.note.poisonous_5": "5%概率毒马铃薯",
   "tooltip.ic2_120.harvest.note.melon_random": "随机西瓜或西瓜片",
   "tooltip.ic2_120.harvest.note.by_age": "数量随生长年龄增加",
@@ -1249,21 +1232,17 @@
   "gui.ic2_120.splitter_cable.threshold": "触发阈值: %s",
   "gui.ic2_120.splitter_cable.inverted.on": "反相: 开",
   "gui.ic2_120.splitter_cable.inverted.off": "反相: 关",
-
   "block.ic2_120.steam_generator": "蒸汽发生器",
   "block.ic2_120.steam_kinetic_generator": "蒸汽动能发生机",
   "block.ic2_120.condenser": "冷凝器",
-
   "block.ic2_120.steam": "蒸汽",
   "block.ic2_120.trade_o_mat": "交易机",
   "block.ic2_120.energy_o_mat": "能源交易机",
   "block.ic2_120.superheated_steam": "过热蒸汽",
   "item.ic2_120.steam_bucket": "蒸汽桶",
   "item.ic2_120.superheated_steam_bucket": "过热蒸汽桶",
-
   "gui.ic2_120.temperature": "温度: %s°C",
   "gui.ic2_120.heat_progress": "温度: %s°C",
-  "gui.ic2_120.water": "水",
   "gui.ic2_120.water_tank": "水罐",
   "gui.ic2_120.steam": "蒸汽",
   "gui.ic2_120.steam_tank": "蒸汽罐",
@@ -1308,7 +1287,6 @@
   "gui.ic2_120.tank.level_change_30s": "30秒: %s",
   "gui.ic2_120.tank.level_change_60s": "60秒: %s",
   "gui.ic2_120.heat_vent_slots": "散热口",
-  "gui.ic2_120.consume_eu": "耗能: %s EU/t",
   "gui.ic2_120.slot.vent": "放入散热片以提升冷却速率（每片 +100 mB/t，耗电 2 EU/t）",
   "gui.ic2_120.slot.upgrade": "放入变压器升级以提升电压等级",
   "gui.ic2_120.slot.discharge": "放入电池为机器供电",
@@ -1322,8 +1300,7 @@
   "chat.ic2_120.nuclear_explosion.title": "§4⚠ §c核反应堆爆炸！",
   "chat.ic2_120.nuclear_explosion.detail": "§c%1$s §7的核反应堆在 §c%2$s §7爆炸了！",
   "chat.ic2_120.nuclear_explosion.blocks_removed": "§7共移除 §c%1$d §7个方块。",
-  "chat.ic2_120.nuclear_explosion.safety": "§4【安全生产提醒】\n§e管行业必须管安全、管业务必须管安全、管生产经营必须管安全！\n§6安全第一、预防为主、综合治理！\n§a建立健全全员安全生产责任制，构建风险分级管控和隐患排查治理双重预防机制！\n§c主要负责人是第一责任人——请时刻注意安全生产！"
-,
+  "chat.ic2_120.nuclear_explosion.safety": "§4【安全生产提醒】\n§e管行业必须管安全、管业务必须管安全、管生产经营必须管安全！\n§6安全第一、预防为主、综合治理！\n§a建立健全全员安全生产责任制，构建风险分级管控和隐患排查治理双重预防机制！\n§c主要负责人是第一责任人——请时刻注意安全生产！",
   "advancements.ic2_120.root": "工业时代2",
   "advancements.ic2_120.root.desc": "现代工业时代就此开始",
   "advancements.ic2_120.acquireResin": "胶着局势",
@@ -1371,5 +1348,6 @@
   "jei.ic2_120.coal_water_transform": "煤粉浸水转化",
   "jei.ic2_120.coal_water_transform.title": "直接扔进水里",
   "jei.ic2_120.coal_water_transform.tooltip": "直接扔进水里（约等待 3 秒）",
-  "jei.ic2_120.coal_water_transform.circumstance": "浸入"
+  "jei.ic2_120.coal_water_transform.circumstance": "浸入",
+  "item.ic2_120.advanced_scanner.tooltip": "OV 扫描器 - 扫描范围更大"
 }
