@@ -6,7 +6,7 @@
 
 ```bash
 cd reactor-simulator
-pnpm install          # 注意 .npmrc 里 ignore-workspace=true，绕开上层 ic2_1.20 的 pnpm workspace
+pnpm install
 pnpm copy-textures    # 从 assets 复制元件贴图到 public/textures/（一次性，已执行过）
 pnpm dev              # 本地开发服务器
 pnpm build            # 生产构建（dist/）

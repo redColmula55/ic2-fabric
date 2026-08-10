@@ -10,7 +10,7 @@
 - **main → 1.21.1 迁移 cherry-pick：`docs/guides/branch-cherry-pick-guide.md`（每次 cherry-pick 前必读，否则必踩坑）**
 - 新机器实现：`docs/guides/machine-implementation-guide.md`
 - 机器组合复用：`docs/guides/machine-composition-reuse.md`（减少 container/slot/sync 重复代码）
-- mcdebug 测试编写：各子项目 `test/mcdebug/run.ts` + `docs/guides/mcdebug-test-guide.md`（TS dispatcher、test 矩阵、15s 硬约束、slot 速查、踩过的坑）
+- mcdebug 测试编写：`core/src/mcdebugTest/kotlin/`（Kotlin + JUnit 5，mcdebug-cli 0.5.0）+ `docs/guides/mcdebug-test-guide.md`（test 矩阵、be.tick 驱动、slot 速查、踩过的坑）
 - 新物品实现：`docs/guides/item-implemented.md`
 - 传送卷轴：`docs/guides/recall-scroll.md`
 - 方块掉落机制选型：`docs/guides/block-drop-pathways.md`（破坏掉落途径全景，新增方块时对照）
