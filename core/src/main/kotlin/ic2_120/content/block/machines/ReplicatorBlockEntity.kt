@@ -397,7 +397,7 @@ class ReplicatorBlockEntity(
             tankInternal.extractInternal(dropletsPerTick)
         }
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-        sync.progressUb = (sync.progressUb + ubPerTick).coerceAtMost(template.uuCostUb)
+        sync.progressUb = (sync.progressUb + ubPerTick).coerceAtLeast(0).coerceAtMost(template.uuCostUb)
         sync.status = ReplicatorSync.STATUS_RUNNING
         if (sync.progressUb >= template.uuCostUb) {
             if (outputStack.isEmpty) setStack(SLOT_OUTPUT, resultStack.copy())

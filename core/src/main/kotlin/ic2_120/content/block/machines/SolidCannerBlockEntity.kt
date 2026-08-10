@@ -269,7 +269,7 @@ class SolidCannerBlockEntity(
         val need = (SolidCannerSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-            sync.progress += progressIncrement
+            sync.progress = (sync.progress + progressIncrement).coerceAtMost(SolidCannerSync.PROGRESS_MAX)
             markDirty()
             setActiveState(world, pos, state, true)
         } else {

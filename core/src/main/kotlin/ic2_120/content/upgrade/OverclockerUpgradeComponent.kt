@@ -13,6 +13,10 @@ import net.minecraft.inventory.Inventory
  * - 每个超频：工作时间缩短到 70%（速度倍率 = 1/0.7）
  * - 每个超频：额外消耗 60% 电力（耗能倍率 = 1.6）
  * - n 个：速度 = (1/0.7)^n，耗能 = 1.6^n
+ *
+ * 无数量上限（2026-08 起移除 16 个 clamp）。大 count 下 Float 只正溢出 +Infinity
+ * （速度 n≈249、耗能 n≈189，永不为负），各机器 toInt/toLong 饱和、consumeEnergy
+ * 全有全无，超量超频只会让机器因耗能超容量而停摆，不会出现负值/白嫖。
  */
 object OverclockerUpgradeComponent {
 
@@ -21,8 +25,6 @@ object OverclockerUpgradeComponent {
 
     /** 每个超频的耗能倍率（额外 60% = 1.6） */
     private const val ENERGY_PER_UPGRADE = 1.6f
-
-    private const val MAX_UPGRADES = 16  // 避免溢出
 
     /**
      * 从升级槽统计加速升级数量，并应用到机器。
@@ -49,19 +51,19 @@ object OverclockerUpgradeComponent {
         return count
     }
 
-    /** 速度倍率：(1/0.7)^n */
+    /** 速度倍率：(1/0.7)^n，无上限 */
     fun speedMultiplier(count: Int): Float {
         if (count <= 0) return 1f
         var m = 1f
-        repeat(count.coerceAtMost(MAX_UPGRADES)) { m *= SPEED_PER_UPGRADE }
+        repeat(count) { m *= SPEED_PER_UPGRADE }
         return m
     }
 
-    /** 耗能倍率：1.6^n */
+    /** 耗能倍率：1.6^n，无上限 */
     fun energyMultiplier(count: Int): Float {
         if (count <= 0) return 1f
         var m = 1f
-        repeat(count.coerceAtMost(MAX_UPGRADES)) { m *= ENERGY_PER_UPGRADE }
+        repeat(count) { m *= ENERGY_PER_UPGRADE }
         return m
     }
 }
