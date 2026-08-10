@@ -100,9 +100,13 @@ abstract class CondensatorItem(
     abstract fun getRepairAmount(item: Item): Int
 
     override fun getRecipeRemainder(stack: ItemStack): ItemStack {
-        // 配方系统会调用此方法获取剩余物
-        // 但我们使用特殊配方来处理修复，所以这里返回原物品
-        return stack.copy()
+        // 配方系统会调用此方法获取剩余物。
+        // 修复配方语义：不消耗冷凝器本体，只消耗修复材料（红石/青金石），
+        // 产出全新（满容量）冷凝器，原物品随格子保留。
+        // 注意必须 copyWithCount(1)：组件可堆叠后，若返回整个堆叠的 copy，
+        // CraftingResultSlot 会把剩余物与格子内剩余数量合并，导致每合成一次
+        // 数量越滚越大（64 → 127 → ...）的物品复制漏洞。
+        return stack.copyWithCount(1)
     }
 }
 

@@ -11,11 +11,30 @@ import net.fabricmc.fabric.api.item.v1.FabricItemSettings
 /**
  * 带耐久/热容的反应堆组件。使用 NBT "use" 存储热量，
  * 覆盖 Item 的方法显示耐久度条。
+ *
+ * 堆叠语义：vanilla 的 Settings.maxDamage(maxUse) 会把 maxCount 强制为 1，
+ * 且 Item.getMaxCount() 是 final 无法在 Item 里覆盖，因此这类器件默认完全不
+ * 可堆叠。堆叠能力由 [ic2_120.mixin.ReactorComponentStackMixin] 放开：
+ *
+ * - getMaxCount() 对本品返回 [MAX_STACK_SIZE]（64）
+ * - isStackable() 对本品恒为 true（vanilla 对已损耗物品禁止合并）
+ *
+ * 合并本身仍由 vanilla ItemStack.canCombine 把关（item 相同 + NBT 完全一致，
+ * 含 "use"/"Damage" 标签）：**寿命（热量）相同的组件可以堆叠，寿命不同的
+ * 永远不能堆叠**。AE2 模糊卡等按 vanilla 耐久工作的外部 mod 不受影响。
  */
 abstract class AbstractDamageableReactorComponent(
     settings: FabricItemSettings,
     protected val maxUse: Int
 ) : AbstractReactorComponent(settings.maxDamage(maxUse)) {
+
+    companion object {
+        /**
+         * 反应堆组件的堆叠上限。NBT（"use"/"Damage"）完全一致的组件允许堆叠到该数量，
+         * 不一致的组件由 canCombine 拒绝合并。
+         */
+        const val MAX_STACK_SIZE = 64
+    }
 
     protected fun getUse(stack: ItemStack): Int {
         val nbt = stack.nbt ?: return 0
