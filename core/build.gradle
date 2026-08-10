@@ -217,8 +217,6 @@ tasks.register('mcdebugTest', Test) {
 		exceptionFormat "full"
 	}
 
-	def serverHolder = new java.util.concurrent.atomic.AtomicReference<Process>()
-
 	doFirst {
 		def portFile = layout.projectDirectory.file('run/mcdebug/port').asFile
 		if (portFile.exists()) {
@@ -244,7 +242,7 @@ tasks.register('mcdebugTest', Test) {
 				.directory(layout.projectDirectory.dir('run').asFile)
 				.redirectErrorStream(true)
 				.start()
-		serverHolder.set(server)
+		project.ext.mcdebugServerProc = server
 
 		Thread.startDaemon('mcdebug-server-log-drain') {
 			logFile.withOutputStream { out -> server.inputStream.transferTo(out) }
@@ -260,14 +258,24 @@ tasks.register('mcdebugTest', Test) {
 		}
 	}
 
+	finalizedBy tasks.named('stopMcdebugServer')
+}
+
+// Test 任务测试失败时 executeTests 抛异常会中断动作链（doLast 不执行），
+// server 必然残留并锁住世界 → 用 finalizer（无论主任务成败都运行）停 server。
+tasks.register('stopMcdebugServer') {
 	doLast {
-		def server = serverHolder.get()
+		def server = project.ext.mcdebugServerProc
+		project.ext.mcdebugServerProc = null
 		if (server != null) {
 			logger.lifecycle('Stopping MC server...')
 			server.destroy()
 			if (!server.waitFor(10, java.util.concurrent.TimeUnit.SECONDS)) {
-				logger.warn('MC server did not stop in 10s, force-killing')
+				logger.warn('MC server did not stop in 10s, force-killing process tree')
+				// DLI 可能 fork 子进程，只杀直接进程会残留 session.lock。
+				server.toHandle().descendants().forEach { it.destroyForcibly() }
 				server.destroyForcibly()
+				server.waitFor(5, java.util.concurrent.TimeUnit.SECONDS)
 			}
 		}
 	}

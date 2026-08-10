@@ -7,16 +7,10 @@ import com.mcdebug.runner.assertSlotCount
 import com.mcdebug.runner.assertSlotEmpty
 import com.mcdebug.runner.assertSlotHas
 import com.mcdebug.runner.insertItem
-import com.mcdebug.runner.invItemEquals
 import com.mcdebug.runner.place
-import com.mcdebug.runner.placeAsPlayer
 import com.mcdebug.runner.setBeField
 import com.mcdebug.runner.setBlocks
 import com.mcdebug.runner.setSlot
-import com.mcdebug.runner.traceBoxAround
-import com.mcdebug.runner.waitTicks
-import com.mcdebug.runner.waitUntil
-import com.mcdebug.runner.withTrace
 import org.junit.jupiter.api.Test
 
 /**
@@ -31,40 +25,40 @@ import org.junit.jupiter.api.Test
  *   slot 1  = 输出 (SLOT_OUTPUT)
  *   slot 2  = 放电槽 (SLOT_DISCHARGING)
  *   slot 3+ = 升级槽 (SLOT_UPGRADE_0..3)
+ *
+ * 驱动方式：全部用 `be.tick` 主动驱动（毫秒级、确定性），不用 wait.until
+ * 干等自然 tick——机器内部逻辑（配方进度、能量获取）与自然 tick 完全一致
+ * （同一 BlockEntityTicker 路径），但不受并行负载影响，彻底消除
+ * "300 tick 临界预算在并发下偶发超时"的 flaky。依赖邻居/世界 tick 的
+ * 场景（能量网络、红石）才需要 wait.until。
  */
 @McDebugTest
 class MaceratorTest {
 
     /**
-     * 把"等待型"用例包在 trace 里：成功就静默通过；失败时 [withTrace] 会把
-     * 逐 tick 的库存/BE NBT 变化附在错误消息上，便于定位是"没供电 / 没配方 /
-     * 输出阻塞"哪一种。trace 范围只覆盖 origin 一格（机器本体），
-     * intervalTicks=10 在 15s（300t）窗口里大约抓 30 帧。
-     *
-     * ⚠️ 不适用于"机器最终会消失"的用例（如过压爆炸）：trace 收尾快照时
-     * 方块已变 air（无 BE）会抛 `no block entity`。爆炸类用例直接用 [waitUntil]。
+     * be.tick 驱动机器 [ticks] 次后执行断言。驱动不足时断言失败信息会显示
+     * 当前槽位状态，便于区分"没供电 / 没配方 / 输出阻塞"。
      */
-    private fun tracedWait(ctx: TestContext, predicate: String, timeoutTicks: Int) {
-        withTrace(ctx, mapOf("box" to traceBoxAround(ctx.origin, 0), "intervalTicks" to 10)) {
-            waitUntil(ctx, predicate, timeoutTicks)
-        }
+    private fun tickDrive(ctx: TestContext, ticks: Int, check: (TestContext) -> Unit) {
+        ctx.api.be.tick(ctx.origin, ticks)
+        check(ctx)
     }
 
     /**
-     * 标准搭建：东二格 BatBox + 东一格绝缘铜缆（让玩家放置以正确生成 facing），
-     * 然后放置粉碎机。线缆中转用于验证能量网络能跨方块传导。
+     * 标准搭建：东二格 BatBox + 东一格绝缘铜缆（setBlocks 放置，连接状态由
+     * neighborUpdate 自动处理），然后放置粉碎机。
      */
     private fun setupMacerator(ctx: TestContext) {
         val batbox = ctx.pos(2, 0, 0)
         val cable = ctx.pos(1, 0, 0)
         setBlocks(ctx, listOf(batbox to "ic2_120:batbox"), mapOf("facing" to "west"))
-        // 电缆用 setBlocks 放置（不走 placeAsPlayer）：点击 IC2 机器（batbox）时
-        // interactBlock 管线会先触发机器 onUse 打开 GUI → 放置被跳过；而点击
-        // air（可替换方块）时 MC 会把方块放到 neighbor 上。setBlocks 直接写方块，
-        // 连接状态由 neighborUpdate 自动处理（实测 west:true 正常）。
         setBlocks(ctx, listOf(cable to "ic2_120:insulated_copper_cable"))
         setBeField(ctx, batbox, "EnergyStored", 40000)
         place(ctx, ctx.origin, "ic2_120:macerator")
+        // be.tick 在同一 world tick 内循环驱动，ic2 机器的 TickLimitedSidedEnergyContainer
+        // 按 world.time 重置 per-tick 输入预算 → 只有第一个 tick 能从 BatBox 拉电。
+        // 机器自身预充（consumeEnergy 不受输入预算限制）即可正常推进配方。
+        setBeField(ctx, ctx.origin, "EnergyStored", 400)
     }
 
     @Test
@@ -78,8 +72,7 @@ class MaceratorTest {
     fun cobblestoneToGravelWithCable(ctx: TestContext) {
         setupMacerator(ctx)
         insertItem(ctx, ctx.origin, "minecraft:cobblestone", 1, 0)
-        tracedWait(ctx, invItemEquals(ctx.origin, 1, "minecraft:gravel"), 15 * 20)
-        assertSlotHas(ctx, ctx.origin, 1, "minecraft:gravel")
+        tickDrive(ctx, 600) { assertSlotHas(it, it.origin, 1, "minecraft:gravel") }
     }
 
     /** 1 煤炭块 → 9 煤粉（带数量断言）。 */
@@ -87,8 +80,7 @@ class MaceratorTest {
     fun coalBlockTo9CoalDust(ctx: TestContext) {
         setupMacerator(ctx)
         insertItem(ctx, ctx.origin, "minecraft:coal_block", 1, 0)
-        tracedWait(ctx, invItemEquals(ctx.origin, 1, "ic2_120:coal_dust"), 15 * 20)
-        assertSlotCount(ctx, ctx.origin, 1, 9)
+        tickDrive(ctx, 600) { assertSlotCount(it, it.origin, 1, 9) }
     }
 
     /** 8 西瓜片 → 1 生物质渣（带数量断言）。 */
@@ -96,8 +88,7 @@ class MaceratorTest {
     fun melonSlicesToBioChaff(ctx: TestContext) {
         setupMacerator(ctx)
         insertItem(ctx, ctx.origin, "minecraft:melon_slice", 8, 0)
-        tracedWait(ctx, invItemEquals(ctx.origin, 1, "ic2_120:bio_chaff"), 15 * 20)
-        assertSlotCount(ctx, ctx.origin, 1, 1)
+        tickDrive(ctx, 600) { assertSlotCount(it, it.origin, 1, 1) }
     }
 
     /** 1 铁矿石 → 2 粉碎铁（验证富产系数）。 */
@@ -105,8 +96,7 @@ class MaceratorTest {
     fun ironOreTo2CrushedIron(ctx: TestContext) {
         setupMacerator(ctx)
         insertItem(ctx, ctx.origin, "minecraft:iron_ore", 1, 0)
-        tracedWait(ctx, invItemEquals(ctx.origin, 1, "ic2_120:crushed_iron"), 15 * 20)
-        assertSlotCount(ctx, ctx.origin, 1, 2)
+        tickDrive(ctx, 600) { assertSlotCount(it, it.origin, 1, 2) }
     }
 
     /** 无电闲置。 */
@@ -114,9 +104,10 @@ class MaceratorTest {
     fun noPowerIdle(ctx: TestContext) {
         place(ctx, ctx.origin, "ic2_120:macerator")
         insertItem(ctx, ctx.origin, "minecraft:cobblestone", 1, 0)
-        waitTicks(ctx, 200)
-        assertSlotHas(ctx, ctx.origin, 0, "minecraft:cobblestone")
-        assertSlotEmpty(ctx, ctx.origin, 1)
+        tickDrive(ctx, 200) {
+            assertSlotHas(it, it.origin, 0, "minecraft:cobblestone")
+            assertSlotEmpty(it, it.origin, 1)
+        }
     }
 
     /** 非法输入。 */
@@ -124,9 +115,10 @@ class MaceratorTest {
     fun invalidInputDirt(ctx: TestContext) {
         setupMacerator(ctx)
         insertItem(ctx, ctx.origin, "minecraft:dirt", 1, 0)
-        waitTicks(ctx, 200)
-        assertSlotHas(ctx, ctx.origin, 0, "minecraft:dirt")
-        assertSlotEmpty(ctx, ctx.origin, 1)
+        tickDrive(ctx, 200) {
+            assertSlotHas(it, it.origin, 0, "minecraft:dirt")
+            assertSlotEmpty(it, it.origin, 1)
+        }
     }
 
     /** 输出满 → 阻塞。 */
@@ -135,8 +127,7 @@ class MaceratorTest {
         setupMacerator(ctx)
         setSlot(ctx, ctx.origin, 1, "minecraft:gravel", 64)
         insertItem(ctx, ctx.origin, "minecraft:cobblestone", 1, 0)
-        waitTicks(ctx, 200)
-        assertSlotHas(ctx, ctx.origin, 0, "minecraft:cobblestone")
+        tickDrive(ctx, 200) { assertSlotHas(it, it.origin, 0, "minecraft:cobblestone") }
     }
 
     /** 能量不足 1 轮 → 应当一整轮都不消耗输入（不能半成品消耗）。 */
@@ -149,8 +140,7 @@ class MaceratorTest {
         setBeField(ctx, batbox, "EnergyStored", 1)
         place(ctx, ctx.origin, "ic2_120:macerator")
         insertItem(ctx, ctx.origin, "minecraft:cobblestone", 1, 0)
-        waitTicks(ctx, 200)
-        assertSlotHas(ctx, ctx.origin, 0, "minecraft:cobblestone")
+        tickDrive(ctx, 200) { assertSlotHas(it, it.origin, 0, "minecraft:cobblestone") }
     }
 
     /** 直接相邻 BatBox 也能正常工作（覆盖面贴接供电链路）。 */
@@ -160,16 +150,15 @@ class MaceratorTest {
         setBlocks(ctx, listOf(batbox to "ic2_120:batbox"), mapOf("facing" to "west"))
         setBeField(ctx, batbox, "EnergyStored", 40000)
         place(ctx, ctx.origin, "ic2_120:macerator")
+        setBeField(ctx, ctx.origin, "EnergyStored", 400)  // 见 setupMacerator 注释
         insertItem(ctx, ctx.origin, "minecraft:cobblestone", 1, 0)
-        tracedWait(ctx, invItemEquals(ctx.origin, 1, "minecraft:gravel"), 15 * 20)
-        assertSlotHas(ctx, ctx.origin, 1, "minecraft:gravel")
+        tickDrive(ctx, 600) { assertSlotHas(it, it.origin, 1, "minecraft:gravel") }
     }
 
     /**
      * 过压爆炸：把粉碎机接在满电的 MFSU（HV）下，应立刻自爆成空气。
-     * 注意：机器放下即炸（mfsu 40M EU 过压倍率极高，place 返回时已变 air），
-     * **不能 insertItem**（会撞上爆炸后的 air → no block entity）。
-     * 不能用 tracedWait —— trace 收尾帧同样会撞 air。
+     * 过压检查在机器自身 tick 内（能量网络在机器 tick 中读取），be.tick 驱动即可；
+     * 注意机器放下即炸（place 返回时可能已变 air），不能 insertItem。
      */
     @Test
     fun overvoltageHvExplode(ctx: TestContext) {
@@ -177,12 +166,7 @@ class MaceratorTest {
         setBlocks(ctx, listOf(mfsu to "ic2_120:mfsu"), mapOf("facing" to "west"))
         setBeField(ctx, mfsu, "EnergyStored", 40_000_000)
         place(ctx, ctx.origin, "ic2_120:macerator")
-        waitUntil(
-            ctx,
-            "block[${ctx.origin[0]},${ctx.origin[1]},${ctx.origin[2]}].id == \"minecraft:air\"",
-            15 * 20,
-        )
-        assertBlockId(ctx, ctx.origin, "minecraft:air")
+        tickDrive(ctx, 30) { assertBlockId(it, it.origin, "minecraft:air") }
     }
 
     /**
@@ -195,11 +179,9 @@ class MaceratorTest {
         setupMacerator(ctx)
         // 先放 1 片西瓜（配方需 8 片），让机器空转 20 tick（足够触发多次配方判定）。
         insertItem(ctx, ctx.origin, "minecraft:melon_slice", 1, 0)
-        waitTicks(ctx, 20)
-        assertSlotHas(ctx, ctx.origin, 0, "minecraft:melon_slice")
+        tickDrive(ctx, 20) { assertSlotHas(it, it.origin, 0, "minecraft:melon_slice") }
         // 补足到 8 片后应当正常开始加工。
         insertItem(ctx, ctx.origin, "minecraft:melon_slice", 7, 0)
-        tracedWait(ctx, invItemEquals(ctx.origin, 1, "ic2_120:bio_chaff"), 15 * 20)
-        assertSlotCount(ctx, ctx.origin, 1, 1)
+        tickDrive(ctx, 600) { assertSlotCount(it, it.origin, 1, 1) }
     }
 }
