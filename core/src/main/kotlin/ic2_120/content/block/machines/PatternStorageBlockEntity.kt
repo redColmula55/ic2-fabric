@@ -81,8 +81,19 @@ class PatternStorageBlockEntity(
 
     fun getTemplatesSnapshot(): List<UuTemplateEntry> = templates.toList()
 
-    fun getSelectedTemplate(): UuTemplateEntry? =
-        templates.getOrNull(selectedTemplateIndex)
+    /**
+     * 当前识别的复制配方（旁边复制机实际使用的配方）：
+     * 若水晶槽中有带配方的模式存储水晶，则直接使用水晶中的配方——不写入模板列表、不改变选中项，
+     * 仅供自动化物流模组通过更换水晶来即时控制复制机的配方；水晶被取走或换成空水晶后，
+     * 自动回落到模板列表中选中的配方。
+     */
+    fun getSelectedTemplate(): UuTemplateEntry? {
+        val crystal = getStack(SLOT_CRYSTAL)
+        if (isCrystalMemory(crystal)) {
+            crystal.getUuTemplate()?.let { return it }
+        }
+        return templates.getOrNull(selectedTemplateIndex)
+    }
 
     fun addOrSelectTemplate(entry: UuTemplateEntry): Boolean {
         val existingIndex = templates.indexOfFirst { it.itemId == entry.itemId }
@@ -114,7 +125,8 @@ class PatternStorageBlockEntity(
     fun exportSelectedTemplateToCrystal(): Boolean {
         val stack = getStack(SLOT_CRYSTAL)
         if (!isCrystalMemory(stack)) return false
-        val template = getSelectedTemplate() ?: return false
+        // 写入按钮语义不变：把模板列表中选中的配方写入水晶（不受水晶优先规则影响）
+        val template = templates.getOrNull(selectedTemplateIndex) ?: return false
         stack.setUuTemplate(template)
         markDirtyAndSync()
         return true
