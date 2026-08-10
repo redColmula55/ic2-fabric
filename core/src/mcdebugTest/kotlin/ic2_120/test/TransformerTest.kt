@@ -21,10 +21,14 @@ class TransformerTest {
     private fun setupTransformer(ctx: TestContext, mode: Int, batboxEnergy: Int, cesuEnergy: Int) {
         val west = ctx.pos(-1, 0, 0)
         val east = ctx.pos(1, 0, 0)
-        ctx.api.world.setBlock(west, "ic2_120:batbox", mapOf("facing" to "east"))
+        // 电池只从 facing 面输出（getSideMaxExtract: side==facing），其余五面接收。
+        // 升压：BatBox 输出朝变压器(east)；CESU 从 west 面接收 → facing≠west=east。
+        // 降压：CESU 输出朝变压器(west)；BatBox 从 east 面接收 → facing≠east=west。
+        val batFacing = if (mode == 1) "east" else "west"
+        val cesuFacing = if (mode == 1) "east" else "west"
+        ctx.api.world.setBlock(west, "ic2_120:batbox", mapOf("facing" to batFacing))
         ctx.api.world.setBlock(ctx.origin, "ic2_120:lv_transformer", mapOf("facing" to "east"))
-        // CESU 输入面朝变压器（升压/降压都用 facing=west 面向 origin）
-        ctx.api.world.setBlock(east, "ic2_120:cesu", mapOf("facing" to "west"))
+        ctx.api.world.setBlock(east, "ic2_120:cesu", mapOf("facing" to cesuFacing))
         setBeField(ctx, west, "EnergyStored", batboxEnergy)
         setBeField(ctx, east, "EnergyStored", cesuEnergy)
         setBeField(ctx, ctx.origin, "Mode", mode)
@@ -33,12 +37,11 @@ class TransformerTest {
     /**
      * 升压：BatBox(LV) → 变压器 → CESU(MV)，等 100 tick 后 CESU 应有能量流入。
      *
-     * ⚠️ 当前禁用：变压器（AdjacentEnergyTransferComponent 重构后被动化）在
-     * 直连/电缆链路下能量均不传输（BatBox→变压器→CESU 全链路实测 0），
-     * 机器拉电（compressor/macerator 等）正常。待确认是重构回归还是预期
-     * 行为（"能量由网络自动处理"）后按新行为重写或修机器。
+     * 曾误判为"重构回归"（当时 CESU facing=west：升压时 CESU 需从 west 面接收，
+     * 而 facing=输出面 → west==facing → insert=0，能量卡在变压器缓冲）。真相：
+     * 电池按 facing 单向输出，其余五面接收——用 TransformerMatrixTest 全矩阵
+     * 验证后确认变压器本身无 bug，此测试按正确朝向恢复。
      */
-    @org.junit.jupiter.api.Disabled("transformer energy flow broken after AdjacentEnergyTransferComponent refactor")
     @Test
     fun stepUpLvToMv(ctx: TestContext) {
         setupTransformer(ctx, mode = 1, batboxEnergy = 10000, cesuEnergy = 0)
@@ -50,7 +53,6 @@ class TransformerTest {
     }
 
     /** 降压：CESU(MV) → 变压器 → BatBox(LV)，等 100 tick 后 BatBox 应有能量流入。 */
-    @org.junit.jupiter.api.Disabled("transformer energy flow broken after AdjacentEnergyTransferComponent refactor")
     @Test
     fun stepDownMvToLv(ctx: TestContext) {
         setupTransformer(ctx, mode = 0, batboxEnergy = 0, cesuEnergy = 10000)
