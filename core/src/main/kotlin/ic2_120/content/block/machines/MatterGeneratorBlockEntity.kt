@@ -152,7 +152,7 @@ class MatterGeneratorBlockEntity(
     /** 当前 1 mB 生成周期内已经消耗的废料数量。 */
     private var scrapConsumedThisCycle = 0
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = MatterGeneratorSync(

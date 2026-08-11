@@ -69,7 +69,7 @@ class SolidHeatGeneratorBlockEntity(
     override val routedItemStorage get() = itemStorage
     private var burnTime = 0
     private var burnTotal = 0
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     override val heatFlow = HeatFlowSync(syncedData, this)
     val sync = SolidHeatGeneratorSync(syncedData, heatFlow)
 

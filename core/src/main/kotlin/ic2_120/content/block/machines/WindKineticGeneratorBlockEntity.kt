@@ -142,7 +142,7 @@ class WindKineticGeneratorBlockEntity(
     private val inventory = DefaultedList.ofSize(1, ItemStack.EMPTY)
 
     /** 同步数据（服务端） */
-    private val syncedData = SyncedData(this)
+    private val syncedData = SyncedData()
     private val kineticSync = WindKineticGeneratorSync(syncedData)
 
     /** 转子是否被阻挡（true = 卡住停转） */

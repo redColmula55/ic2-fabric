@@ -40,7 +40,7 @@ class TeslaCoilBlockEntity(
 
     override val tier: Int = 2
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     @RegisterEnergy
     val sync = TeslaCoilSync(syncedData) { world?.time }
 

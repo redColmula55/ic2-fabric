@@ -91,7 +91,7 @@ class IronFurnaceBlockEntity(
 
     override val routedItemStorage get() = itemStorage
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     val sync = IronFurnaceSync(syncedData)
 
     constructor(pos: BlockPos, state: BlockState) : this(

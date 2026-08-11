@@ -43,7 +43,7 @@ class KineticGeneratorBlockEntity(
     override val tier: Int = 3
     override val activeProperty: net.minecraft.state.property.BooleanProperty = KineticGeneratorBlock.ACTIVE
 
-    private val syncedData = SyncedData(this)
+    private val syncedData = SyncedData()
     private var lastKuInputTick: Long = Long.MIN_VALUE
     private var inputKuThisTick: Int = 0
     private var outputEuThisTick: Int = 0

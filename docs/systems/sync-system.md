@@ -61,13 +61,13 @@ class ElectricFurnaceSync(
 
 ### 2. 服务端：BlockEntity
 
-- 创建 `SyncedData(this)`（传入当前 BlockEntity），并用它构造你的属性定义类；传入 BlockEntity 后，任意同步属性写入时会自动调用 `markDirty()`，无需再传回调。
+- 创建 `SyncedData()` 并用它构造你的属性定义类。属性写入**不会**自动调用 `markDirty()`（同步字段大多是每 tick 变化的运行时/显示数据，不该让区块持续变脏）；NBT 落盘靠区块自然保存（卸载 / 关服 / 业务代码显式 `markDirty()`）时调用 `writeNbt` 完成。
 - 把 `syncedData` 传给 ScreenHandler；在 `writeScreenOpeningData` 里写入 `syncedData.size()`。
 - NBT 中调用 `syncedData.readNbt(nbt)` / `syncedData.writeNbt(nbt)`。
 
 ```kotlin
 // BlockEntity 内
-val syncedData = SyncedData(this)
+val syncedData = SyncedData()
 val sync = ElectricFurnaceSync(syncedData)
 
 override fun writeScreenOpeningData(player: ServerPlayerEntity, buf: PacketByteBuf) {
@@ -91,11 +91,9 @@ override fun writeNbt(nbt: NbtCompound) {
 
 读写属性一律通过 `sync.xxx`，例如 `sync.syncCounter++`、`sync.energy = 1000`。
 
-**重要**：修改了 `syncedData` 里的属性后，必须调用 BlockEntity 的 `markDirty()`，否则：
-- **持久化**：区块/世界保存时，该 BlockEntity 可能不会写回 NBT，重载世界后能量、进度等会丢失或恢复为旧值。
-- 界面同步（PropertyDelegate）不依赖 markDirty，但若希望“改了就存盘”，必须在改完后 markDirty。
-
-推荐在创建 `SyncedData` 时传入 BlockEntity：`SyncedData(this)`，则属性一经写入会自动 `markDirty()`，无需在属性定义类或业务代码里再传回调或手动调用。
+**重要**：同步属性写入**不会**自动触发保存（不调用 `markDirty()`）。
+- **界面同步**（PropertyDelegate 网络包）不依赖 markDirty，属性一变即下发客户端。
+- **持久化**：数据在区块自然保存（卸载 / 关服）时经 `writeNbt` 写盘；**需要即时落盘的关键事件**（模式切换、配置修改、余额变化等）必须在业务代码里显式调用 `markDirty()`，否则崩溃可能丢失最近变更。
 
 ### 3. 客户端：ScreenHandler
 
@@ -160,7 +158,7 @@ readNbt/writeNbt(syncedData)          （无需 NBT）
 ## 为新机器接一套同步
 
 1. 在 `content/` 下新建 `XxxSync.kt`，定义 `class XxxSync(schema: SyncSchema) { var a by schema.int("A"); ... }`。
-2. 在 BlockEntity 中：`val syncedData = SyncedData(this)`；`val sync = XxxSync(syncedData)`，菜单传 `syncedData`，buf 写 `syncedData.size()`，NBT 用 `syncedData.readNbt/writeNbt`。
+2. 在 BlockEntity 中：`val syncedData = SyncedData()`；`val sync = XxxSync(syncedData)`，菜单传 `syncedData`，buf 写 `syncedData.size()`，NBT 用 `syncedData.readNbt/writeNbt`；需要即时落盘的关键事件显式调用 `markDirty()`。
 3. 在 ScreenHandler 中：构造参数收 `PropertyDelegate`，`val sync = XxxSync(SyncedDataView(propertyDelegate))`，`addProperties(propertyDelegate)`；`fromBuffer` 里 `readVarInt()` 得到 count，`ArrayPropertyDelegate(count)`。
 4. 在 Screen 中：用 `handler.sync.xxx` 显示。
 

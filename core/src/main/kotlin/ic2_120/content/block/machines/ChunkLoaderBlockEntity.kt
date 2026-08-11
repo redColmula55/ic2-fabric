@@ -42,7 +42,7 @@ class ChunkLoaderBlockEntity(
     override fun getInventory(): net.minecraft.inventory.Inventory? = null
     override val tier: Int = 1
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     @RegisterEnergy
     val sync = ChunkLoaderSync(syncedData) { world?.time }
 

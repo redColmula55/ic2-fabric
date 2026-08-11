@@ -28,7 +28,7 @@ class LuminatorFlatBlockEntity(
 
     override val tier: Int = 5
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     @RegisterEnergy
     val sync = LuminatorSync(syncedData) { world?.time }
 

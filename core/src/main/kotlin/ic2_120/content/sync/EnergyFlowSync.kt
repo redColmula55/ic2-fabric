@@ -33,9 +33,9 @@ class EnergyFlowSync(
     private var lastLoggedGenerated = Long.MIN_VALUE
     private var lastLoggedConsumed = Long.MIN_VALUE
 
-    private var avgInsertedAmount by schema.intAveraged(insertedKey, windowSize = windowSize, persist = false)
-    private var avgExtractedAmount by schema.intAveraged(extractedKey, windowSize = windowSize, persist = false)
-    private var avgConsumedAmount by schema.intAveraged(consumedKey, windowSize = windowSize, persist = false)
+    private var avgInsertedAmount by schema.intAveraged(insertedKey, windowSize = windowSize)
+    private var avgExtractedAmount by schema.intAveraged(extractedKey, windowSize = windowSize)
+    private var avgConsumedAmount by schema.intAveraged(consumedKey, windowSize = windowSize)
 
     fun syncCurrentTickFlow() {
         source.finalizeFlowSnapshot()

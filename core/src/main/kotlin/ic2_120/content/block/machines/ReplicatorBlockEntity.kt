@@ -146,7 +146,7 @@ class ReplicatorBlockEntity(
     private var singlePulseConsumed = false
     private var fluidConsumptionRemainder = 0L
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = ReplicatorSync(

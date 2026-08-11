@@ -151,7 +151,7 @@ abstract class BaseMinerBlockEntity(
     }
 
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
-    private val syncedData = SyncedData(this)
+    private val syncedData = SyncedData()
     private var scanLevel = Int.MIN_VALUE
     private var scanRange = 0
     private var progressMode = -1

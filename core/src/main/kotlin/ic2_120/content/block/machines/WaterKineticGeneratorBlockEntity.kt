@@ -76,7 +76,7 @@ class WaterKineticGeneratorBlockEntity(
     override val tier: Int = 1
     private val inventory = DefaultedList.ofSize(1, ItemStack.EMPTY)
 
-    private val syncedData = SyncedData(this)
+    private val syncedData = SyncedData()
     private val kineticSync = WaterKineticGeneratorSync(syncedData)
 
     var isStuck: Boolean

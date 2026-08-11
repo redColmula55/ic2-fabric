@@ -43,7 +43,7 @@ class LeashKineticGeneratorBlockEntity(
     override val tier: Int = 1
     override val activeProperty = LeashKineticGeneratorBlock.ACTIVE
 
-    private val syncedData = SyncedData(this)
+    private val syncedData = SyncedData()
     val sync = LeashKineticGeneratorSync(syncedData)
 
     private var pendingOutputKu: Int = 0

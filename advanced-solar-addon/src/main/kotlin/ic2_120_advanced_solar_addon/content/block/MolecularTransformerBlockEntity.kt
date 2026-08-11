@@ -50,7 +50,7 @@ class MolecularTransformerBlockEntity(
     override val activeProperty = MolecularTransformerBlock.ACTIVE
 
     @Suppress("unused")
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = MolecularTransformerSync(

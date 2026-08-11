@@ -157,7 +157,7 @@ class BlastFurnaceBlockEntity(
     )
 
     override val routedItemStorage get() = itemStorage
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     val sync = BlastFurnaceSync(syncedData)
 
     private var huReceivedThisTick: Long = 0L

@@ -1,6 +1,5 @@
 package ic2_120.content.syncs
 
-import net.minecraft.block.entity.BlockEntity
 import net.minecraft.nbt.NbtCompound
 import net.minecraft.screen.PropertyDelegate
 import kotlin.properties.ReadWriteProperty
@@ -24,7 +23,7 @@ import kotlin.reflect.KProperty
  * 客户端：`MyMachineSync(SyncedDataView(propertyDelegate))`
  */
 interface SyncSchema {
-    fun int(name: String, default: Int = 0, persist: Boolean = true): ReadWriteProperty<Any?, Int>
+    fun int(name: String, default: Int = 0): ReadWriteProperty<Any?, Int>
     /**
      * 创建一个带滑动窗口平均滤波的整型属性。
      * 每次赋值会将当前值加入滑动窗口，返回值为窗口内所有值的平均值。
@@ -33,30 +32,24 @@ interface SyncSchema {
      * @param default 默认值
      * @param windowSize 滑动窗口大小（tick 数），默认 20（1 秒）
      */
-    fun intAveraged(name: String, default: Int = 0, windowSize: Int = 20, persist: Boolean = true): ReadWriteProperty<Any?, Int>
+    fun intAveraged(name: String, default: Int = 0, windowSize: Int = 20): ReadWriteProperty<Any?, Int>
 }
 
 /**
- * 服务端数据拥有者——实现 [PropertyDelegate] 供 ScreenHandler 同步，
+ * 服务端数据拥有者——实现 [PropertyDelegate] 供 ScreenHandler 同步（网络包下发客户端），
  * 同时实现 [SyncSchema] 供属性定义类注册字段。
- * 若传入 [blockEntity]，任意属性写入时会自动调用 [BlockEntity.markDirty]。
+ *
+ * 属性写入**不会**触发 [net.minecraft.block.entity.BlockEntity.markDirty]：
+ * 同步字段大多是每 tick 变化的运行时/显示数据，不该让区块持续变脏。
+ * NBT 落盘由区块自然保存（卸载 / 关服 / 业务代码显式 markDirty）时调用 [writeNbt] 完成；
+ * 需要即时保存的关键事件（模式切换、配置修改等）由业务代码显式调用 `markDirty()`。
  */
-class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegate, SyncSchema {
+class SyncedData : PropertyDelegate, SyncSchema {
     private val entries = mutableListOf<Entry>()
 
     private class Entry(val name: String, var value: Int)
 
-    private fun markDirtyIfNeeded() {
-        // markDirty 仅对服务端持久化有意义。
-        // Create 的 VirtualRenderWorld（矿车/contraption 装配时用 be.load 重建 BE）的 isClient 为 true，
-        // 但其 chunk 非原版 Chunk，markDirty 内部强转会抛 ClassCastException 导致客户端崩溃。
-        // 客户端 markDirty 本就是空操作，这里直接跳过。
-        val world = blockEntity?.world ?: return
-        if (world.isClient) return
-        blockEntity.markDirty()
-    }
-
-    override fun int(name: String, default: Int, persist: Boolean): ReadWriteProperty<Any?, Int> {
+    override fun int(name: String, default: Int): ReadWriteProperty<Any?, Int> {
         val indexHigh = entries.size
         entries.add(Entry("${name}_High", default ushr 16))
         val indexLow = entries.size
@@ -71,12 +64,11 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
                 if (getValue(thisRef, property) == value) return
                 entries[indexHigh].value = value ushr 16
                 entries[indexLow].value = value and 0xFFFF
-                if (persist) markDirtyIfNeeded()
             }
         }
     }
 
-    override fun intAveraged(name: String, default: Int, windowSize: Int, persist: Boolean): ReadWriteProperty<Any?, Int> {
+    override fun intAveraged(name: String, default: Int, windowSize: Int): ReadWriteProperty<Any?, Int> {
         val indexHigh = entries.size
         entries.add(Entry("${name}_High", default ushr 16))
         val indexLow = entries.size
@@ -97,7 +89,6 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
                 } else windowSum / window.size
             }
             override fun setValue(thisRef: Any?, property: KProperty<*>, value: Int) {
-                val oldAverage = (entries[indexHigh].value shl 16) or (entries[indexLow].value and 0xFFFF)
                 // 更新滑动窗口
                 window.addLast(value)
                 windowSum += value
@@ -108,9 +99,6 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
                 val avg = windowSum / window.size
                 entries[indexHigh].value = avg ushr 16
                 entries[indexLow].value = avg and 0xFFFF
-                if (persist && oldAverage != avg) {
-                    markDirtyIfNeeded()
-                }
             }
         }
     }
@@ -119,7 +107,6 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
     override fun set(index: Int, value: Int) {
         if (entries[index].value == value) return
         entries[index].value = value
-        markDirtyIfNeeded()
     }
     override fun size(): Int = entries.size
 
@@ -140,7 +127,7 @@ class SyncedData(private val blockEntity: BlockEntity? = null) : PropertyDelegat
 class SyncedDataView(private val delegate: PropertyDelegate) : SyncSchema {
     private var nextIndex = 0
 
-    override fun int(name: String, default: Int, persist: Boolean): ReadWriteProperty<Any?, Int> {
+    override fun int(name: String, default: Int): ReadWriteProperty<Any?, Int> {
         val indexHigh = nextIndex++
         val indexLow = nextIndex++
         return object : ReadWriteProperty<Any?, Int> {
@@ -156,7 +143,7 @@ class SyncedDataView(private val delegate: PropertyDelegate) : SyncSchema {
         }
     }
 
-    override fun intAveraged(name: String, default: Int, windowSize: Int, persist: Boolean): ReadWriteProperty<Any?, Int> {
+    override fun intAveraged(name: String, default: Int, windowSize: Int): ReadWriteProperty<Any?, Int> {
         // 客户端不需要滤波，直接返回服务端计算好的平均值
         return int(name, default)
     }

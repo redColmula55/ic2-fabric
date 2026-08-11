@@ -111,7 +111,7 @@ class SteamGeneratorBlockEntity(
         fun dropletsToMb(droplets: Long): Long = droplets * 1000 / FluidConstants.BUCKET
     }
 
-    private val syncedData = SyncedData(this)
+    private val syncedData = SyncedData()
     val sync = SteamGeneratorSync(syncedData)
 
     /** 系统温度 (milli-°C)，初始为生物群系温度（默认 20°C） */

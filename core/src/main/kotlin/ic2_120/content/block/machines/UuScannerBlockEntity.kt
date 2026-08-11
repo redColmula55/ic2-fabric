@@ -79,7 +79,7 @@ class UuScannerBlockEntity(
     private var lastCompletedItemId: String = ""
     private var cachedTemplate: UuTemplateEntry? = null
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = UuScannerSync(

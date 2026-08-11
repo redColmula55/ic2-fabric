@@ -146,7 +146,7 @@ class SolarDistillerBlockEntity(
     )
 
     override val routedItemStorage get() = itemStorage
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     val sync = SolarDistillerSync(syncedData)
 
     /**

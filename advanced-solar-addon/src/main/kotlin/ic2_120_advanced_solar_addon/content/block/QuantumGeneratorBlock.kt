@@ -109,7 +109,7 @@ class QuantumGeneratorBlockEntity(
     override val activeProperty = QuantumGeneratorBlock.ACTIVE
 
     @Suppress("unused")
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = QuantumGeneratorSync(

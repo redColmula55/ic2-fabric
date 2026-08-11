@@ -126,7 +126,7 @@ class TankBlockEntity(
         }
     }
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     val sync = TankSync(syncedData) { getCapacityMb() }
     val guiSlotInv = SimpleInventory(1)
     var shouldDropOnBreak = true

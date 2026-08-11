@@ -146,7 +146,7 @@ class FermenterBlockEntity(
     private val inputPerCycle = FermenterSync.INPUT_DROPLETS_PER_CYCLE.toLong()
     private val outputPerCycle = FermenterSync.OUTPUT_DROPLETS_PER_CYCLE.toLong()
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     val sync = FermenterSync(syncedData)
 
     private var heatBuffer: Long = 0L

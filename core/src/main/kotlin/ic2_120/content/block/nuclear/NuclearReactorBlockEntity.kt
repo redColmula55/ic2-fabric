@@ -271,7 +271,7 @@ class NuclearReactorBlockEntity(
         }
     }
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = NuclearReactorSync(

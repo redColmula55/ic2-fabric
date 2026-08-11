@@ -175,7 +175,7 @@ class FluidHeatExchangerBlockEntity(
     private val lavaCellItem by lazy { Registries.ITEM.get(Identifier(Ic2_120.MOD_ID, "lava_cell")) }
     private val hotCoolantCellItem by lazy { Registries.ITEM.get(Identifier(Ic2_120.MOD_ID, "hot_coolant_cell")) }
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     override val heatFlow = HeatFlowSync(syncedData, this)
     val sync = FluidHeatExchangerSync(syncedData, heatFlow)
 

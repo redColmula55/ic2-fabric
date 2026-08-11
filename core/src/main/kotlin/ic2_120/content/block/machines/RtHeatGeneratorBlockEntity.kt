@@ -83,7 +83,7 @@ class RtHeatGeneratorBlockEntity(
     )
 
     override val routedItemStorage get() = itemStorage
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     override val heatFlow = HeatFlowSync(syncedData, this)
     val sync = RtHeatGeneratorSync(syncedData, heatFlow)
 

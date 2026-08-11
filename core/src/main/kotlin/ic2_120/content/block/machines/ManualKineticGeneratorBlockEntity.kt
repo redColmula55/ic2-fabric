@@ -48,7 +48,7 @@ class ManualKineticGeneratorBlockEntity(
     override val activeProperty: net.minecraft.state.property.BooleanProperty = ManualKineticGeneratorBlock.ACTIVE
 
     private val inventory = DefaultedList.ofSize(1, ItemStack.EMPTY)
-    private val syncedData = SyncedData(this)
+    private val syncedData = SyncedData()
     val sync = ManualKineticGeneratorSync(syncedData)
 
     private var pendingOutputKu: Int = 0

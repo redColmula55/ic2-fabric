@@ -85,7 +85,7 @@ class CokeKilnBlockEntity(
     private var structureDirty = true
     private var cachedStructureValid = false
     private var cachedGratePos: BlockPos? = null
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     val sync = CokeKilnSync(syncedData)
 
     private data class Recipe(val output: ItemStack, val creosoteMb: Long)

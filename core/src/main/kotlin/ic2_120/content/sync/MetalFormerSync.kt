@@ -44,10 +44,10 @@ class MetalFormerSync(
         const val ENERGY_PER_TICK = 10L
     }
 
-    var energy by schema.int("Energy", persist = false)
+    var energy by schema.int("Energy")
     var progress by schema.int("Progress")
     var mode by schema.int("Mode")
-    var energyCapacity by schema.int("EnergyCapacity", default = ENERGY_CAPACITY.toInt(), persist = false)
+    var energyCapacity by schema.int("EnergyCapacity", default = ENERGY_CAPACITY.toInt())
     private val flow = EnergyFlowSync(schema, this)
 
     override fun onEnergyCommitted() {

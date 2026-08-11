@@ -60,7 +60,7 @@ abstract class TradeOMatBlockEntityBase(
     }
 
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     var totalTrades: Int = 0
 

@@ -57,7 +57,7 @@ class StirlingGeneratorBlockEntity(
 
     override val tier: Int = STIRLING_TIER
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = StirlingGeneratorSync(

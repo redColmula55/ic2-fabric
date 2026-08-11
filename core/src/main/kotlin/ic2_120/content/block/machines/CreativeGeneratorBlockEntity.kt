@@ -32,7 +32,7 @@ class CreativeGeneratorBlockEntity(
         const val GENERATOR_TIER = 1
     }
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = CreativeGeneratorSync(syncedData, { world?.time })

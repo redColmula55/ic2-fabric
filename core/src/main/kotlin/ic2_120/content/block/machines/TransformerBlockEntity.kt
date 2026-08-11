@@ -64,7 +64,7 @@ open class TransformerBlockEntity(
 
     override val tier: Int = transformerTier
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     @RegisterEnergy
     val sync = TransformerSync(
         syncedData,

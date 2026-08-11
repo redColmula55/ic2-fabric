@@ -79,7 +79,7 @@ class CropHarvesterBlockEntity(
     )
 
     override val routedItemStorage get() = itemStorage
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = CropHarvesterSync(

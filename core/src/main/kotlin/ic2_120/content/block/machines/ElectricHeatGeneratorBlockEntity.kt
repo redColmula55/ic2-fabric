@@ -88,7 +88,7 @@ class ElectricHeatGeneratorBlockEntity(
         canDischargeNow = { sync.amount < ElectricHeatGeneratorSync.ENERGY_CAPACITY }
     )
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     override val heatFlow = HeatFlowSync(syncedData, this)
     @RegisterEnergy
     val sync = ElectricHeatGeneratorSync(

@@ -125,7 +125,7 @@ class SteamKineticGeneratorBlockEntity(
 
     override val routedItemStorage get() = itemStorage
 
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
     val sync = SteamKineticGeneratorSync(syncedData)
 
     /** 内部 KU 缓冲区 */
