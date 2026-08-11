@@ -134,8 +134,11 @@ object Ic2_120 : ModInitializer {
         // 机器 RecipeType/Serializer：扫描 recipes 包时先 Class.forName(initialize=false)，仅带 @ModMachineRecipe 的序列化器会完成初始化；须在物品/方块注册之后
         ModMachineRecipes.register()
 
-        // 特殊处理：导线 BlockEntity 需在所有方块注册后统一注册（一个 BE 类型关联多种导线方块）
-        CableBlockEntity.register(MOD_ID)
+        // 特殊处理：导线 BlockEntity 需在所有方块（含附属 mod 的 BaseCableBlock）注册后统一注册。
+        // core 自有导线扫描注册表；附属导线因 core.onInitialize 先于附属（硬依赖拓扑序），无法被扫描捕获，
+        // 改由 "ic2_120:cables" entrypoint 贡献：core 调 getEntrypoints 时执行附属 provider，
+        // 收集其返回的 BaseCableBlock 并代为注册进 Registries.BLOCK，再合并进 CableBlockEntity。
+        CableBlockEntity.registerWithAddons(MOD_ID)
 
         // 扳手与机器方块交互（旋转、拆卸、掉落逻辑）
         WrenchHandler.register()

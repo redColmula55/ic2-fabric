@@ -1,0 +1,4 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": { "layer0": "ic2_120_industrial_upgrade:block/wiring/cable/proton_cable" }
+}

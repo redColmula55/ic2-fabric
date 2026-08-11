@@ -51,5 +51,11 @@
   "block.ic2_120_industrial_upgrade.ultimate_solar_panelsun": "终极混合日光太阳能发电机",
   "block.ic2_120_industrial_upgrade.ultimate_solar_panelrain": "终极混合雨能太阳能发电机",
   "block.ic2_120_industrial_upgrade.quantum_solar_panelsun": "量子日光太阳能发电机",
-  "block.ic2_120_industrial_upgrade.quantum_solar_panelrain": "量子雨能太阳能发电机"
+  "block.ic2_120_industrial_upgrade.quantum_solar_panelrain": "量子雨能太阳能发电机",
+  "block.ic2_120_industrial_upgrade.spectral_cable": "光谱导线",
+  "block.ic2_120_industrial_upgrade.proton_cable": "质子导线",
+  "block.ic2_120_industrial_upgrade.singular_cable": "奇异导线",
+  "block.ic2_120_industrial_upgrade.mythical_cable": "神话导线",
+  "block.ic2_120_industrial_upgrade.quantum_cable": "量子导线",
+  "block.ic2_120_industrial_upgrade.photonic_cable": "光子导线"
 }

@@ -51,5 +51,11 @@
   "block.ic2_120_industrial_upgrade.ultimate_solar_panelsun": "Ultimate Sun Panel",
   "block.ic2_120_industrial_upgrade.ultimate_solar_panelrain": "Ultimate Rain Panel",
   "block.ic2_120_industrial_upgrade.quantum_solar_panelsun": "Quantum Sun Panel",
-  "block.ic2_120_industrial_upgrade.quantum_solar_panelrain": "Quantum Rain Panel"
+  "block.ic2_120_industrial_upgrade.quantum_solar_panelrain": "Quantum Rain Panel",
+  "block.ic2_120_industrial_upgrade.spectral_cable": "Spectral Cable",
+  "block.ic2_120_industrial_upgrade.proton_cable": "Proton Cable",
+  "block.ic2_120_industrial_upgrade.singular_cable": "Singular Cable",
+  "block.ic2_120_industrial_upgrade.mythical_cable": "Mythical Cable",
+  "block.ic2_120_industrial_upgrade.quantum_cable": "Quantum Cable",
+  "block.ic2_120_industrial_upgrade.photonic_cable": "Photonic Cable"
 }

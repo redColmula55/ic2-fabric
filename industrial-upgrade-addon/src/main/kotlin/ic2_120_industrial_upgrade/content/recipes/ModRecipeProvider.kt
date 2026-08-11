@@ -30,7 +30,11 @@ class ModRecipeProvider(output: FabricDataOutput) : FabricRecipeProvider(output)
         // 1. 扫描 @RecipeProvider 注解方法（工作台有序合成）
         ClassScanner.generateRecipesForMod(IC2IndustrialUpgrade.MOD_ID, exporter)
 
-        // 2. 压缩机配方（ic2_120:compressing，复用 core 的 CompressorRecipeSerializer）
+        // 2. 导线合成（6 档级联，导线由 core 的 ic2_120:cables entrypoint 注册，不走 @ModBlock，
+        //    故其合成在此显式生成）
+        ic2_120_industrial_upgrade.content.block.CableRecipes.generateRecipes(exporter)
+
+        // 3. 压缩机配方（ic2_120:compressing，复用 core 的 CompressorRecipeSerializer）
         registerCompressorRecipes(exporter)
     }
 

@@ -127,10 +127,29 @@ class CableBlockEntity(pos: BlockPos, state: BlockState) : BlockEntity(TYPE, pos
             private set
 
         /**
-         * 在所有方块注册完毕后调用，为全部 [BaseCableBlock] 创建并注册统一的 [BlockEntityType]，
-         * 同时向 Energy API 注册 SIDED 查找。
+         * 注册统一的导线 [BlockEntityType]（id = `<modId>:cable`），关联全部 [BaseCableBlock]。
+         *
+         * 流程：
+         * 1. 通过 fabric "ic2_120:cables" entrypoint 收集各附属贡献的导线方块（让附属
+         *    实例化并注册自己的 BaseCableBlock 到 Registries.BLOCK）；
+         *    （附属 main entrypoint 晚于 core，其 @ModBlock 导线此时尚未注册，改由此处由 core 代为注册）；
+         * 2. 扫描 Registries.BLOCK 里全部 BaseCableBlock（core 自有 + 刚由附属贡献的），合并成一个 BE 类型；
+         * 3. 向 Energy API 注册 SIDED 查找。
+         *
+         * 调用时机：core.onInitialize 期间（注册表冻结前）。
          */
-        fun register(modId: String) {
+        fun registerWithAddons(modId: String) {
+            // 1. 通过 fabric "ic2_120:cables" entrypoint 收集各附属贡献的导线方块
+            //    （附属 main entrypoint 晚于 core，其 @ModBlock 导线此时尚未注册，
+            //     故由 core 在此触发附属的 CableProvider 完成注册）
+            val providers = net.fabricmc.loader.api.FabricLoader.getInstance()
+                .getEntrypoints("ic2_120:cables", CableProvider::class.java)
+            val addonCables = providers.flatMap { it.registerCables() }
+            if (addonCables.isNotEmpty()) {
+                logger.info("附属通过 ic2_120:cables entrypoint 贡献了 {} 个导线方块", addonCables.size)
+            }
+
+            // 2. 扫描注册表，收集全部 BaseCableBlock（core 自有 + 附属贡献）
             val cableBlocks = mutableListOf<Block>()
             for (block in Registries.BLOCK) {
                 if (block is BaseCableBlock) cableBlocks.add(block)
@@ -140,6 +159,7 @@ class CableBlockEntity(pos: BlockPos, state: BlockState) : BlockEntity(TYPE, pos
                 return
             }
 
+            // 3. 构建并注册统一的 BlockEntityType
             val factory = FabricBlockEntityTypeBuilder.Factory<CableBlockEntity> { p, s ->
                 CableBlockEntity(p, s)
             }

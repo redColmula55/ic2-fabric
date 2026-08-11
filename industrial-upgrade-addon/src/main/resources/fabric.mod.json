@@ -25,6 +25,12 @@
         "value": "ic2_120_industrial_upgrade.IC2IndustrialUpgradeDataGenerator",
         "adapter": "kotlin"
       }
+    ],
+    "ic2_120:cables": [
+      {
+        "value": "ic2_120_industrial_upgrade.IUCableProvider",
+        "adapter": "kotlin"
+      }
     ]
   },
   "depends": {

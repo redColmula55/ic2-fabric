@@ -1,5 +1,7 @@
 package ic2_120.registry
 
+import ic2_120.content.block.cables.BaseCableBlock
+
 import ic2_120.content.TickLimitedSidedEnergyContainer
 import ic2_120.Ic2_120
 import ic2_120.content.item.energy.IBatteryItem
@@ -148,6 +150,48 @@ object ClassScanner {
 
     fun shouldSkipGeneratedBlockLootTable(path: String): Boolean =
         path in blockPathsSkippingGeneratedLootTable
+
+    /**
+     * 供附属 mod 通过 "ic2_120:cables" entrypoint 注册导线方块（[BaseCableBlock] 子类）。
+     *
+     * 背景：附属的 main entrypoint 晚于 core（硬依赖拓扑序），而 [CableBlockEntity] 的统一注册在
+     * core.onInitialize 期间完成，此时附属的 @ModBlock 导线尚未进入注册表。故附属改由 core 在
+     * onInitialize 中通过 entrypoint 收集导线方块、调用本方法以附属 modId 注册进 Registries，
+     * 随后 core 的 CableBlockEntity 扫描注册表即可覆盖附属导线。
+     *
+     * 本方法等价于 @ModBlock 对导线的注册流程：方块 + 方块物品 + 创造栏条目 + 渲染层。
+     *
+     * @param modId 附属 mod id（方块注册到该命名空间）
+     * @param name 方块注册名（path）
+     * @param block 已实例化的导线方块
+     * @param tab 创造栏（传 [CreativeTab].MINECRAFT_MISC 则不加入任何 ic2 物品栏）
+     * @param group 物品栏内分组名（用于排序）
+     * @param renderLayer 渲染层（"cutout"/"cutout_mipped"/"translucent"/空=solid）
+     * @return 注册后的 [Block]（即传入的 block）
+     */
+    fun registerCableBlock(
+        modId: String,
+        name: String,
+        block: BaseCableBlock,
+        tab: CreativeTab = CreativeTab.MINECRAFT_MISC,
+        group: String = "cable",
+        renderLayer: String = "cutout_mipped"
+    ): BaseCableBlock {
+        val id = Identifier(modId, name)
+        Registry.register(Registries.BLOCK, id, block)
+        blockInstances[block::class] = block
+        blockClassToName[block::class] = name
+        BlockRenderLayerRegistry.put(id, renderLayer)
+        // 方块物品（导线无自定义 BlockItem，直接默认）
+        val blockItem = createBlockItemForClass(block::class, block, id)
+        Registry.register(Registries.ITEM, id, blockItem)
+        registerItemEnergyStorage(blockItem)
+        if (tab != CreativeTab.MINECRAFT_MISC) {
+            tabItems.getOrPut(tab) { mutableListOf() }.add(TabEntry(id, group))
+        }
+        logger.info("[CableEntry] 已注册附属导线方块: {}", id)
+        return block
+    }
 
     /**
      * 判断当前 Fabric 模组是否由信雅互联（Sinytra Connector）加载在 Forge 上。
