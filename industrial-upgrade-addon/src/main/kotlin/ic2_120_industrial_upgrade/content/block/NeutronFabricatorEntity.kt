@@ -116,7 +116,7 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
     override var fluidPipePullingCount: Int = 0
 
     @Suppress("unused")
-    val syncedData = SyncedData(this)
+    val syncedData = SyncedData()
 
     @RegisterEnergy
     val sync = NeutronFabricatorSync(
