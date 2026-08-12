@@ -1,18 +1,22 @@
 package ic2_120.content.upgrade
 
 import ic2_120.content.item.EjectorUpgrade
+import net.fabricmc.fabric.api.lookup.v1.block.BlockApiCache
 import net.fabricmc.fabric.api.transfer.v1.item.ItemStorage
 import net.fabricmc.fabric.api.transfer.v1.item.ItemVariant
 import net.fabricmc.fabric.api.transfer.v1.storage.Storage
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction
+import net.minecraft.block.entity.BlockEntity
 import net.minecraft.inventory.Inventory
 import net.minecraft.item.Item
 import net.minecraft.item.ItemStack
 import net.minecraft.registry.Registries
+import net.minecraft.server.world.ServerWorld
 import net.minecraft.util.Identifier
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Direction
 import net.minecraft.world.World
+import java.util.WeakHashMap
 import kotlin.math.pow
 
 object EjectorUpgradeComponent {
@@ -33,6 +37,39 @@ object EjectorUpgradeComponent {
 
     /** 静态全方向列表，避免每次调用重新分配 Direction.values().toList() */
     private val ALL_DIRECTIONS: List<Direction> = Direction.values().toList()
+
+    /**
+     * 每台机器的邻居 itemStorage 缓存（按 Direction.ordinal 索引，懒创建），抽入/弹出共用。
+     *
+     * 以机器 BlockEntity 为键（identity）：BE 卸载被 GC 后条目自动消失，无需显式监听卸载。
+     * BlockApiCache 内部通过 ServerBlockEntityEvents（邻居 BE 加载/卸载）与方块状态变化
+     * 自动失效——邻居被替换/移除/重载后下次 find 自动重新查找，无需每 tick 重查 capability。
+     * 机器自身被活塞移动或区块重载时 BE 实例会重建，自动得到新的缓存条目。
+     *
+     * 注意：ItemStorage.SIDED 的 context 类型为 @Nullable Direction，因此缓存泛型参数用 Direction?。
+     */
+    private val neighborCache = WeakHashMap<BlockEntity, Array<BlockApiCache<Storage<ItemVariant>, Direction?>?>>()
+
+    /**
+     * 获取（必要时创建）机器 6 个方向的 BlockApiCache。
+     * world 非服务端或 inventory 非 BlockEntity 时返回 null，调用方回退到直接 find（等价于旧行为）。
+     */
+    fun neighborCaches(
+        world: World,
+        pos: BlockPos,
+        machine: BlockEntity
+    ): Array<BlockApiCache<Storage<ItemVariant>, Direction?>?>? {
+        val serverWorld = world as? ServerWorld ?: return null
+        val caches = neighborCache.getOrPut(machine) {
+            arrayOfNulls<BlockApiCache<Storage<ItemVariant>, Direction?>>(Direction.values().size)
+        }
+        for (dir in Direction.values()) {
+            if (caches[dir.ordinal] == null) {
+                caches[dir.ordinal] = BlockApiCache.create(ItemStorage.SIDED, serverWorld, pos.offset(dir))
+            }
+        }
+        return caches
+    }
 
     /**
      * 统一入口：扫描升级槽中的所有弹出升级，逐个独立弹出 outputSlotIndices 中的物品。
@@ -61,32 +98,45 @@ object EjectorUpgradeComponent {
         }
         if (configs.isEmpty()) return
 
-        // 预解析每个升级配置的有效方向与速率，并收集全部需要查找的方向——
-        // 多个弹出升级共享同一方向的 capability 查找结果，避免重复 find。
+        // 预解析每个升级配置的有效方向与速率（多个弹出升级共享同一方向的缓存查找结果）
         val active = mutableListOf<Triple<EjectorConfig, Int, List<Direction>>>()
-        val neededDirs = LinkedHashSet<Direction>()
         for (config in configs) {
             val rate = itemTransferRate(config.count)
             if (rate <= 0) continue
             val dirs = if (config.sides.isEmpty()) ALL_DIRECTIONS else ALL_DIRECTIONS.filter { it in config.sides }
             if (dirs.isEmpty()) continue
             active.add(Triple(config, rate, dirs))
-            neededDirs.addAll(dirs)
         }
         if (active.isEmpty()) return
 
-        // 一次性查找所有需要方向的目标容器（itemStorage 内容实时读取，引用可复用）
-        val targets = HashMap<Direction, Storage<ItemVariant>?>(neededDirs.size)
-        for (dir in neededDirs) {
-            targets[dir] = ItemStorage.SIDED.find(world, pos.offset(dir), dir.opposite)
-        }
+        // 输出槽全空时无需弹出，跳过整个方向循环
+        if (outputSlotIndices.all { inventory.getStack(it).isEmpty }) return
+
+        // 邻居容器引用走 BlockApiCache（BE/方块状态变化时自动失效），避免每 tick 重查 capability；
+        // 无法缓存（非服务端/非 BE 调用）时回退到直接 find。
+        val machine = inventory as? BlockEntity
+        val caches = if (machine != null) neighborCaches(world, pos, machine) else null
 
         for ((config, rate, dirs) in active) {
-            // 每 tick 轮转起始方向，使 n 个候选轮流获得优先服务
-            val start = Math.floorMod(world.time, dirs.size.toLong()).toInt()
-            for (i in 0 until dirs.size) {
-                val dir = dirs[(start + i) % dirs.size]
-                val target = targets[dir] ?: continue
+            // 先剔除无目标容器的空方向，只对有效方向轮转：空方向穿插在列表里会破坏轮转
+            // 对称性（第一个有效方向由 (index−start) mod n 决定，靠前方向系统性占优），
+            // 有效列表长度 m 的起点轮转（world.time 即游标）让每个方向在每个处理位置
+            // 各出现 1/m 次，任意 m、任意物品量下竞争分配完全均等。
+            val candidates = ArrayList<Storage<ItemVariant>>(dirs.size)
+            for (dir in dirs) {
+                val target = if (caches != null) {
+                    caches[dir.ordinal]?.find(dir.opposite)
+                } else {
+                    ItemStorage.SIDED.find(world, pos.offset(dir), dir.opposite)
+                } ?: continue
+                candidates.add(target)
+            }
+            if (candidates.isEmpty()) continue
+
+            val m = candidates.size
+            val start = Math.floorMod(world.time, m.toLong()).toInt()
+            for (i in 0 until m) {
+                val target = candidates[(start + i) % m]
 
                 // 该候选本次 tick 的配额，跨所有输出槽共享（对齐原版 transfer(amount) 语义）
                 var remainingQuota = rate
