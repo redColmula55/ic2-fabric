@@ -19,6 +19,12 @@ class ModFluidTagProvider(
         registerCommonFluidTags()
         registerBiofuelEquivalent("semifluid_generator/biofuel_equivalent")
         registerCreosoteEquivalent("semifluid_generator/creosote_equivalent")
+        // UU 物质专属 tag：用于实体浸入检测（UU 物质液池中每秒回复生命），见 UUFluidEffectHandler
+        // 仅注册到本 mod 命名空间，不污染 c:/forge: 全局 tag
+        getOrCreateTagBuilder(ic2Fluid("uu_matter"))
+            .setReplace(false)
+            .add(ModFluids.UU_MATTER_STILL)
+            .add(ModFluids.UU_MATTER_FLOWING)
     }
 
     private fun registerCommonFluidTags() {
@@ -110,6 +116,9 @@ class ModFluidTagProvider(
             .addTag(cTag)
             .addTag(forgeTag)
     }
+
+    private fun ic2Fluid(path: String): TagKey<Fluid> =
+        TagKey.of(RegistryKeys.FLUID, Identifier("ic2_120", path))
 
     private fun cFluid(path: String): TagKey<Fluid> =
         TagKey.of(RegistryKeys.FLUID, Identifier("c", path))

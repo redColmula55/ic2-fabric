@@ -18,6 +18,7 @@ import ic2_120.content.block.nuclear.ReactorAccessHatchBlockEntity
 import ic2_120.content.block.nuclear.ReactorItemStorageProvider
 import ic2_120.content.block.energy.EnergyNetworkManager
 import ic2_120.content.fluid.ModFluids
+import ic2_120.content.fluid.UUFluidEffectHandler
 import ic2_120.content.network.NetworkManager
 import ic2_120.content.network.ConfigSyncHelper
 import ic2_120.content.network.ConfigSyncPacket
@@ -101,6 +102,9 @@ object Ic2_120 : ModInitializer {
 
         // 流体需在 ClassScanner 之前注册（流体、方块、桶）
         ModFluids.register()
+
+        // UU 物质液池回复生命效果（实体浸入检测）
+        UUFluidEffectHandler.register()
 
         // 橡胶树世界生成（主世界植被装饰阶段）
         RubberTreeGeneration.register()
