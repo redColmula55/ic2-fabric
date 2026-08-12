@@ -10,6 +10,7 @@ import ic2_120.integration.ftbchunks.ClaimProtection
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction
 import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext
 import net.fabricmc.fabric.api.transfer.v1.transaction.base.SnapshotParticipant
+import net.minecraft.block.entity.BlockEntity
 import net.minecraft.entity.LivingEntity
 import net.minecraft.entity.damage.DamageSource
 import net.minecraft.inventory.Inventory
@@ -43,6 +44,10 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
 
     companion object {
         const val damageIntervalTicks = 100
+
+        /** 端点缓存强制全量重查间隔（tick），兜底无 BE 邻居被替换/能力变化的场景。 */
+        private const val ENDPOINT_VERIFY_INTERVAL = 20
+
         val log = LoggerFactory.getLogger("EnergyNetwork")
 
         var ENABLE_OVERVOLTAGE_LOG = false
@@ -69,6 +74,16 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
     private var topologyCache: TopologyCache? = null
     private val dijkstraCacheByEntries = mutableMapOf<String, DijkstraResult>()
     private val bufferedCandidatesCacheByEntries = mutableMapOf<String, List<PathCandidate>>()
+
+    /** 边界端点缓存（SIDED.find 结果 + 邻居 BE 引用），避免每 tick 对不变拓扑全量重查世界。 */
+    private var boundaryEndpointCache: List<CachedEndpointLookup>? = null
+
+    /** 端点强制重查相位（0..INTERVAL-1），把不同电网的全量重查分散到不同 tick。 */
+    private val endpointVerifyPhase: Int = kotlin.random.Random.nextInt(ENDPOINT_VERIFY_INTERVAL)
+
+    /** provider 候选路径缓存（key = consumer entries + providers 签名），避免每 tick 重建+排序。 */
+    private val providerCandidatesCacheByConsumer = mutableMapOf<String, List<ProviderPath>>()
+
     var lastTickTime: Long = -1
 
     /**
@@ -158,6 +173,8 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
                 val inserted = consumer.storage.insert(stepDemand, transaction)
                 if (inserted > 0) {
                     val moved = (inserted + pathLossEu).coerceAtMost(pathCapacity)
+                    // 容量账本纳入事务快照：外部事务回滚时一并恢复，避免同 tick 可用容量被多扣。
+                    updateSnapshots(transaction)
                     for (cablePosLong in path) {
                         cableTransferRemaining[cablePosLong] =
                             (cableTransferRemaining[cablePosLong] ?: 0L) - moved
@@ -218,6 +235,8 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
             val extracted = provider.storage.extract(needFromProvider, transaction)
             if (extracted > 0) {
                 val moved = minOf(extracted, pathCapacity)
+                // 容量账本纳入事务快照：外部事务回滚时一并恢复。
+                updateSnapshots(transaction)
                 for (cablePosLong in path) {
                     cableTransferRemaining[cablePosLong] =
                         (cableTransferRemaining[cablePosLong] ?: 0L) - moved
@@ -531,16 +550,60 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
         return (2f * 2.0.pow(level - 4)).toFloat()
     }
 
+    /**
+     * 获取（并按需重建）边界端点缓存。缓存构建遍历拓扑边界逐个 [EnergyStorage.SIDED.find]，
+     * 结果在拓扑/端点不变时跨 tick 复用，避免每 tick 全量重查世界。
+     */
+    private fun getBoundaryEndpoints(world: World, topology: TopologyCache): List<CachedEndpointLookup> {
+        val cached = boundaryEndpointCache
+        if (cached != null) {
+            val dueVerify = Math.floorMod(world.time + endpointVerifyPhase, ENDPOINT_VERIFY_INTERVAL.toLong()) == 0L
+            if (!dueVerify) {
+                var stale = false
+                for (entry in cached) {
+                    val be = entry.blockEntity
+                    if (be != null) {
+                        if (be.isRemoved) {
+                            stale = true
+                            break
+                        }
+                    } else if (world.getBlockEntity(BlockPos.fromLong(entry.neighborPosLong)) != null) {
+                        // null 条目（无 BE 邻居，如空气/石头）可能是 chunk 重载或邻居替换刚带来的
+                        // 新 BE（新 BE 创建不发 block update，isRemoved 无法兜底）。实时轻查一次：
+                        // 只对 null 条目查世界，机器边界条目（非 null）不增加查询，收益保留。
+                        stale = true
+                        break
+                    }
+                }
+                if (!stale) return cached
+            }
+        }
+        return rebuildBoundaryEndpoints(world, topology).also { boundaryEndpointCache = it }
+    }
+
+    private fun rebuildBoundaryEndpoints(world: World, topology: TopologyCache): List<CachedEndpointLookup> {
+        // 端点缓存重建 = storage 引用整体刷新；provider 候选缓存依赖 storage 引用，一并失效。
+        providerCandidatesCacheByConsumer.clear()
+        return topology.boundaries.map { boundary ->
+            val neighborPos = BlockPos.fromLong(boundary.neighborPosLong)
+            CachedEndpointLookup(
+                cablePosLong = boundary.cablePosLong,
+                neighborPosLong = boundary.neighborPosLong,
+                blockEntity = world.getBlockEntity(neighborPos),
+                storage = EnergyStorage.SIDED.find(world, neighborPos, boundary.lookupFromNeighborSide)
+            )
+        }
+    }
+
     /** 扫描拓扑边界，返回消费者（supportsInsertion）。 */
     private fun findConsumers(world: World, topology: TopologyCache): Map<Long, Endpoint> {
         val consumers = mutableMapOf<Long, Endpoint>()
-        for (boundary in topology.boundaries) {
-            val neighborPos = BlockPos.fromLong(boundary.neighborPosLong)
-            val storage = EnergyStorage.SIDED.find(world, neighborPos, boundary.lookupFromNeighborSide) ?: continue
+        for (entry in getBoundaryEndpoints(world, topology)) {
+            val storage = entry.storage ?: continue
             if (storage.supportsInsertion()) {
-                val ep = consumers.getOrPut(boundary.neighborPosLong) { Endpoint(storage) }
-                ep.entryCables.add(boundary.cablePosLong)
-                ep.blockPos = boundary.neighborPosLong
+                val ep = consumers.getOrPut(entry.neighborPosLong) { Endpoint(storage) }
+                ep.entryCables.add(entry.cablePosLong)
+                ep.blockPos = entry.neighborPosLong
             }
         }
         return consumers
@@ -549,13 +612,12 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
     /** 扫描拓扑边界，返回 providers（supportsExtraction）。 */
     private fun findProviders(world: World, topology: TopologyCache): Map<Long, Endpoint> {
         val providers = mutableMapOf<Long, Endpoint>()
-        for (boundary in topology.boundaries) {
-            val neighborPos = BlockPos.fromLong(boundary.neighborPosLong)
-            val storage = EnergyStorage.SIDED.find(world, neighborPos, boundary.lookupFromNeighborSide) ?: continue
+        for (entry in getBoundaryEndpoints(world, topology)) {
+            val storage = entry.storage ?: continue
             if (storage.supportsExtraction()) {
-                val ep = providers.getOrPut(boundary.neighborPosLong) { Endpoint(storage) }
-                ep.entryCables.add(boundary.cablePosLong)
-                ep.blockPos = boundary.neighborPosLong
+                val ep = providers.getOrPut(entry.neighborPosLong) { Endpoint(storage) }
+                ep.entryCables.add(entry.cablePosLong)
+                ep.blockPos = entry.neighborPosLong
             }
         }
         return providers
@@ -570,10 +632,15 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
         val consumers = findConsumers(world, topology)
         val providers = findProviders(world, topology)
 
+        // 无消费者 = 空载：本 tick 不会有任何传输，cableLoad 无需每 tick 同步
+        // （避免孤立导线/空载电网每 tick 对全部导线 O(N) getBlockEntity）；
+        // 但每 20 tick 强制同步一次，让 Jade 的 cableLoad 窗口能衰减归零，不永久残留旧值。
         if (consumers.isEmpty()) {
-            syncCableLoadToLocalStorage(world, topology.cableRates)
+            if (isCableLoadSyncDue(world)) syncCableLoadToLocalStorage(world, topology.cableRates)
             return
         }
+
+        var anyTransfer = false
 
         // 每 tick 轮转首个 consumer，避免固定的拓扑发现顺序长期造成饥饿。
         val consumerList = consumers.values.toList()
@@ -584,7 +651,7 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
         // Phase 1: 残余池能分发（BFS 合并等场景遗留的 energy，通常一次 tick 即清空）
         for (consumer in orderedConsumers) {
             if (energy <= 0) break
-            pullFromBufferedEnergyByPath(world, consumer, topology.neighbors)
+            if (pullFromBufferedEnergyByPath(world, consumer, topology.neighbors)) anyTransfer = true
         }
 
         // Phase 2: providers → consumers 直送
@@ -597,29 +664,37 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
             val firstRoundBudget = maxOf(1L, totalProviderEnergy / orderedConsumers.size)
 
             for (consumer in orderedConsumers) {
-                pullFromProvidersByPath(
-                    world,
-                    consumer,
-                    providers,
-                    topology.neighbors,
-                    maxAmount = firstRoundBudget
-                )
+                if (pullFromProvidersByPath(
+                        world,
+                        consumer,
+                        providers,
+                        topology.neighbors,
+                        maxAmount = firstRoundBudget
+                    )
+                ) anyTransfer = true
             }
 
             // 首轮完成后，剩余 provider 能量继续按轮转顺序分发。
             for (consumer in orderedConsumers) {
-                pullFromProvidersByPath(world, consumer, providers, topology.neighbors)
+                if (pullFromProvidersByPath(world, consumer, providers, topology.neighbors)) anyTransfer = true
             }
         }
 
-        syncCableLoadToLocalStorage(world, topology.cableRates)
+        // cableLoad 仅用于 Jade 显示：确有传输时同步；无传输时每 20 tick 强制刷一次，
+        // 让停止传输后窗口能归零（不永久残留旧值），其余 tick 不遍历导线。
+        if (anyTransfer || isCableLoadSyncDue(world)) syncCableLoadToLocalStorage(world, topology.cableRates)
     }
+
+    /** cableLoad 定期同步判定（相位与端点 verify 一致，各网络错开）。 */
+    private fun isCableLoadSyncDue(world: World): Boolean =
+        Math.floorMod(world.time + endpointVerifyPhase, ENDPOINT_VERIFY_INTERVAL.toLong()) == 0L
 
     private fun pullFromBufferedEnergyByPath(
         world: World,
         consumer: Endpoint,
         neighbors: Map<Long, List<Long>>
-    ) {
+    ): Boolean {
+        var anyTransferred = false
         while (energy > 0) {
             val demand = simulateInsertion(consumer.storage, Long.MAX_VALUE)
             if (demand <= 0) break
@@ -666,12 +741,14 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
 
                         tx.commit()
                         progressed = true
+                        anyTransferred = true
                     }
                 }
             }
 
             if (!progressed) break
         }
+        return anyTransferred
     }
 
     private fun pullFromProvidersByPath(
@@ -680,7 +757,8 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
         providers: Map<Long, Endpoint>,
         neighbors: Map<Long, List<Long>>,
         maxAmount: Long = Long.MAX_VALUE
-    ) {
+    ): Boolean {
+        var anyTransferred = false
         var remainingBudget = maxAmount
         while (remainingBudget > 0) {
             val demand = simulateInsertion(consumer.storage, Long.MAX_VALUE)
@@ -718,6 +796,8 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
                     val inserted = consumer.storage.insert(deliverable, tx)
                     if (inserted > 0) {
                         val moved = (inserted + pathLossEu).coerceAtMost(extracted)
+                        // 容量账本纳入事务快照：事务回滚时一并恢复，避免同 tick 可用容量被多扣。
+                        updateSnapshots(tx)
                         for (cablePosLong in candidate.path) {
                             cableTransferRemaining[cablePosLong] =
                                 (cableTransferRemaining[cablePosLong] ?: 0L) - moved
@@ -737,6 +817,7 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
 
                         tx.commit()
                         progressed = true
+                        anyTransferred = true
                     }
                 }
             }
@@ -745,6 +826,7 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
             // 有意保持每 tick 单轮扫描：对当前线性能量容器，一轮完整候选遍历已足够。
             break
         }
+        return anyTransferred
     }
 
     private fun syncCableLoadToLocalStorage(
@@ -770,6 +852,10 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
         providers: Map<Long, Endpoint>,
         neighbors: Map<Long, List<Long>>
     ): List<ProviderPath> {
+        // 候选路径/损耗只依赖拓扑，跨 tick 缓存，避免每 tick 重建 + 排序。
+        val cacheKey = providerCandidatesKey(consumer, providers)
+        providerCandidatesCacheByConsumer[cacheKey]?.let { return it }
+
         val candidates = mutableListOf<ProviderPath>()
         for (source in consumer.entryCables) {
             val dijkstra = shortestLossFromSourcesCached(setOf(source), neighbors)
@@ -784,7 +870,26 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
             }
         }
         candidates.sortBy { it.pathLossMilliEu }
+        providerCandidatesCacheByConsumer[cacheKey] = candidates
+        trimPathCachesIfNeeded()
         return candidates
+    }
+
+    /**
+     * 候选缓存 key：consumer 入口导线 + providers（位置 + 入口导线）。
+     *
+     * 不含 storage 引用本身——端点缓存重建（[rebuildBoundaryEndpoints]）会清空本缓存，
+     * 保证缓存的 storage 引用始终与当前端点一致。
+     */
+    private fun providerCandidatesKey(
+        consumer: Endpoint,
+        providers: Map<Long, Endpoint>
+    ): String {
+        val consumerKey = consumer.entryCables.sorted().joinToString(",")
+        val providerKey = providers.entries.sortedBy { it.key }.joinToString(";") { (pos, ep) ->
+            "$pos:${ep.entryCables.sorted().joinToString(",")}"
+        }
+        return "$consumerKey|$providerKey"
     }
 
     private fun buildBufferedCandidates(
@@ -828,10 +933,13 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
     private fun trimPathCachesIfNeeded() {
         if (dijkstraCacheByEntries.size > 512) dijkstraCacheByEntries.clear()
         if (bufferedCandidatesCacheByEntries.size > 512) bufferedCandidatesCacheByEntries.clear()
+        if (providerCandidatesCacheByConsumer.size > 512) providerCandidatesCacheByConsumer.clear()
     }
 
     private fun invalidatePathCaches() {
         topologyCache = null
+        boundaryEndpointCache = null
+        providerCandidatesCacheByConsumer.clear()
         dijkstraCacheByEntries.clear()
         bufferedCandidatesCacheByEntries.clear()
     }
@@ -960,6 +1068,23 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
         }
         return accepted
     }
+
+    /**
+     * 边界端点查找缓存条目：SIDED.find 结果 + 邻居 BE 引用（isRemoved 兜底）。
+     *
+     * 缓存失效时机：
+     * 1. 拓扑失效（[invalidatePathCaches]，连接/导线变化）→ 整体清空；
+     * 2. 条目 BE isRemoved（机器方块被替换/区块卸载）→ 实时兜底，触发整体重查；
+     * 3. 每 [ENDPOINT_VERIFY_INTERVAL] tick 强制全量重查（相位随机分散）→ 兜底
+     *    "无 BE 邻居被替换"与"能力变化但连接属性不变"（Energy API 协议要求能力变化发
+     *    block update，但导线侧仅连接属性变化才失效）的场景。
+     */
+    private class CachedEndpointLookup(
+        val cablePosLong: Long,
+        val neighborPosLong: Long,
+        var blockEntity: BlockEntity?,
+        var storage: EnergyStorage?
+    )
 
     private data class Endpoint(
         val storage: EnergyStorage,
