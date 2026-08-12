@@ -10,7 +10,6 @@
     "ic2_120:chunk_loader",
     "ic2_120:coke_kiln",
     "ic2_120:compressor",
-    "ic2_120:condenser",
     "ic2_120:crop_harvester",
     "ic2_120:cropmatron",
     "ic2_120:electric_furnace",
@@ -81,13 +80,14 @@
     "ic2_120:reactor_fluid_port",
     "ic2_120:reactor_redstone_port",
     "ic2_120:reactor_vessel",
+    "ic2_120:bronze_storage_box",
+    "ic2_120:iron_storage_box",
+    "ic2_120:steel_storage_box",
+    "ic2_120:iridium_storage_box",
     "ic2_120:bronze_tank",
     "ic2_120:iron_tank",
     "ic2_120:steel_tank",
     "ic2_120:iridium_tank",
-    "ic2_120:bronze_storage_box",
-    "ic2_120:iron_storage_box",
-    "ic2_120:steel_storage_box",
-    "ic2_120:iridium_storage_box"
+    "ic2_120:condenser"
   ]
 }
