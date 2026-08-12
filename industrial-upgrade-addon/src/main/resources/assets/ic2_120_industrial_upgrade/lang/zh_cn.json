@@ -5,6 +5,7 @@
   "block.ic2_120_industrial_upgrade.admin_solar_panel": "管理员太阳能发电机",
   "block.ic2_120_industrial_upgrade.photonic_solar_panel": "光子太阳能发电机",
   "block.ic2_120_industrial_upgrade.neutron_solar_panel": "中子太阳能发电机",
+  "block.ic2_120_industrial_upgrade.neutron": "中子流体",
   "block.ic2_120_industrial_upgrade.neutron_fabricator": "中子制造机",
   "item.ic2_120_industrial_upgrade.spectral_core": "光谱核心",
   "item.ic2_120_industrial_upgrade.proton_core": "质子核心",

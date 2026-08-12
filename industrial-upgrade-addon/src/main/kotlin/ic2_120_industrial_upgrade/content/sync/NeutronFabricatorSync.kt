@@ -38,6 +38,7 @@ class NeutronFabricatorSync(
     var fluidAmount by schema.int("FluidAmount", default = 0)
     /** 中子流体槽容量（droplets），与 NeutronFabricatorBlockEntity.TANK_CAPACITY_DROPLETS 一致（10 桶） */
     var fluidCapacity by schema.int("FluidCapacity", default = (FluidConstants.BUCKET * 10L).toInt())
-    /** 进度百分比 0..100 */
+    /** 进度百分比 0..100：仅在允许运行时（红石门控通过且槽未满）展示当前 1mB 周期的充能进度；
+     *  红石关断/槽满时归零，避免“不工作却显示 100%”。 */
     var progress by schema.int("Progress", default = 0)
 }

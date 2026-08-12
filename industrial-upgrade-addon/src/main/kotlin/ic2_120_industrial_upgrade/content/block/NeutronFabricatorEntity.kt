@@ -292,9 +292,9 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
 
         var active = false
         // 红石门控 + 能量达到阈值且流体槽未满 → 消耗能量产流体（1 mB = BUCKET/1000 droplets）
-        if (RedstoneControlComponent.canRun(world, pos, this) &&
+        val canProduce = RedstoneControlComponent.canRun(world, pos, this) &&
             sync.amount >= ENERGY_PER_MB && tankInternal.amount < TANK_CAPACITY_DROPLETS
-        ) {
+        if (canProduce) {
             val produced = tankInternal.insertInternal(FluidConstants.BUCKET / 1000L) // 1 mB
             if (produced > 0L) {
                 sync.consumeEnergy(ENERGY_PER_MB)
@@ -304,7 +304,15 @@ class NeutronFabricatorBlockEntity(pos: BlockPos, state: BlockState) :
 
         // 同步 GUI 数据
         sync.fluidAmount = tankInternal.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-        sync.progress = ((sync.amount.toFloat() / ENERGY_PER_MB) * 100).toInt().coerceIn(0, 100)
+        // 进度仅在允许运行时展示充能百分比：红石关断/流体槽满时归零，
+        // 避免“机器不工作却显示 100%”（能量充能不受红石门控，会一直充到满）。
+        sync.progress = if (canProduce ||
+            (RedstoneControlComponent.canRun(world, pos, this) && tankInternal.amount < TANK_CAPACITY_DROPLETS)
+        ) {
+            ((sync.amount.toFloat() / ENERGY_PER_MB) * 100).toInt().coerceIn(0, 100)
+        } else {
+            0
+        }
 
         setActiveState(world, pos, state, active)
         markDirtyThrottled()

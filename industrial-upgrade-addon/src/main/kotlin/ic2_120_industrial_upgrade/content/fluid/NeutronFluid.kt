@@ -10,7 +10,8 @@ import net.minecraft.item.Item
  * 中子流体（Neutron）：由中子制造机产出，桶装后经压缩机合成中子碎片。
  *
  * 复用 core 的 [ModFluids.registerFluidFor] 开放 API 注册，不再独立实现 Still/Flowing 子类。
- * 1.4.0 中子流体本就借用 uu_matter 贴图，这里仍使用相同贴图名（已从 1.4.0 拷贝为 neutron_still/flow）。
+ * 贴图走 core 的「通用纹理 + tint」模式（同 construction_foam/creosote/compressed_air）：
+ * 不提供独立 PNG，客户端渲染统一引用 ic2:block/fluid/fluid_still / fluid_flow 并着色。
  */
 object NeutronFluid {
 
@@ -38,9 +39,9 @@ object NeutronFluid {
         val result = ModFluids.registerFluidFor(
             modId = IC2IndustrialUpgrade.MOD_ID,
             name = "neutron",
-            stillTex = "neutron_still",
-            flowTex = "neutron_flow",
-            tintArgb = 0xFF8B7FD4.toInt() // 淡紫色，呼应中子主题
+            stillTex = "fluid_still",
+            flowTex = "fluid_flow",
+            tintArgb = 0xFF8B7FD4.toInt() // 淡紫色，呼应中子主题（tint 同时供 GUI/JEI/单元着色查询）
         )
         NEUTRON_BLOCK = result.block
         NEUTRON_BUCKET = result.bucket

@@ -1,6 +1,7 @@
 package ic2_120_industrial_upgrade
 
 import ic2_120.client.ClientScreenRegistrar
+import ic2_120.content.fluid.ModFluids
 import ic2_120_industrial_upgrade.IC2IndustrialUpgrade
 import ic2_120_industrial_upgrade.content.fluid.NeutronFluid
 import net.fabricmc.api.ClientModInitializer
@@ -19,12 +20,18 @@ object IC2IndustrialUpgradeClient : ClientModInitializer {
         )
 
         // 2. 注册中子流体的客户端渲染（贴图 + 半透明渲染层）
-        val stillId = Identifier(IC2IndustrialUpgrade.MOD_ID, "block/fluid/neutron_still")
-        val flowId = Identifier(IC2IndustrialUpgrade.MOD_ID, "block/fluid/neutron_flow")
+        // 对齐 core 模式 B（construction_foam/creosote/compressed_air）：无独立 PNG，
+        // 引用 core 的 ic2:block/fluid/fluid_still / fluid_flow 通用纹理 + tint 着色。
+        // 避免 still/flow 两张独立渐变图在连接处出现断裂（见 NeutronFluid.kt 注释）。
+        val tint = ModFluids.getFluidTintOrNull(NeutronFluid.NEUTRON_STILL) ?: 0xFF8B7FD4.toInt()
         FluidRenderHandlerRegistry.INSTANCE.register(
             NeutronFluid.NEUTRON_STILL,
             NeutronFluid.NEUTRON_FLOWING,
-            SimpleFluidRenderHandler(stillId, flowId)
+            SimpleFluidRenderHandler(
+                Identifier("ic2", "block/fluid/fluid_still"),
+                Identifier("ic2", "block/fluid/fluid_flow"),
+                tint
+            )
         )
         BlockRenderLayerMap.INSTANCE.putFluids(
             RenderLayer.getTranslucent(),
