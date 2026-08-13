@@ -78,7 +78,8 @@ class RtHeatGeneratorBlockEntity(
         insertRoutes = (FUEL_SLOT_START..FUEL_SLOT_END).map { s ->
             ItemInsertRoute(intArrayOf(s), matcher = { isValid(s, it) }, maxPerSlot = 1)
         },
-        extractSlots = intArrayOf(0, 1, 2, 3, 4, 5),
+        // 靶丸无限耐久不消耗，仅 GUI 可取，禁止物流抽出（避免被管道静默抽空导致停机）
+        extractSlots = intArrayOf(),
         markDirty = { markDirty() }
     )
 

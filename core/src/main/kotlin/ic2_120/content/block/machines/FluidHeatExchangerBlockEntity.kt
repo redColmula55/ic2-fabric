@@ -164,7 +164,9 @@ class FluidHeatExchangerBlockEntity(
             add(ItemInsertRoute(intArrayOf(SLOT_INPUT_FILLED_CONTAINER), matcher = { isValid(SLOT_INPUT_FILLED_CONTAINER, it) }))
             add(ItemInsertRoute(intArrayOf(SLOT_OUTPUT_EMPTY_CONTAINER), matcher = { isValid(SLOT_OUTPUT_EMPTY_CONTAINER, it) }))
         },
-        extractSlots = IntArray(INVENTORY_SIZE) { it },
+        // 热传导器槽（SLOT_EXCHANGER_0..9）为永不消耗的永久配置组件，仅 GUI 可取，
+        // 不纳入物流抽出范围（避免被管道/漏斗静默抽空导致停机）；仍保留放入路由用于自动化初始化。
+        extractSlots = SLOT_UPGRADE_INDICES + SLOT_INPUT_INDICES + SLOT_OUTPUT_INDICES + intArrayOf(SLOT_OUTPUT_EMPTY_CONTAINER),
         markDirty = { markDirty() }
     )
 
