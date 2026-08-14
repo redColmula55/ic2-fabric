@@ -71,7 +71,12 @@ class SolidHeatGeneratorScreenHandler(
                     // 会与自身合并导致数量翻倍（物品复制，同 ChunkLoader bug）。
                     // 燃料槽插不进时物品留在原位，下方 count 相等检查会返回 EMPTY。
                 }
-                else -> if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, false)) return ItemStack.EMPTY
+                else -> {
+                    // 守卫：仅机器槽可落此（玩家槽已被区间检查全覆盖）。若未来条件收窄使玩家槽落入，
+                    // 直接拒绝而非向含源槽的玩家区间 insertItem（同实例自合并会复制物品）。
+                    if (index >= PLAYER_INV_START) return ItemStack.EMPTY
+                    if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, false)) return ItemStack.EMPTY
+                }
             }
             if (stackInSlot.isEmpty) slot.stack = ItemStack.EMPTY else slot.markDirty()
             if (stackInSlot.count == stack.count) return ItemStack.EMPTY

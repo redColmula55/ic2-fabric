@@ -86,7 +86,12 @@ class SolarDistillerScreenHandler(
                 )
                 if (!moved) return ItemStack.EMPTY
             }
-            else -> if (!insertItem(inSlot, PLAYER_INV_START, HOTBAR_END + 1, false)) return ItemStack.EMPTY
+            else -> {
+                // 守卫：仅机器槽可落此（玩家槽已被区间检查全覆盖）。若未来条件收窄使玩家槽落入，
+                // 直接拒绝而非向含源槽的玩家区间 insertItem（同实例自合并会复制物品）。
+                if (index >= PLAYER_INV_START) return ItemStack.EMPTY
+                if (!insertItem(inSlot, PLAYER_INV_START, HOTBAR_END + 1, false)) return ItemStack.EMPTY
+            }
         }
 
         if (inSlot.isEmpty) slot.stack = ItemStack.EMPTY else slot.markDirty()

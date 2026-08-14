@@ -49,10 +49,31 @@ class QuantumGeneratorScreenHandler(
     }
 
     /**
-     * 本 GUI 只有玩家背包槽、无机器槽位（量子发电机不存储物品），shift+左键不做任何转移。
-     * 与 core 无槽位 GUI（ChunkLoader/Steam/KineticGenerator 等）保持一致：返回 EMPTY 即 no-op。
+     * 主背包↔快捷栏互搬：源区间与目标区间互斥（主背包 [0,27) ↔ 快捷栏 [27,36)），
+     * 源槽永不落入 insertItem 目标区间，无自合并风险（与 Tank/Scanner 等同构实现一致）。
+     * 本 GUI 无机器槽位，不需要 no-op。
      */
-    override fun quickMove(player: PlayerEntity, index: Int): ItemStack = ItemStack.EMPTY
+    override fun quickMove(player: PlayerEntity, index: Int): ItemStack {
+        var stack = ItemStack.EMPTY
+        val slot = slots[index]
+        if (slot.hasStack()) {
+            val stackInSlot = slot.stack
+            stack = stackInSlot.copy()
+            when {
+                index in PLAYER_INV_START until HOTBAR_START -> {
+                    if (!insertItem(stackInSlot, HOTBAR_START, HOTBAR_END, false)) return ItemStack.EMPTY
+                }
+                index in HOTBAR_START until HOTBAR_END -> {
+                    if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_START, false)) return ItemStack.EMPTY
+                }
+            }
+            if (stackInSlot.isEmpty) slot.stack = ItemStack.EMPTY
+            else slot.markDirty()
+            if (stackInSlot.count == stack.count) return ItemStack.EMPTY
+            slot.onTakeItem(player, stackInSlot)
+        }
+        return stack
+    }
 
     override fun onButtonClick(player: PlayerEntity, id: Int): Boolean {
         if (player.world.isClient) return true

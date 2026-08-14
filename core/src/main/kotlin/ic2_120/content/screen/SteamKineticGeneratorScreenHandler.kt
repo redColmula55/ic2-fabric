@@ -68,7 +68,7 @@ class SteamKineticGeneratorScreenHandler(
                 SLOT_UPGRADE_INDEX -> {
                     if (!insertItem(s, PLAYER_INV_START, PLAYER_INV_END, true)) return ItemStack.EMPTY
                 }
-                in PLAYER_INV_START..PLAYER_INV_END -> {
+                in PLAYER_INV_START until PLAYER_INV_END -> {
                     val storage = itemStorage
                     if (storage == null) return ItemStack.EMPTY
                     if (s.item is SteamTurbine) {
@@ -79,6 +79,9 @@ class SteamKineticGeneratorScreenHandler(
                     }
                 }
                 else -> {
+                    // 守卫：仅机器槽可落此（玩家槽已被区间检查全覆盖）。若未来条件收窄使玩家槽落入，
+                    // 直接拒绝而非向含源槽的玩家区间 insertItem（同实例自合并会复制物品）。
+                    if (index >= PLAYER_INV_START) return ItemStack.EMPTY
                     if (!insertItem(s, PLAYER_INV_START, PLAYER_INV_END, false)) return ItemStack.EMPTY
                 }
             }
