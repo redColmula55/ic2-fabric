@@ -6,6 +6,7 @@ import ic2_120_advanced_solar_addon.content.command.MolecularTransformerCommand
 import ic2_120_advanced_solar_addon.content.recipe.MTRecipes
 import ic2_120.registry.ClassScanner
 import net.fabricmc.api.ModInitializer
+import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents
 import net.fabricmc.fabric.api.networking.v1.ServerPlayConnectionEvents
 import net.minecraft.util.Identifier
 import org.slf4j.LoggerFactory
@@ -33,8 +34,16 @@ object IC2AdvancedSolarAddon : ModInitializer {
             )
         )
 
-        // 初始化分子重组仪配方（从配置加载）
-        MTRecipes.init()
+        // 分子重组仪配方加载延后到 SERVER_STARTING（所有 mod 物品注册完成后）：
+        // Sinytra Connector 服务器上 core 初始化晚于本附属（Fabric "depends" 拓扑序失效，
+        // 实测启动顺序：ASA → weapons → IU → core），在 onInitialize 里加载配方时
+        // core 物品（ic2_120:tin_ingot/silver_ingot 等）尚未注册，addRecipe 的物品
+        // 解析失败被静默丢弃 → findRecipe 返回 null → 输入槽拒收（锡锭无法放入）。
+        // SERVER_STARTING 在世界加载、玩家进入之前触发，此时加载即可覆盖全部物品；
+        // loadFromConfig 幂等（先 clear 再全量重加），附属扩展配方经 reinject 重新注入。
+        ServerLifecycleEvents.SERVER_STARTING.register { _ ->
+            MTRecipes.init()
+        }
 
         // 注册命令
         MolecularTransformerCommand.register()

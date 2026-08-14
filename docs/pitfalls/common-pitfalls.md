@@ -50,3 +50,29 @@ world.getBlockState(neighborPos)
   - 若未来要修，应抽出统一 helper，明确“自动化 tick 是否允许跨 chunk 访问”，而不是只在单个升级组件里零散补判断。
 - 当前状态：
   - 本条仅记录已验证洞察与风险面，当前不修。
+
+## 3. Connector 下 Fabric `depends` 不决定初始化顺序——配方加载禁止在 onInitialize 里解析物品
+
+- 现象：
+  - 分子重组仪拒收锡锭（输入槽 `canInsert=false`，物品弹回），而配置/物品均正常；引用其他 mod 物品的配方整体静默失效。
+- 根因：
+  - README 声明主动支持 Sinytra Connector（信雅互联），但 Connector 下 Fabric `depends` 不参与初始化排序。
+  - 源码证据链（Connector 1.0.0-beta.49，与生产部署一致）：
+    1. `ConnectorModMetadataParser.createForgeMetadata()` 生成的 Forge 元数据**没有 dependencies 段**，Fabric `depends` 从未翻译成 Forge 依赖边；
+    2. Forge `ModSorter` 用 Guava 有向图做拓扑排序，无边可排 → 保持 jar 发现序（NFS readdir 序，本质任意）；
+    3. `ConnectorEarlyLoader.init()` 把 `LoadingModList.get().getMods()` 原样传入 `FabricLoaderImpl.addFmlMods()`；fork 版 loader 按该顺序追加 `mods`，不跑上游的 `ModResolver`/`ModPrioSorter`（上游有依赖优先排序，此路径完全绕过）；
+    4. `EntrypointStorage` 按插入序 invoke `main` 入口。
+  - 实测生产日志：`ic2_120_advanced_solar_addon` 17:19:37.9 初始化完成，core `ic2_120:tin_ingot` 17:19:40.3 才注册（晚 2.4 秒）。
+  - 结果：在 `onInitialize` 里用 `Registries.ITEM.get(id)` 解析物品的配方加载，解析到 `Items.AIR` 后被 AIR 检查**静默丢弃**。
+- 修复方式（本项目约定）：
+  - 配方/配置加载不得在 `onInitialize` 里做物品注册表解析。二选一：
+    1. 加载延后到 `ServerLifecycleEvents.SERVER_STARTING`（早于世界加载与玩家进入）或 `SERVER_STARTED`；
+    2. 存字符串 ID，首次查询时惰性解析并带 AIR 守卫。
+  - 丢弃配方必须 WARN 留痕，禁止静默。
+- 适用范围：
+  - 所有「配置/默认值存物品 ID、加载时解析」的系统（配方表、白名单、模板等），以及任何依赖 mod 初始化顺序的逻辑。
+- 决策记录：
+  - 评估过给 Connector 打补丁实现 depends→Forge 依赖转换（~50-80 行，但需处理 fabricloader/minecraft/java 特殊键、id 归一化、hiddenMods、循环依赖、行为收紧导致的启动失败回归），结论**不值得**，模组侧自律（本条约定）。
+- 本项目案例：
+  - `MTRecipes`：锡锭→银锭等引用 core 物品的配方被静默丢弃。已修复：`IC2AdvancedSolarAddon` 改在 `SERVER_STARTING` 调 `MTRecipes.init()`，`MTRecipes.addRecipe` 丢弃时 WARN。
+  - 已排查安全（同机机制但无此问题）：`UuCostIndex`（SERVER_STARTED 重建 + 未注册跳过日志）、`UuTemplateData`（字符串 ID + 惰性解析 + AIR 守卫）、各 BlockEntity 的 `by lazy` 物品字段、运行时 handler（扳手/割胶/掉落）、datagen provider（仅 datagen 环境）、JEI/Jade 插件（客户端运行时）。tlm-ic2-addon 与 chemical-addon 仓库无同类模式。

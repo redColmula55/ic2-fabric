@@ -5,8 +5,10 @@ import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.util.Identifier
 import net.minecraft.registry.Registries
+import org.slf4j.LoggerFactory
 
 object MTRecipes {
+    private val LOGGER = LoggerFactory.getLogger("ic2_120_advanced_solar_addon/MTRecipes")
     private val recipes = mutableListOf<MTRecipe>()
 
     /**
@@ -80,9 +82,10 @@ object MTRecipes {
      * - 存入 [extensionRecipes]，每次 [loadFromConfig]/[loadFromSync] 后自动重新注入；
      * - 默认耗电量为 [defaultEnergy]，玩家可在 ASA 配置文件中加入同 input 的条目来覆盖。
      *
-     * 建议附属在 `onInitialize` 中调用（须早于本附属首次调用 [loadFromConfig] 的重载点；
-     * ASA 的 `MTRecipes.init()` 在 ASA `onInitialize`，附属 `onInitialize` 在其后，
-     * 首次注入发生在附属调用本方法后的下一次 reinject，或调用 [reloadExtensionRecipes] 触发）。
+     * 建议附属在 `onInitialize` 中调用。ASA 的 `MTRecipes.init()` 延后到
+     * SERVER_STARTING（所有 mod 物品注册完成后），附属调用本方法时配方表可能尚未
+     * 从配置加载；首次注入发生在附属调用本方法后的下一次 reinject，或
+     * SERVER_STARTING 时 `loadFromConfig` 末尾的 reinject，二者均可保证不丢。
      *
      * @param inputId 输入物品 id（如 "ic2_120_advanced_solar_addon:iridium_ingot"）
      * @param outputId 输出物品 id
@@ -123,17 +126,29 @@ object MTRecipes {
     private fun addRecipe(inputId: String, outputId: String, energy: Long, outputCount: Int = 1) {
         val inId = Identifier.tryParse(inputId)
         val outId = Identifier.tryParse(outputId)
-        if (inId != null && outId != null) {
-            val inputItem = Registries.ITEM.get(inId)
-            val outputItem = Registries.ITEM.get(outId)
-            if (inputItem != Items.AIR && outputItem != Items.AIR && energy > 0) {
-                recipes.add(MTRecipe(
-                    input = ItemStack(inputItem),
-                    output = ItemStack(outputItem, outputCount.coerceIn(1, 64)),
-                    energy = energy
-                ))
-            }
+        if (inId == null || outId == null) {
+            LOGGER.warn("MT recipe dropped (invalid id): {} -> {}", inputId, outputId)
+            return
         }
+        val inputItem = Registries.ITEM.get(inId)
+        val outputItem = Registries.ITEM.get(outId)
+        if (inputItem == Items.AIR || outputItem == Items.AIR || energy <= 0) {
+            // 静默丢弃会表现为「物品无法放入分子重组仪」，必须留痕：
+            // 常见诱因是加载时机早于物品注册（如 Connector 服务器上 core 初始化晚于附属）。
+            LOGGER.warn(
+                "MT recipe dropped: {} -> {} (input={}, output={}, energy={}) — 物品未注册或能量非法",
+                inputId, outputId,
+                if (inputItem === Items.AIR) "AIR" else "ok",
+                if (outputItem === Items.AIR) "AIR" else "ok",
+                energy
+            )
+            return
+        }
+        recipes.add(MTRecipe(
+            input = ItemStack(inputItem),
+            output = ItemStack(outputItem, outputCount.coerceIn(1, 64)),
+            energy = energy
+        ))
     }
 
     fun findRecipe(input: ItemStack): MTRecipe? {
