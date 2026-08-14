@@ -44,20 +44,15 @@ class ChunkLoaderScreenHandler(
         }
     }
 
-    override fun quickMove(player: PlayerEntity, index: Int): ItemStack {
-        var stack = ItemStack.EMPTY
-        val slot = slots[index]
-        if (slot.hasStack()) {
-            val stackInSlot = slot.stack
-            stack = stackInSlot.copy()
-            if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, false)) return ItemStack.EMPTY
-            if (stackInSlot.isEmpty) slot.stack = ItemStack.EMPTY
-            else slot.markDirty()
-            if (stackInSlot.count == stack.count) return ItemStack.EMPTY
-            slot.onTakeItem(player, stackInSlot)
-        }
-        return stack
-    }
+    /**
+     * 本 GUI 只有玩家背包槽、没有机器物品槽位（区块加载器不存储物品），shift+左键不做任何转移。
+     *
+     * 之前这里把整个玩家背包区间 [0,36) 当作插入目标，而源槽自身也在该区间内：
+     * insertItem 合并遍历到源槽时（stack 与槽内 stack 是同一实例）会计算 newCount = count + count，
+     * 在 count ≤ 最大堆叠数/2 时直接把槽内数量翻倍——凭空复制物品。
+     * 与其它无槽位 GUI（Steam/KineticGenerator 等）保持一致：返回 EMPTY 即 no-op。
+     */
+    override fun quickMove(player: PlayerEntity, index: Int): ItemStack = ItemStack.EMPTY
 
     override fun onButtonClick(player: PlayerEntity, id: Int): Boolean {
         if (id < 0 || id >= ChunkLoaderSync.CHUNK_COUNT) return false
