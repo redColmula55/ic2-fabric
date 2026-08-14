@@ -645,8 +645,13 @@ object ClassScanner {
                     .icon(iconStackSupplier)
                     .displayName(Text.translatable("itemGroup.$modId.$name"))
                     .entries { _, collector ->
+                        // 实时读取 tabItems（不能捕获构建时快照）：Connector/Forge 环境下附属 main
+                        // 可能先于 core 的 registerWithAddons 执行，创造栏会早于附属导线注册构建；
+                        // 快照会导致后注册的导线（ic2_120:cables entrypoint 贡献）缺失。
+                        val liveEntries = (tabItems[tabEnum] ?: emptyList())
+                            .sortedWith(compareBy({ it.group }, { it.itemId.toString() }))
                         // 添加所有属于这个物品栏的物品（已按 group 排序）
-                        for (entry in entries) {
+                        for (entry in liveEntries) {
                             val item = Registries.ITEM.get(entry.itemId)
                             if (item !== net.minecraft.item.Items.AIR) {
                                 // 检查物品是否实现了 IBatteryItem 或 IElectricTool 接口
