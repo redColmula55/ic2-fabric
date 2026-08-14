@@ -86,20 +86,22 @@ class EnergyOMatScreenHandler(
             val stackInSlot = slot.stack
             stack = stackInSlot.copy()
             if (index in MACHINE_SLOT_START..MACHINE_SLOT_END) {
+                if (!slot.canTakeItems(player)) return ItemStack.EMPTY
                 if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                 slot.onQuickTransfer(stackInSlot, stack)
             } else {
                 if (!insertItem(stackInSlot, SLOT_INPUT_INDEX, SLOT_INPUT_INDEX + 1, false)) {
                     if (isOwner) {
                         if (!insertItem(stackInSlot, SLOT_DEMAND_INDEX, SLOT_DEMAND_INDEX + 1, false) &&
-                            !insertItem(stackInSlot, SLOT_UPGRADE_INDEX, SLOT_UPGRADE_INDEX + 1, false) &&
-                            !insertItem(stackInSlot, SLOT_CHARGE_INDEX, SLOT_CHARGE_INDEX + 1, false)) {
-                            if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, false)) return ItemStack.EMPTY
+                            !insertItem(stackInSlot, SLOT_UPGRADE_INDEX, SLOT_UPGRADE_INDEX + 1, false)) {
+                            insertItem(stackInSlot, SLOT_CHARGE_INDEX, SLOT_CHARGE_INDEX + 1, false)
                         }
                     } else {
-                        if (!insertItem(stackInSlot, SLOT_CHARGE_INDEX, SLOT_CHARGE_INDEX + 1, false) &&
-                            !insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, false)) return ItemStack.EMPTY
+                        insertItem(stackInSlot, SLOT_CHARGE_INDEX, SLOT_CHARGE_INDEX + 1, false)
                     }
+                    // 原兜底：向玩家背包区间 insertItem 已删除——目标区间含源槽自身，
+                    // 会与自身合并导致数量翻倍（物品复制，同 ChunkLoader bug）。
+                    // 机器槽全插不进时物品留在原位，下方 count 相等检查会返回 EMPTY。
                 }
             }
             if (stackInSlot.isEmpty) slot.stack = ItemStack.EMPTY
@@ -137,7 +139,7 @@ class EnergyOMatScreenHandler(
         const val MACHINE_SLOT_START = 0
         const val MACHINE_SLOT_END = 3
         const val PLAYER_INV_START = 4
-        const val HOTBAR_END = 39
+        const val HOTBAR_END = 40
 
         const val BUTTON_OFFER_DOWN_BIG = 0
         const val BUTTON_OFFER_DOWN_MID = 1

@@ -80,7 +80,7 @@ class GeneratorScreenHandler(
                 // 电池槽 -> 玩家物品栏
                 index == SLOT_BATTERY_INDEX -> if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                 // 玩家物品栏 -> 机器（路由驱动）
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage ?: return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(stackInSlot, storage, storage.insertRoutes, beSlotToHandlerIndex, slots)
                     if (!moved) return ItemStack.EMPTY
@@ -106,7 +106,7 @@ class GeneratorScreenHandler(
         const val SLOT_FUEL_INDEX = 0
         const val SLOT_BATTERY_INDEX = 1
         const val PLAYER_INV_START = 2
-        const val HOTBAR_END = 37
+        const val HOTBAR_END = 38
         const val SLOT_SIZE = 18
 
         private val SLOT_SPEC_FALLBACK_FUEL = SlotSpec(

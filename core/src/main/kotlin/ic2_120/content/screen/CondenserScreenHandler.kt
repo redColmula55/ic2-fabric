@@ -79,7 +79,7 @@ class CondenserScreenHandler(
                 if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                 slot.onQuickTransfer(stackInSlot, stack)
             }
-            index in PLAYER_INV_START..HOTBAR_END -> {
+            index in PLAYER_INV_START until HOTBAR_END -> {
                 val storage = itemStorage
                 if (storage == null) return ItemStack.EMPTY
                 val moved = SlotMoveHelper.insertFromRoutes(
@@ -115,7 +115,7 @@ class CondenserScreenHandler(
         const val WATER_IN_X = 26; const val WATER_IN_Y = 72
         const val WATER_OUT_X = 134; const val WATER_OUT_Y = 72
         const val PLAYER_INV_START = 8
-        const val HOTBAR_END = 43
+        const val HOTBAR_END = 44
         const val PLAYER_INV_X = 8
         const val PLAYER_INV_Y = 101
         const val HOTBAR_Y = 159

@@ -116,7 +116,7 @@ class SolidCannerScreenHandler(
         const val SLOT_UPGRADE_INDEX_START = 4
         const val SLOT_UPGRADE_INDEX_END = 7
         const val PLAYER_INV_START = 8
-        const val HOTBAR_END = 43
+        const val HOTBAR_END = 44
 
     }
 }

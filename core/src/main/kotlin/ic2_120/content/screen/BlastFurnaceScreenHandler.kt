@@ -78,7 +78,7 @@ class BlastFurnaceScreenHandler(
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage ?: return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(stackInSlot, storage, storage.insertRoutes, beSlotToHandlerIndex, slots)
                     if (!moved) return ItemStack.EMPTY
@@ -115,7 +115,7 @@ class BlastFurnaceScreenHandler(
         const val SLOT_UPGRADE_INDEX_START = 5
         const val SLOT_UPGRADE_INDEX_END = 6
         const val PLAYER_INV_START = 7
-        const val HOTBAR_END = 42
+        const val HOTBAR_END = 43
 
     }
 }

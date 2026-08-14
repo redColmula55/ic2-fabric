@@ -94,7 +94,7 @@ class UuScannerScreenHandler(
                 index in SLOT_INPUT_INDEX..SLOT_CRYSTAL_INDEX -> {
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                 }
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage ?: return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(
                         stackInSlot, storage, storage.insertRoutes, beSlotToHandlerIndex, slots)

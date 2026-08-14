@@ -87,7 +87,7 @@ class IronFurnaceScreenHandler(
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage ?: return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(stackInSlot, storage, storage.insertRoutes, beSlotToHandlerIndex, slots)
                     if (!moved) return ItemStack.EMPTY
@@ -111,7 +111,7 @@ class IronFurnaceScreenHandler(
 
     companion object {
         const val PLAYER_INV_START = 3
-        const val HOTBAR_END = 38
+        const val HOTBAR_END = 39
         const val SLOT_SIZE = 18
         const val BUTTON_ID_COLLECT_XP = 0
 

@@ -96,8 +96,8 @@ class NeutronFabricatorScreenHandler(
             }
             // 容器输入槽（BlockEntity slot 4）：125, 23
             addSlot(PredicateSlot(blockInventory, NeutronFabricatorBlockEntity.SLOT_CONTAINER_INPUT, CONTAINER_INPUT_X, CONTAINER_INPUT_Y, containerInputSpec))
-            // 容器输出槽（BlockEntity slot 5）：125, 59
-            addSlot(PredicateSlot(blockInventory, NeutronFabricatorBlockEntity.SLOT_CONTAINER_OUTPUT, CONTAINER_INPUT_X, CONTAINER_OUTPUT_Y, SlotSpec()))
+            // 容器输出槽（BlockEntity slot 5）：125, 59 —— 禁物流插入（仅配方产物落槽），否则 shift+左键可污染输出
+            addSlot(PredicateSlot(blockInventory, NeutronFabricatorBlockEntity.SLOT_CONTAINER_OUTPUT, CONTAINER_INPUT_X, CONTAINER_OUTPUT_Y, SlotSpec(canInsert = { false })))
         }
         // 玩家背包（3×9）
         for (row in 0 until 3) {

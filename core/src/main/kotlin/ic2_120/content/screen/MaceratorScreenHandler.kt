@@ -88,7 +88,7 @@ class MaceratorScreenHandler(
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
                 // 玩家物品栏 → 机器（通过 RoutedItemStorage 路由）
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage
                     if (storage == null) return ItemStack.EMPTY // 客户端不应走到这里
                     val moved = SlotMoveHelper.insertFromRoutes(

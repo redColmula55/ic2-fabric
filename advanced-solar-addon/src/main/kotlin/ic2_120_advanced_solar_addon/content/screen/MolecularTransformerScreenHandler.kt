@@ -90,7 +90,7 @@ class MolecularTransformerScreenHandler(
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
                 // Player inventory -> machine (via RoutedItemStorage routes)
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage
                     if (storage == null) return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(

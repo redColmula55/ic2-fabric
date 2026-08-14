@@ -83,7 +83,7 @@ class FluidHeatGeneratorScreenHandler(
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage
                     if (storage == null) return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(
@@ -116,7 +116,7 @@ class FluidHeatGeneratorScreenHandler(
         const val SLOT_UPGRADE_START = 2
         const val SLOT_UPGRADE_END = 5
         const val UPGRADE_END = 5
-        const val HOTBAR_END = 41
+        const val HOTBAR_END = 42
 
     }
 }

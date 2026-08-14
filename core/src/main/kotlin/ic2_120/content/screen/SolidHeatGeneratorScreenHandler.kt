@@ -65,9 +65,11 @@ class SolidHeatGeneratorScreenHandler(
                 index == SolidHeatGeneratorBlockEntity.SLOT_OUTPUT -> {
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                 }
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     if (FUEL_SLOT_SPEC.canInsert(stackInSlot) && insertItem(stackInSlot, 0, 1, false)) return stack
-                    if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, false)) return ItemStack.EMPTY
+                    // 原兜底：向玩家背包区间 insertItem 已删除——目标区间含源槽自身，
+                    // 会与自身合并导致数量翻倍（物品复制，同 ChunkLoader bug）。
+                    // 燃料槽插不进时物品留在原位，下方 count 相等检查会返回 EMPTY。
                 }
                 else -> if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, false)) return ItemStack.EMPTY
             }
@@ -86,7 +88,7 @@ class SolidHeatGeneratorScreenHandler(
 
     companion object {
         const val PLAYER_INV_START = 2
-        const val HOTBAR_END = 37
+        const val HOTBAR_END = 38
 
         private val FUEL_SLOT_SPEC = SlotSpec(canInsert = { stack ->
             !stack.isEmpty && (FuelRegistry.INSTANCE.get(stack.item) ?: 0) > 0

@@ -102,7 +102,7 @@ class SemifluidGeneratorScreenHandler(
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
                 else -> {
-                    if (index in PLAYER_INV_START..HOTBAR_END) {
+                    if (index in PLAYER_INV_START until HOTBAR_END) {
                         // 玩家物品栏 -> 机器
                         val storage = itemStorage ?: return ItemStack.EMPTY
                         val moved = SlotMoveHelper.insertFromRoutes(stackInSlot, storage, storage.insertRoutes, beSlotToHandlerIndex, slots)

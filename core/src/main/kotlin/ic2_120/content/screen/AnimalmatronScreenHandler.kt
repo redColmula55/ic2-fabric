@@ -82,7 +82,7 @@ class AnimalmatronScreenHandler(
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage
                     if (storage == null) return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(
@@ -125,7 +125,7 @@ class AnimalmatronScreenHandler(
         const val SLOT_HARVEST_OUTPUT_INDEX = 14
 
         const val PLAYER_INV_START = 15
-        const val HOTBAR_END = 50
+        const val HOTBAR_END = 51
 
     }
 }

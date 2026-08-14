@@ -84,7 +84,7 @@ class ElectricHeatGeneratorScreenHandler(
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage
                     if (storage == null) return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(
@@ -115,7 +115,7 @@ class ElectricHeatGeneratorScreenHandler(
 
         const val SLOT_DISCHARGING_INDEX = ElectricHeatGeneratorBlockEntity.SLOT_DISCHARGING
         const val PLAYER_INV_START = ElectricHeatGeneratorBlockEntity.SLOT_COUNT
-        const val HOTBAR_END = PLAYER_INV_START + 35
+        const val HOTBAR_END = PLAYER_INV_START + 36
 
     }
 }

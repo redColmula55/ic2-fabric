@@ -74,7 +74,7 @@ class CropHarvesterScreenHandler(
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                     slot.onQuickTransfer(stackInSlot, stack)
                 }
-                index in PLAYER_INV_START..HOTBAR_END -> {
+                index in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage
                     if (storage == null) return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(
@@ -110,7 +110,7 @@ class CropHarvesterScreenHandler(
         const val SLOT_DISCHARGING_INDEX = 19
 
         const val PLAYER_INV_START = 20
-        const val HOTBAR_END = 55
+        const val HOTBAR_END = 56
 
     }
 }

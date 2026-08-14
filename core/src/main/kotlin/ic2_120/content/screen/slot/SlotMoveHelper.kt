@@ -47,6 +47,9 @@ object SlotMoveHelper {
 
     private fun insertFromRoute(stack: ItemStack, slot: Slot, maxPerSlot: Int?): Boolean {
         val slotStack = slot.stack
+        // 源槽守卫：目标槽即源槽（stack 与槽内 stack 同实例）时拒绝——
+        // 否则 increment/decrement 同实例互相抵消却假报成功；同实例合并也是历史复制 bug 的根因。
+        if (slotStack === stack) return false
         val effectiveLimit = maxPerSlot ?: slot.maxItemCount
         val slotLimit = effectiveLimit
         if (slotLimit <= 0) return false

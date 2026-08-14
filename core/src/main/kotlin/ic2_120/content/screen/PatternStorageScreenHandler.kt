@@ -83,7 +83,7 @@ class PatternStorageScreenHandler(
                 SLOT_CRYSTAL_INDEX -> {
                     if (!insertItem(stackInSlot, PLAYER_INV_START, HOTBAR_END, true)) return ItemStack.EMPTY
                 }
-                in PLAYER_INV_START..HOTBAR_END -> {
+                in PLAYER_INV_START until HOTBAR_END -> {
                     val storage = itemStorage ?: return ItemStack.EMPTY
                     val moved = SlotMoveHelper.insertFromRoutes(
                         stackInSlot,

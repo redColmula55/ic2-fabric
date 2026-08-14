@@ -57,3 +57,6 @@ node_modules/
 r
 .playwright-cli/
 .zcode/
+
+# 构建产物（build.sh 输出）
+dist/
