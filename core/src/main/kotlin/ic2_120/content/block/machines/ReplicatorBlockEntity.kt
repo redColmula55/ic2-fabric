@@ -381,7 +381,9 @@ class ReplicatorBlockEntity(
         // 进度 609 封顶 540、浪费 69 uB，却仍按 7 tick 扣 49.33 droplets，0.54B 只得 ~887 锭）。
         val creditedUb = minOf(ubPerTick, (template.uuCostUb - sync.progressUb).coerceAtLeast(1))
         val (dropletsPerTick, nextRemainder) = previewDropletsForTick(creditedUb)
-        if (dropletsPerTick > 0L && tankInternal.getStoredAmount() < dropletsPerTick) {
+        // 空罐（tank≤0）直接停机：droplets==0 的 tick 会免扣费照涨进度（余数进位），
+        // 配合取消按钮重置余数可无限重置“免费泵”——在取消态点单次启动即可零 UU 白嫖成品。
+        if (tankInternal.getStoredAmount() <= 0L || (dropletsPerTick > 0L && tankInternal.getStoredAmount() < dropletsPerTick)) {
             sync.status = ReplicatorSync.STATUS_NO_FLUID
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
