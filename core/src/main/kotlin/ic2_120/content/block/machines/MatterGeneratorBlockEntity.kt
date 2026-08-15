@@ -429,7 +429,13 @@ class MatterGeneratorBlockEntity(
         if (isScrapBox(scrapStack)) {
             // 废料盒不可拆分：缺口不足一整盒时不消耗，顺延到后续 tick，避免浪费
             if (units < SCRAP_UNITS_PER_BOX) return 0
-            setStack(SLOT_SCRAP, ItemStack.EMPTY)
+            // 只消耗一整盒（=9 等价量），槽内其余盒子保留，绝不能整组清空
+            scrapStack.decrement(1)
+            if (scrapStack.isEmpty) {
+                setStack(SLOT_SCRAP, ItemStack.EMPTY)
+            } else {
+                markDirty()
+            }
             return SCRAP_UNITS_PER_BOX
         }
 
