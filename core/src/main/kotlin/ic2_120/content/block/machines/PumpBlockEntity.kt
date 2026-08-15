@@ -1,6 +1,7 @@
 package ic2_120.content.block.machines
 
 import ic2_120.Ic2_120
+import kotlin.math.ceil
 import ic2_120.content.sound.MachineSoundConfig
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.block.IClaimSensitive
@@ -108,6 +109,12 @@ class PumpBlockEntity(
     override var energyMultiplier: Float = 1f
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
+
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
 
     companion object {
         const val PUMP_TIER = 1
@@ -252,6 +259,12 @@ class PumpBlockEntity(
         sync.amount = nbt.getLong(PumpSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, PumpSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, PumpSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         tankInternal.setStored(nbt.getString(NBT_TANK_FLUID), nbt.getLong(NBT_TANK_AMOUNT))
     }
 
@@ -260,8 +273,19 @@ class PumpBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(PumpSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putLong(NBT_TANK_AMOUNT, tankInternal.amount)
         nbt.putString(NBT_TANK_FLUID, if (tankInternal.variant.isBlank) "" else Registries.FLUID.getId(tankInternal.variant.fluid).toString())
+    }
+
+    /** 重置全部进度状态（无法抽取/停泵时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -283,26 +307,32 @@ class PumpBlockEntity(
         fillFluidCellFromTank()
 
         var pumping = false
-        val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-        val energyNeed = (PumpSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+        energyDebtF += PumpSync.ENERGY_PER_TICK * energyMultiplier
+        val energyNeed = energyDebtF.toLong().coerceAtLeast(1L)
 
         val spaceLeft = tankInternal.capacity - tankInternal.amount
         val canPump = sync.amount >= energyNeed && spaceLeft >= FluidConstants.BUCKET && hasPumpableFluid(world, pos, state)
 
         if (canPump) {
             if (sync.consumeEnergy(energyNeed) > 0L) {
+                energyDebtF -= energyNeed
                 sync.energy = sync.amount.toInt().coerceAtLeast(0)
-                sync.progress = (sync.progress + progressIncrement).coerceAtMost(PumpSync.PROGRESS_MAX)
+                // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+                progressF = (progressF + speedMultiplier).coerceAtMost(PumpSync.PROGRESS_MAX.toFloat())
+                sync.progress = progressF.toInt()
                 pumping = true
 
-                if (sync.progress >= PumpSync.PROGRESS_MAX) {
+                if (progressF >= PumpSync.PROGRESS_MAX) {
                     tryPumpOneBucket(world, pos, state)
+                    progressF = 0f
+                    energyDebtF = 0f
                     sync.progress = 0
                 }
                 markDirty()
             }
         } else {
-            sync.progress = 0
+            resetProgress()
         }
 
         if (fluidPipeProviderEnabled) {
@@ -314,7 +344,8 @@ class PumpBlockEntity(
     }
 
     private fun tryPumpOneBucket(world: World, pos: BlockPos, state: BlockState): Boolean {
-        val euNeed = (PumpSync.ENERGY_PER_TICK * PumpSync.PROGRESS_MAX * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 单桶操作费：整桶成本向上取整（1.6^n 小数部分不再漏收）
+        val euNeed = ceil(PumpSync.ENERGY_PER_TICK * PumpSync.PROGRESS_MAX * energyMultiplier).toLong().coerceAtLeast(1L)
         if (sync.amount < euNeed) return false
 
         val spaceLeft = tankInternal.capacity - tankInternal.amount

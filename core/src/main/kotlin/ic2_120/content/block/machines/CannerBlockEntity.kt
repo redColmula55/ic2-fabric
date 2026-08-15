@@ -109,6 +109,12 @@ class CannerBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val SLOT_INPUT = 0      // 左液槽顶部（通用输入：满容器/空容器/锡罐/空燃料棒）
         const val SLOT_MATERIAL = 1    // 中间槽（固体材料/泡沫喷枪/Cf背包）
@@ -319,6 +325,12 @@ class CannerBlockEntity(
         sync.amount = nbt.getLong(CannerSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, CannerSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, CannerSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         leftTankInternal.amount = nbt.getLong(NBT_LEFT_FLUID_AMOUNT).coerceIn(0L, TANK_CAPACITY)
         val leftFluidTag = nbt.getCompound(NBT_LEFT_FLUID_VARIANT)
         leftTankInternal.variant = if (leftFluidTag.isEmpty) FluidVariant.blank() else FluidVariant.fromNbt(leftFluidTag)
@@ -338,6 +350,8 @@ class CannerBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(CannerSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putLong(NBT_LEFT_FLUID_AMOUNT, leftTankInternal.amount)
         if (!leftTankInternal.variant.isBlank) nbt.put(NBT_LEFT_FLUID_VARIANT, leftTankInternal.variant.toNbt())
         nbt.putLong(NBT_RIGHT_FLUID_AMOUNT, rightTankInternal.amount)
@@ -346,6 +360,15 @@ class CannerBlockEntity(
 
     private fun getFluidStorageForSide(side: Direction?): Storage<FluidVariant>? {
         return CombinedStorage(listOf(leftTankInputOnly, rightTankOutputOnly))
+    }
+
+    /** 重置全部进度状态（操作不可用/模式切换/换罐时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -378,22 +401,30 @@ class CannerBlockEntity(
         }
 
         if (operating) {
-            val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-            val need = (CannerSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+            // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+            energyDebtF += CannerSync.ENERGY_PER_TICK * energyMultiplier
+            val need = energyDebtF.toLong().coerceAtLeast(1L)
             if (sync.consumeEnergy(need) > 0L) {
+                energyDebtF -= need
                 sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-                sync.progress = (sync.progress + progressIncrement).coerceAtMost(CannerSync.PROGRESS_MAX)
-                if (sync.progress >= CannerSync.PROGRESS_MAX) {
+                // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+                progressF = (progressF + speedMultiplier).coerceAtMost(CannerSync.PROGRESS_MAX.toFloat())
+                sync.progress = progressF.toInt()
+                if (progressF >= CannerSync.PROGRESS_MAX) {
                     completeCurrentOperationByMode()
+                    progressF = 0f
+                    energyDebtF = 0f
                     sync.progress = 0
                 }
                 markDirty()
                 setActiveState(world, pos, state, true)
             } else {
+                // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+                energyDebtF = 0f
                 setActiveState(world, pos, state, false)
             }
         } else {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
         }
 
@@ -402,7 +433,7 @@ class CannerBlockEntity(
 
     fun cycleMode() {
         sync.cycleMode()
-        sync.progress = 0
+        resetProgress()
         markDirty()
     }
 
@@ -435,7 +466,7 @@ class CannerBlockEntity(
         sync.leftFluidRawId = if (leftTankInternal.variant.isBlank) -1 else Registries.FLUID.getRawId(leftTankInternal.variant.fluid)
         sync.rightFluidAmount = rightTankInternal.amount.toInt().coerceAtLeast(0)
         sync.rightFluidRawId = if (rightTankInternal.variant.isBlank) -1 else Registries.FLUID.getRawId(rightTankInternal.variant.fluid)
-        sync.progress = 0
+        resetProgress()
         markDirty()
         return beforeLeft != leftTankInternal.amount ||
             beforeRight != rightTankInternal.amount ||

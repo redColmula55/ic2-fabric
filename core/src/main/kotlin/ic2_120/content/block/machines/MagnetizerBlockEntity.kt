@@ -69,6 +69,9 @@ class MagnetizerBlockEntity(
     override var voltageTierBonus: Int = 0
     override var redstoneInverted: Boolean = false
 
+    /** 浮点耗能债务：整次脉冲成本 × 1.6^n 分摊 20 tick，小数余数跨 tick 结转。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val SLOT_DISCHARGING = 0
         const val SLOT_UPGRADE_0 = 1
@@ -211,6 +214,7 @@ class MagnetizerBlockEntity(
         sync.amount = nbt.getLong(MagnetizerSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         redstoneInverted = nbt.getBoolean("RedstoneInverted")
         sync.pulseCooldown = nbt.getInt("PulseCooldown").coerceAtLeast(0)
         sync.pulseTicksRemaining = nbt.getInt("PulseTicksRemaining").coerceAtLeast(0)
@@ -221,6 +225,7 @@ class MagnetizerBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(MagnetizerSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putBoolean("RedstoneInverted", redstoneInverted)
         nbt.putInt("PulseCooldown", sync.pulseCooldown)
         nbt.putInt("PulseTicksRemaining", sync.pulseTicksRemaining)
@@ -260,14 +265,20 @@ class MagnetizerBlockEntity(
 
         val reachHeight = computeReachHeight(pos.up(), fences)
         val magnetizeCost = MagnetizerSync.ENERGY_PER_PULSE_BASE + MagnetizerSync.ENERGY_PER_HEIGHT * reachHeight.toLong()
-        val perTickCost = ((magnetizeCost * energyMultiplier).toLong().coerceAtLeast(1L) / 20L).coerceAtLeast(1L)
+        // 浮点耗能记账：整次脉冲成本 × 1.6^n 分摊 20 tick，小数余数跨 tick 结转
+        // （避免原 (cost×1.6^n).toLong()/20 双重取整导致每 tick 欠收锯齿）
+        energyDebtF += magnetizeCost * energyMultiplier / 20f
+        val perTickCost = energyDebtF.toLong().coerceAtLeast(1L)
         val active = sync.consumeEnergy(perTickCost) > 0L
         if (active) {
+            energyDebtF -= perTickCost
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
             sync.pulseTicksRemaining = 1
             applyMagneticLift(world, fences)
             markDirty()
         } else {
+            // 停顿期间不累计债务：防恢复供电后 perTickCost 超容量 all-or-nothing 卡死
+            energyDebtF = 0f
             sync.pulseTicksRemaining = 0
         }
 

@@ -20,7 +20,7 @@ The Animal-Matron is an automated livestock caretaker. It tracks managed animals
 - **Input**: 32 EU/t before transformer upgrades
 - **Water Tank**: 8 buckets
 - **Weed-Ex Tank**: 8 buckets
-- **Energy drain**: 1 EU/t per currently managed animal
+- **Energy drain**: 2 EU/t while animals are being managed (each Overclocker Upgrade multiplies the drain by 1.6)
 - **Scan interval**: once per second before overclockers
 
 ## Slots and Supplies

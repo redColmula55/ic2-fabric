@@ -2,6 +2,7 @@
 
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.block.TeleporterBlock
+import kotlin.math.ceil
 import net.fabricmc.fabric.api.transfer.v1.transaction.Transaction
 import team.reborn.energy.api.EnergyStorage
 import ic2_120.content.screen.TeleporterScreenHandler
@@ -352,7 +353,8 @@ class TeleporterBlockEntity(
 
         val distance = sqrt(pos.getSquaredDistance(target)).toLong().coerceAtLeast(1L)
         val weight = computeWeight(entity).coerceAtMost(5100)
-        val energyNeed = computeEnergyNeed(weight, distance)
+        // 传送耗能按超频 1.6^n 计（向上取整，整数 EU）
+        val energyNeed = ceil(computeEnergyNeed(weight, distance) * energyMultiplier).toLong().coerceAtLeast(1L)
         val availableMfe = simulateAdjacentMfeEnergy(world, pos)
         if (availableMfe < energyNeed) {
             clearCharging()
@@ -408,7 +410,9 @@ class TeleporterBlockEntity(
         chargingTargetPos = target.toImmutable()
         chargingEnergyNeed = energyNeed
         chargeTicksElapsed = 0
-        chargeTicksMax = ((40 + distance / 20L) / speedMultiplier.coerceAtLeast(1f)).toInt().coerceIn(40, 120)
+        // 充能时间：浮点除法 + 向上取整（原 (40 + distance/20L) 整数除法 + toInt 截断会漏掉超频效果）；
+        // [40,120] 下限为设计：超频再快，单次充能也不低于 40 tick（指南书已声明）。
+        chargeTicksMax = ceil((40 + distance / 20.0) / speedMultiplier.coerceAtLeast(1f)).toInt().coerceIn(40, 120)
         sync.charging = 1
         sync.chargeProgress = 0
         sync.chargeMax = chargeTicksMax

@@ -76,6 +76,12 @@ class MaceratorBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val MACERATOR_TIER = 1
         const val SLOT_INPUT = 0
@@ -171,6 +177,12 @@ class MaceratorBlockEntity(
         sync.amount = nbt.getLong(MaceratorSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, MaceratorSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, MaceratorSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
     }
 
     override fun writeNbt(nbt: NbtCompound) {
@@ -178,6 +190,17 @@ class MaceratorBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(MaceratorSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
+    }
+
+    /** 重置全部进度状态（输入空/无配方/输出堵时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -199,14 +222,14 @@ class MaceratorBlockEntity(
 
         val input = getStack(SLOT_INPUT)
         if (input.isEmpty()) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             sync.syncCurrentTickFlow()
             return
         }
 
         val recipe = maceratorRecipeFor(input, world)
         if (recipe == null) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             sync.syncCurrentTickFlow()
             return
         }
@@ -218,15 +241,17 @@ class MaceratorBlockEntity(
             (ItemStack.areItemsEqual(outputSlot, result) && outputSlot.count + result.count <= maxStack)
 
         if (input.count < inputCount || !canAccept) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             sync.syncCurrentTickFlow()
             return
         }
 
-        if (sync.progress >= MaceratorSync.PROGRESS_MAX) {
+        if (progressF >= MaceratorSync.PROGRESS_MAX) {
             input.decrement(inputCount)
             if (outputSlot.isEmpty()) setStack(SLOT_OUTPUT, result.copy())
             else outputSlot.increment(result.count)
+            progressF = 0f
+            energyDebtF = 0f
             sync.progress = 0
             setActiveState(world, pos, state, false)
             markDirtyThrottled()
@@ -234,11 +259,15 @@ class MaceratorBlockEntity(
             return
         }
 
-        val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-        val need = (MaceratorSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+        energyDebtF += MaceratorSync.ENERGY_PER_TICK * energyMultiplier
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-            sync.progress = (sync.progress + progressIncrement).coerceAtMost(MaceratorSync.PROGRESS_MAX)
+            // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+            progressF = (progressF + speedMultiplier).coerceAtMost(MaceratorSync.PROGRESS_MAX.toFloat())
+            sync.progress = progressF.toInt()
             markDirtyThrottled()
         }
 

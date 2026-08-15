@@ -79,6 +79,12 @@ class SolidCannerBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val SOLID_CANNER_TIER = 1
         const val SLOT_TIN_CAN = 0
@@ -177,6 +183,12 @@ class SolidCannerBlockEntity(
         sync.amount = nbt.getLong(SolidCannerSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, SolidCannerSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, SolidCannerSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
     }
 
     override fun writeNbt(nbt: NbtCompound) {
@@ -184,6 +196,17 @@ class SolidCannerBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(SolidCannerSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
+    }
+
+    /** 重置全部进度状态（输入空/无配方/输出堵时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -203,7 +226,7 @@ class SolidCannerBlockEntity(
         val tinCan = getStack(SLOT_TIN_CAN)
         val food = getStack(SLOT_FOOD)
         if (tinCan.isEmpty || food.isEmpty) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -228,14 +251,14 @@ class SolidCannerBlockEntity(
             slot0InputCount = canCount
             slot1InputCount = 1
         } else {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
         if (tinCan.count < slot0InputCount || food.count < slot1InputCount) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -247,17 +270,19 @@ class SolidCannerBlockEntity(
             (ItemStack.areItemsEqual(outputSlot, result) && outputSlot.count + result.count <= maxStack)
 
         if (!canAccept) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
-        if (sync.progress >= SolidCannerSync.PROGRESS_MAX) {
+        if (progressF >= SolidCannerSync.PROGRESS_MAX) {
             tinCan.decrement(slot0InputCount)
             food.decrement(slot1InputCount)
             if (outputSlot.isEmpty()) setStack(SLOT_OUTPUT, result.copy())
             else outputSlot.increment(result.count)
+            progressF = 0f
+            energyDebtF = 0f
             sync.progress = 0
             markDirty()
             setActiveState(world, pos, state, false)
@@ -265,14 +290,20 @@ class SolidCannerBlockEntity(
             return
         }
 
-        val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-        val need = (SolidCannerSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+        energyDebtF += SolidCannerSync.ENERGY_PER_TICK * energyMultiplier
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-            sync.progress = (sync.progress + progressIncrement).coerceAtMost(SolidCannerSync.PROGRESS_MAX)
+            // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+            progressF = (progressF + speedMultiplier).coerceAtMost(SolidCannerSync.PROGRESS_MAX.toFloat())
+            sync.progress = progressF.toInt()
             markDirty()
             setActiveState(world, pos, state, true)
         } else {
+            // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+            energyDebtF = 0f
             setActiveState(world, pos, state, false)
         }
         sync.syncCurrentTickFlow()

@@ -98,6 +98,9 @@ class CropmatronBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点耗能债务：1.6^n 的小数余数跨次结转（扫描费/施加费按次收取，无进度概念）。 */
+    private var energyDebtF = 0f
+
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
     @RegisterItemStorage
     val itemStorage = RoutedItemStorage(
@@ -367,6 +370,7 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
         sync.amount = nbt.getLong(CropmatronSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
 
         waterTankInternal.setStoredFluid(nbt.getLong(NBT_WATER_MB).coerceIn(0, waterTankCapacity))
         weedExTankInternal.setStoredFluid(nbt.getLong(NBT_WEED_EX_MB).coerceIn(0, weedExTankCapacity))
@@ -378,6 +382,7 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(CropmatronSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putLong(NBT_WATER_MB, waterTankInternal.amount)
         nbt.putLong(NBT_WEED_EX_MB, weedExTankInternal.amount)
         nbt.putInt(NBT_WORK_OFFSET, workOffset)
@@ -426,24 +431,22 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
     private fun runScan(world: World): ScanReport {
         val report = ScanReport()
         val basePos = this.pos
-        val scanEnergyCost = (ENERGY_PER_SCAN * energyMultiplier).toLong().coerceAtLeast(1L)
-        val applyEnergyCost = (ENERGY_PER_APPLY * energyMultiplier).toLong().coerceAtLeast(1L)
 
         for (dx in -SCAN_RADIUS..SCAN_RADIUS) {
             for (dz in -SCAN_RADIUS..SCAN_RADIUS) {
-                if (sync.amount < scanEnergyCost) return report
-                sync.consumeEnergy(scanEnergyCost)
+                // 扫描费：1.6^n 浮点记账，余数跨次结转（ENERGY_PER_SCAN=1 时避免 1.6→1 漏收）
+                if (chargeEnergy(ENERGY_PER_SCAN * energyMultiplier) <= 0L) return report
 
                 // 监管机作用在"作物层"（与机器同 Y）；耕地在作物层下方一格。
                 val cropPos = basePos.add(dx, 0, dz)
                 val be = world.getBlockEntity(cropPos)
                 if (be is CropCareTarget) {
                     report.touched++
-                    tryApplyFertilizer(be, applyEnergyCost, report)
-                    tryApplyHydration(be, applyEnergyCost, report)
-                    tryApplyWeedEx(be, applyEnergyCost, report)
-                } else if (waterTankInternal.amount > 0 && sync.amount >= applyEnergyCost && tryHydrateFarmland(world, cropPos.down())) {
-                    if (sync.consumeEnergy(applyEnergyCost) > 0L) {
+                    tryApplyFertilizer(be, report)
+                    tryApplyHydration(be, report)
+                    tryApplyWeedEx(be, report)
+                } else if (waterTankInternal.amount > 0 && tryHydrateFarmland(world, cropPos.down())) {
+                    if (chargeEnergy(ENERGY_PER_APPLY * energyMultiplier) > 0L) {
                         report.farmlandHydrated++
                     }
                 }
@@ -453,13 +456,27 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
         return report
     }
 
-    private fun tryApplyFertilizer(target: CropCareTarget, applyEnergyCost: Long, report: ScanReport) {
-        if (sync.amount < applyEnergyCost) return
+    /**
+     * 浮点耗能：把 1.6^n 的费用计入债务，消费整数部分、余数结转。
+     * 能量不足返回 0（并清零债务，防恢复供电后累计债务超容量卡死）。
+     */
+    private fun chargeEnergy(costF: Float): Long {
+        energyDebtF += costF
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
+        if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
+            return need
+        }
+        energyDebtF = 0f
+        return 0L
+    }
+
+    private fun tryApplyFertilizer(target: CropCareTarget, report: ScanReport) {
         if (!hasFertilizer()) return
         if (target.applyFertilizer(1, simulate = true) <= 0) return
 
         if (!consumeOneFertilizer()) return
-        if (sync.consumeEnergy(applyEnergyCost) <= 0L) {
+        if (chargeEnergy(ENERGY_PER_APPLY * energyMultiplier) <= 0L) {
             refundOneFertilizer()
             return
         }
@@ -472,8 +489,7 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
         }
     }
 
-    private fun tryApplyHydration(target: CropCareTarget, applyEnergyCost: Long, report: ScanReport) {
-        if (sync.amount < applyEnergyCost) return
+    private fun tryApplyHydration(target: CropCareTarget, report: ScanReport) {
         val waterDroplets = waterTankInternal.getStoredWater().toInt()
         if (waterDroplets <= 0) return
 
@@ -481,15 +497,14 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
         val simulated = target.applyHydration(request, simulate = true)
         if (simulated <= 0) return
 
-        if (sync.consumeEnergy(applyEnergyCost) <= 0L) return
+        if (chargeEnergy(ENERGY_PER_APPLY * energyMultiplier) <= 0L) return
         val used = target.applyHydration(request, simulate = false).coerceAtMost(waterDroplets)
         if (used <= 0) return
         waterTankInternal.consumeInternal(mbToDroplets(used))
         report.hydrated += used
     }
 
-    private fun tryApplyWeedEx(target: CropCareTarget, applyEnergyCost: Long, report: ScanReport) {
-        if (sync.amount < applyEnergyCost) return
+    private fun tryApplyWeedEx(target: CropCareTarget, report: ScanReport) {
         val weedExDroplets = weedExTankInternal.getStoredWeedEx().toInt()
         if (weedExDroplets <= 0) return
 
@@ -497,7 +512,7 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
         val simulated = target.applyWeedEx(request, simulate = true)
         if (simulated <= 0) return
 
-        if (sync.consumeEnergy(applyEnergyCost) <= 0L) return
+        if (chargeEnergy(ENERGY_PER_APPLY * energyMultiplier) <= 0L) return
         val used = target.applyWeedEx(request, simulate = false).coerceAtMost(weedExDroplets)
         if (used <= 0) return
         weedExTankInternal.consumeInternal(mbToDroplets(used))

@@ -89,6 +89,19 @@ class RecyclerBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /**
+     * 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。
+     * 1.4286^n 的速度倍率是小数，用浮点累加让真实耗时贴合指数曲线，
+     * 避免 toInt() 向下取整导致「第 1 个超频完全无效、3 个超频纯亏」的阶梯问题。
+     */
+    private var progressF = 0f
+
+    /**
+     * 浮点耗能债务：EU 是整数，1.6^n 的小数部分跨 tick 结转，避免每 tick 取整
+     * 造成过收/漏收（1.6→1、2.56→2 之类）。停顿期间清零，不累积。
+     */
+    private var energyDebtF = 0f
+
     companion object {
         const val RECYCLER_TIER = 1
         const val SLOT_INPUT = 0
@@ -199,6 +212,13 @@ class RecyclerBlockEntity(
         sync.amount = nbt.getLong(RecyclerSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        // 老存档只有整型 Progress（syncedData 已读入 sync.progress），回退为浮点进度
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, RecyclerSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, RecyclerSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
     }
 
     override fun writeNbt(nbt: NbtCompound) {
@@ -206,6 +226,17 @@ class RecyclerBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(RecyclerSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
+    }
+
+    /** 重置全部进度状态（输入空/黑名单/输出堵时调用，与指南书「进度重置为 0」一致）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -227,7 +258,7 @@ class RecyclerBlockEntity(
 
         val input = getStack(SLOT_INPUT)
         if (input.isEmpty) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -235,7 +266,7 @@ class RecyclerBlockEntity(
 
         // 检查是否可回收
         if (!RecyclerRecipes.canRecycle(input)) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -253,14 +284,13 @@ class RecyclerBlockEntity(
                 (outputSlot.item == scrapItem && outputSlot.count < outputSlot.maxCount)
 
         if (!canAcceptScrap) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
-        val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-        if (sync.progress >= RecyclerSync.PROGRESS_MAX) {
+        if (progressF >= RecyclerSync.PROGRESS_MAX) {
             // 消耗输入物品
             input.decrement(1)
 
@@ -272,6 +302,9 @@ class RecyclerBlockEntity(
                 setStack(SLOT_OUTPUT, scrapStack)
             }
 
+            // 进度上限 50 已在工作路径封顶，完成即清零
+            progressF = 0f
+            energyDebtF = 0f
             sync.progress = 0
             markDirty()
             setActiveState(world, pos, state, false)
@@ -279,13 +312,20 @@ class RecyclerBlockEntity(
             return
         }
 
-        val need = (RecyclerSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+        energyDebtF += RecyclerSync.ENERGY_PER_TICK * energyMultiplier
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-            sync.progress = (sync.progress + progressIncrement).coerceAtMost(RecyclerSync.PROGRESS_MAX)
+            // 浮点进度：1.4286^n 直接累加；封顶 50 防止极端超频（+Inf）造成免费完工
+            progressF = (progressF + speedMultiplier).coerceAtMost(RecyclerSync.PROGRESS_MAX.toFloat())
+            sync.progress = progressF.toInt()
             markDirty()
             setActiveState(world, pos, state, true)
         } else {
+            // 停顿期间不累计债务：避免恢复供电后 need 超过容量导致 all-or-nothing 永久卡死
+            energyDebtF = 0f
             setActiveState(world, pos, state, false)
         }
 

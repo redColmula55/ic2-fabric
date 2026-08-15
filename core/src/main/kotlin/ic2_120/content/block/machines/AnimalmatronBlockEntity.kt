@@ -104,6 +104,9 @@ class AnimalmatronBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转（有受监管动物时的持续抽电）。 */
+    private var energyDebtF = 0f
+
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
     @RegisterItemStorage
     val itemStorage = RoutedItemStorage(
@@ -389,6 +392,7 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
         sync.amount = nbt.getLong(AnimalmatronSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
 
         waterTankInternal.setStoredFluid(nbt.getLong(NBT_WATER_MB).coerceIn(0, waterTankCapacity))
         weedExTankInternal.setStoredFluid(nbt.getLong(NBT_WEED_EX_MB).coerceIn(0, weedExTankCapacity))
@@ -409,6 +413,7 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(AnimalmatronSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putLong(NBT_WATER_MB, waterTankInternal.amount)
         nbt.putLong(NBT_WEED_EX_MB, weedExTankInternal.amount)
         nbt.putInt(NBT_WORK_OFFSET, workOffset)
@@ -441,12 +446,18 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
         processWaterInputContainer()
         processWeedExInputContainer()
 
-        // 有受监管动物时固定耗电 2 EU/t，不再随动物数量变化。
-        val actualDrain = AnimalmatronSync.ENERGY_PER_TICK
-        val canPower = if (actualDrain > 0L) {
-            sync.animalCount <= 0 || sync.consumeEnergy(actualDrain) >= actualDrain
-        } else {
-            true
+        var canPower = true
+        if (sync.animalCount > 0) {
+            // 浮点耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（超频提速的同时耗能按比例增加）
+            energyDebtF += AnimalmatronSync.ENERGY_PER_TICK * energyMultiplier
+            val actualDrain = energyDebtF.toLong().coerceAtLeast(1L)
+            canPower = sync.consumeEnergy(actualDrain) >= actualDrain
+            if (canPower) {
+                energyDebtF -= actualDrain
+            } else {
+                // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+                energyDebtF = 0f
+            }
         }
 
         var active = false

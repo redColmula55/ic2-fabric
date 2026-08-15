@@ -81,6 +81,12 @@ class ElectricFurnaceBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val SLOT_INPUT = 0
         const val SLOT_OUTPUT = 1
@@ -186,6 +192,12 @@ class ElectricFurnaceBlockEntity(
         sync.amount = nbt.getLong(ElectricFurnaceSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, ElectricFurnaceSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, ElectricFurnaceSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         storedExperience = nbt.getFloat(FurnaceExperienceHelper.NBT_EXPERIENCE)
     }
 
@@ -194,7 +206,18 @@ class ElectricFurnaceBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(ElectricFurnaceSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putFloat(FurnaceExperienceHelper.NBT_EXPERIENCE, storedExperience)
+    }
+
+    /** 重置全部进度状态（输入空/无配方/输出堵时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -217,9 +240,7 @@ class ElectricFurnaceBlockEntity(
 
         val input = getStack(0)
         if (input.isEmpty()) {
-            if (sync.progress != 0) {
-                sync.progress = 0
-            }
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -227,7 +248,7 @@ class ElectricFurnaceBlockEntity(
 
         val recipe = smeltingRecipeFor(input, world)
         if (recipe == null) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -240,19 +261,20 @@ class ElectricFurnaceBlockEntity(
             (ItemStack.areItemsEqual(outputSlot, result) && outputSlot.count + result.count <= maxStack)
 
         if (!canAccept) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
-        val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-        if (sync.progress >= ElectricFurnaceSync.PROGRESS_MAX) {
+        if (progressF >= ElectricFurnaceSync.PROGRESS_MAX) {
             input.decrement(1)
             if (outputSlot.isEmpty()) setStack(1, result.copy())
             else outputSlot.increment(result.count)
             storedExperience = (storedExperience + getExperienceForElectricFurnace(recipe, input))
                 .coerceAtMost(MAX_STORED_XP)
+            progressF = 0f
+            energyDebtF = 0f
             sync.progress = 0
             markDirtyThrottled()
             setActiveState(world, pos, state, false)
@@ -261,13 +283,20 @@ class ElectricFurnaceBlockEntity(
         }
 
         // 内部消耗：直接扣减 amount（不经过 extract，故对外 MAX_EXTRACT=0 仍生效，电缆无法拉电）
-        val need = (ElectricFurnaceSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+        energyDebtF += ElectricFurnaceSync.ENERGY_PER_TICK * energyMultiplier
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-            sync.progress = (sync.progress + progressIncrement).coerceAtMost(ElectricFurnaceSync.PROGRESS_MAX)
+            // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+            progressF = (progressF + speedMultiplier).coerceAtMost(ElectricFurnaceSync.PROGRESS_MAX.toFloat())
+            sync.progress = progressF.toInt()
             markDirtyThrottled()
             setActiveState(world, pos, state, true)
         } else {
+            // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+            energyDebtF = 0f
             setActiveState(world, pos, state, false)
         }
         sync.syncCurrentTickFlow()

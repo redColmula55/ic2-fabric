@@ -84,6 +84,12 @@ class CompressorBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val COMPRESSOR_TIER = 1
         const val SLOT_INPUT = 0
@@ -185,6 +191,12 @@ class CompressorBlockEntity(
         sync.amount = nbt.getLong(CompressorSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, CompressorSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, CompressorSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         if (nbt.contains("pending_container_return")) {
             pendingContainerReturn = ItemStack.fromNbt(nbt.getCompound("pending_container_return"))
         }
@@ -195,8 +207,19 @@ class CompressorBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(CompressorSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         if (!pendingContainerReturn.isEmpty) {
             nbt.put("pending_container_return", pendingContainerReturn.writeNbt(NbtCompound()))
+        }
+    }
+
+    /** 重置全部进度状态（输入空/无配方/输出堵时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
         }
     }
 
@@ -230,7 +253,7 @@ class CompressorBlockEntity(
                 markDirty()
             } else {
                 // 缓存还没法输出，跳过配方处理
-                if (sync.progress != 0) sync.progress = 0
+                resetProgress()
                 setActiveState(world, pos, state, false)
                 sync.syncCurrentTickFlow()
                 return
@@ -239,7 +262,7 @@ class CompressorBlockEntity(
 
         val input = getStack(SLOT_INPUT)
         val recipe = getRecipe(world, input) ?: run {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -252,14 +275,13 @@ class CompressorBlockEntity(
             (ItemStack.areItemsEqual(outputSlot, result) && outputSlot.count + result.count <= maxStack)
 
         if (!canAccept) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
-        val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-        if (sync.progress >= CompressorSync.PROGRESS_MAX) {
+        if (progressF >= CompressorSync.PROGRESS_MAX) {
             input.decrement(inputCount)
             if (outputSlot.isEmpty()) setStack(SLOT_OUTPUT, result.copy())
             else outputSlot.increment(result.count)
@@ -268,6 +290,8 @@ class CompressorBlockEntity(
             if (!container.isEmpty) {
                 pendingContainerReturn = container.copy()
             }
+            progressF = 0f
+            energyDebtF = 0f
             sync.progress = 0
             markDirty()
             setActiveState(world, pos, state, false)
@@ -275,13 +299,20 @@ class CompressorBlockEntity(
             return
         }
 
-        val need = (CompressorSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+        energyDebtF += CompressorSync.ENERGY_PER_TICK * energyMultiplier
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-            sync.progress = (sync.progress + progressIncrement).coerceAtMost(CompressorSync.PROGRESS_MAX)
+            // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+            progressF = (progressF + speedMultiplier).coerceAtMost(CompressorSync.PROGRESS_MAX.toFloat())
+            sync.progress = progressF.toInt()
             markDirty()
             setActiveState(world, pos, state, true)
         } else {
+            // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+            energyDebtF = 0f
             setActiveState(world, pos, state, false)
         }
         sync.syncCurrentTickFlow()

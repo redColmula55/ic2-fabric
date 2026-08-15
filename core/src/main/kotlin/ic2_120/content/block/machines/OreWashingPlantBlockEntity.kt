@@ -113,6 +113,12 @@ class OreWashingPlantBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val ORE_WASHING_PLANT_TIER = 1
         const val SLOT_INPUT_ORE = 0        // 粉碎矿石输入
@@ -281,6 +287,12 @@ class OreWashingPlantBlockEntity(
         sync.amount = nbt.getLong(OreWashingPlantSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, OreWashingPlantSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, OreWashingPlantSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         waterTankInternal.setStoredWater(nbt.getLong(NBT_WATER_AMOUNT))
     }
 
@@ -289,6 +301,8 @@ class OreWashingPlantBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(OreWashingPlantSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putLong(NBT_WATER_AMOUNT, waterTankInternal.getStoredAmount())
     }
 
@@ -327,6 +341,15 @@ class OreWashingPlantBlockEntity(
         return recipe
     }
 
+    /** 重置全部进度状态（输入空/无配方/输出堵时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
+    }
+
     fun tick(world: World, pos: BlockPos, state: BlockState) {
         if (world.isClient) return
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
@@ -358,7 +381,7 @@ class OreWashingPlantBlockEntity(
         // 检查输入物品
         val input = getStack(SLOT_INPUT_ORE)
         if (input.isEmpty) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             currentRecipe = null
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
@@ -367,7 +390,7 @@ class OreWashingPlantBlockEntity(
 
         // 检查配方
         val recipe = getRecipeForInput(input) ?: run {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             currentRecipe = null
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
@@ -397,14 +420,14 @@ class OreWashingPlantBlockEntity(
             (ItemStack.areItemsEqual(output3Slot, output3) && output3Slot.count + output3.count <= output3.maxCount)
 
         if (!canAccept1 || !canAccept2 || !canAccept3) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
         // 加工完成
-        if (sync.progress >= OreWashingPlantSync.PROGRESS_MAX) {
+        if (progressF >= OreWashingPlantSync.PROGRESS_MAX) {
             input.decrement(1)
             // 放入输出槽
             if (output1Slot.isEmpty()) setStack(SLOT_OUTPUT_1, output1)
@@ -416,6 +439,8 @@ class OreWashingPlantBlockEntity(
             if (output3Slot.isEmpty()) setStack(SLOT_OUTPUT_3, output3)
             else if (!output3.isEmpty) output3Slot.increment(output3.count)
 
+            progressF = 0f
+            energyDebtF = 0f
             sync.progress = 0
             markDirty()
             setActiveState(world, pos, state, false)
@@ -423,11 +448,10 @@ class OreWashingPlantBlockEntity(
             return
         }
 
-       // 消耗能量并增加进度
-       val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-       val need = (OreWashingPlantSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
-        val currentProgress = sync.progress.coerceIn(0, OreWashingPlantSync.PROGRESS_MAX)
-        val nextProgress = (currentProgress + progressIncrement).coerceAtMost(OreWashingPlantSync.PROGRESS_MAX)
+       // 消耗能量并增加进度（浮点记账：1.6^n 小数余数跨 tick 结转）
+        val currentProgress = progressF.toInt()
+        val nextProgressF = (progressF + speedMultiplier).coerceAtMost(OreWashingPlantSync.PROGRESS_MAX.toFloat())
+        val nextProgress = nextProgressF.toInt()
         val waterNeed = waterNeededForProgressRange(currentProgress, nextProgress)
         // 先检查水是否充足，不足则不消耗能量
         if (waterTankInternal.getStoredAmount() < waterNeed) {
@@ -435,13 +459,19 @@ class OreWashingPlantBlockEntity(
             sync.syncCurrentTickFlow()
             return
         }
+        energyDebtF += OreWashingPlantSync.ENERGY_PER_TICK * energyMultiplier
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
             waterTankInternal.consumeInternal(waterNeed)
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+            progressF = nextProgressF
             sync.progress = nextProgress
             markDirty()
             setActiveState(world, pos, state, true)
         } else {
+            // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+            energyDebtF = 0f
             setActiveState(world, pos, state, false)
         }
 

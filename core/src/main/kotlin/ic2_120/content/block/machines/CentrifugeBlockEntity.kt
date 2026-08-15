@@ -82,6 +82,12 @@ class CentrifugeBlockEntity(
     override var voltageTierBonus: Int = 0
     override var redstoneInverted: Boolean = false
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务（加工阶段 1.6^n 的小数余数跨 tick 结转，停顿期间清零）。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val SLOT_INPUT = 0
         const val SLOT_OUTPUT_1 = 1
@@ -178,6 +184,12 @@ class CentrifugeBlockEntity(
         sync.amount = nbt.getLong(CentrifugeSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, CentrifugeSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, CentrifugeSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         redstoneInverted = if (nbt.contains("RedstoneInverted")) nbt.getBoolean("RedstoneInverted") else false
     }
 
@@ -186,7 +198,18 @@ class CentrifugeBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(CentrifugeSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putBoolean("RedstoneInverted", redstoneInverted)
+    }
+
+    /** 重置全部进度状态（输入空/无配方/输出堵时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -231,14 +254,14 @@ class CentrifugeBlockEntity(
         }
 
         if (input.isEmpty) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
         val r = recipe ?: run {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -251,13 +274,13 @@ class CentrifugeBlockEntity(
         }
 
         if (!canAcceptOutputs(r.outputs)) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
-        if (sync.progress >= CentrifugeSync.PROGRESS_MAX) {
+        if (progressF >= CentrifugeSync.PROGRESS_MAX) {
             input.decrement(r.inputCount)
             for (i in r.outputs.indices) {
                 val out = r.outputs[i].copy()
@@ -266,6 +289,8 @@ class CentrifugeBlockEntity(
                 if (existing.isEmpty) setStack(slotIdx, out)
                 else existing.increment(out.count)
             }
+            progressF = 0f
+            energyDebtF = 0f
             sync.progress = 0
             markDirty()
             setActiveState(world, pos, state, false)
@@ -273,14 +298,20 @@ class CentrifugeBlockEntity(
             return
         }
 
-        val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-        val need = (CentrifugeSync.ENERGY_PER_TICK_PROCESSING * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 加工阶段耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+        energyDebtF += CentrifugeSync.ENERGY_PER_TICK_PROCESSING * energyMultiplier
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-            sync.progress = (sync.progress + progressIncrement).coerceAtMost(CentrifugeSync.PROGRESS_MAX)
+            // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+            progressF = (progressF + speedMultiplier).coerceAtMost(CentrifugeSync.PROGRESS_MAX.toFloat())
+            sync.progress = progressF.toInt()
             markDirty()
             setActiveState(world, pos, state, true)
         } else {
+            // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+            energyDebtF = 0f
             setActiveState(world, pos, state, false)
         }
 

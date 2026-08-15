@@ -67,6 +67,12 @@ class MetalFormerBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val METAL_FORMER_TIER = 1
         const val SLOT_INPUT = 0
@@ -175,6 +181,12 @@ class MetalFormerBlockEntity(
         sync.amount = nbt.getLong(MetalFormerSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, MetalFormerSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, MetalFormerSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         sync.setMode(MetalFormerSync.Mode.fromId(nbt.getInt(MetalFormerSync.NBT_MODE)))
     }
 
@@ -183,6 +195,8 @@ class MetalFormerBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(MetalFormerSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putInt(MetalFormerSync.NBT_MODE, sync.mode)
     }
 
@@ -191,8 +205,17 @@ class MetalFormerBlockEntity(
      */
     fun cycleMode() {
         sync.cycleMode()
-        sync.progress = 0  // 切换模式时重置进度
+        resetProgress()  // 切换模式时重置进度（含浮点记账）
         markDirty()
+    }
+
+    /** 重置全部进度状态（输入空/无配方/输出堵时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -215,7 +238,7 @@ class MetalFormerBlockEntity(
 
         val input = getStack(SLOT_INPUT)
         if (input.isEmpty) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -224,7 +247,7 @@ class MetalFormerBlockEntity(
         val currentMode = sync.getMode()
         val recipe = findRecipe(world, input, currentMode)
         val result = recipe?.let { MetalFormerRecipe.getOutput(it) } ?: run {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
@@ -236,14 +259,13 @@ class MetalFormerBlockEntity(
                 (ItemStack.areItemsEqual(outputSlot, result) && outputSlot.count + result.count <= maxStack)
 
         if (!canAccept) {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
             sync.syncCurrentTickFlow()
             return
         }
 
-        val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-        if (sync.progress >= MetalFormerSync.PROGRESS_MAX) {
+        if (progressF >= MetalFormerSync.PROGRESS_MAX) {
             // 消耗输入物品
             input.decrement(1)
 
@@ -251,6 +273,8 @@ class MetalFormerBlockEntity(
             if (outputSlot.isEmpty()) setStack(SLOT_OUTPUT, result.copy())
             else outputSlot.increment(result.count)
 
+            progressF = 0f
+            energyDebtF = 0f
             sync.progress = 0
             markDirty()
             setActiveState(world, pos, state, false)
@@ -258,13 +282,20 @@ class MetalFormerBlockEntity(
             return
         }
 
-        val need = (MetalFormerSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+        // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+        energyDebtF += MetalFormerSync.ENERGY_PER_TICK * energyMultiplier
+        val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
+            energyDebtF -= need
             sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-            sync.progress = (sync.progress + progressIncrement).coerceAtMost(MetalFormerSync.PROGRESS_MAX)
+            // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+            progressF = (progressF + speedMultiplier).coerceAtMost(MetalFormerSync.PROGRESS_MAX.toFloat())
+            sync.progress = progressF.toInt()
             markDirty()
             setActiveState(world, pos, state, true)
         } else {
+            // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+            energyDebtF = 0f
             setActiveState(world, pos, state, false)
         }
 

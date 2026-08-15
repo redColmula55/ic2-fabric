@@ -1,6 +1,7 @@
 package ic2_120.content.block.machines
 
 import ic2_120.content.AdjacentEnergyTransferComponent
+import kotlin.math.ceil
 import ic2_120.content.block.AdvancedMinerBlock
 import ic2_120.content.block.BaseMinerBlock
 import ic2_120.content.block.IClaimSensitive
@@ -457,21 +458,25 @@ abstract class BaseMinerBlockEntity(
         if (world.isReceivingRedstonePower(pos) == hasRedstoneInverted()) return false
         val scanner = getStack(SLOT_SCANNER); val type = scannerType() ?: return false
         val scannerTool = scanner.item as? IElectricTool ?: return false
-        if (sync.amount < ADVANCED_MINE_COST || scannerTool.getEnergy(scanner) < ADVANCED_SCAN_STEP) return false
+        // 超频耗能惩罚：1.6^n 计入单次扫描/单次开采成本（向上取整，整数 EU）
+        val scanStepCost = ceil(ADVANCED_SCAN_STEP * energyMultiplier).toLong().coerceAtLeast(1L)
+        val mineCost = ceil(ADVANCED_MINE_COST * energyMultiplier).toLong().coerceAtLeast(1L)
+        if (sync.amount < mineCost || scannerTool.getEnergy(scanner) < scanStepCost) return false
         advancedTicker++
         if (advancedTicker < 20) return true
         advancedTicker = 0
         val range = if (type == ScannerType.OV) 32 else 16
         if (advancedScanPos == null) advancedScanPos = BlockPos(pos.x - range - 1, pos.y - 1, pos.z - range)
-        var scans = max(1, 5 * (1 + upgradeAugmentation()))
+        // 超频速度：扫描步数按 1.4286^n 指数缩放（替代旧的线性 5×(1+n)），耗能按 1.6^n 计（ceil 取整）
+        var scans = max(1, ceil(5f * speedMultiplier).toInt())
         while (scans-- > 0) {
             val next = advanceAdvancedScan(range) ?: return true
-            if (!useScanner(scanner, ADVANCED_SCAN_STEP)) return false
+            if (!useScanner(scanner, scanStepCost)) return false
             val state = world.getBlockState(next)
             if (!state.isAir && canMineAdvanced(world, next, state)) {
                 advancedTarget = next
-                if (sync.amount >= ADVANCED_MINE_COST) {
-                    sync.consumeEnergy(ADVANCED_MINE_COST)
+                if (sync.amount >= mineCost) {
+                    sync.consumeEnergy(mineCost)
                     harvest(world, next, getLootTool(sync.silkTouch != 0))
                 }
                 return true
@@ -482,9 +487,6 @@ abstract class BaseMinerBlockEntity(
 
     private fun hasRedstoneInverted() = SLOT_UPGRADE_INDICES.any { getStack(it).item is RedstoneInverterUpgrade }
     /** Count overclocker items including the full stack size in each upgrade slot. */
-    private fun upgradeAugmentation() =
-        OverclockerUpgradeComponent.countOverclockers(this, SLOT_UPGRADE_INDICES)
-
     private fun advanceAdvancedScan(range: Int): BlockPos? {
         val current = advancedScanPos ?: return null
         var x = current.x; var y = current.y; var z = current.z

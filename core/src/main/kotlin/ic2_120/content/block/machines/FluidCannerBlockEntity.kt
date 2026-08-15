@@ -92,6 +92,12 @@ class FluidCannerBlockEntity(
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
 
+    /** 浮点进度（内部记账，不参与同步/落盘；同步与存档仍用整型 [sync.progress]）。 */
+    private var progressF = 0f
+
+    /** 浮点耗能债务：1.6^n 的小数余数跨 tick 结转，停顿期间清零。 */
+    private var energyDebtF = 0f
+
     companion object {
         const val SLOT_INPUT_FILLED = 0   // 满流体容器（水桶、满单元等）
         const val SLOT_INPUT_EMPTY = 1   // 空容器（空单元、桶）
@@ -213,6 +219,12 @@ class FluidCannerBlockEntity(
         sync.amount = nbt.getLong(FluidCannerSync.NBT_ENERGY_STORED)
         sync.syncCommittedAmount()
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
+        progressF = if (nbt.contains("ProgressF")) {
+            nbt.getFloat("ProgressF").coerceIn(0f, FluidCannerSync.PROGRESS_MAX.toFloat())
+        } else {
+            sync.progress.toFloat().coerceIn(0f, FluidCannerSync.PROGRESS_MAX.toFloat())
+        }
+        energyDebtF = if (nbt.contains("EnergyDebt")) nbt.getFloat("EnergyDebt").coerceAtLeast(0f) else 0f
         tankInternal.amount = nbt.getLong(NBT_FLUID_AMOUNT).coerceIn(0L, TANK_CAPACITY)
         val fluidTag = nbt.getCompound(NBT_FLUID_VARIANT)
         tankInternal.variant = if (fluidTag.isEmpty) FluidVariant.blank() else FluidVariant.fromNbt(fluidTag)
@@ -224,6 +236,8 @@ class FluidCannerBlockEntity(
         Inventories.writeNbt(nbt, inventory)
         syncedData.writeNbt(nbt)
         nbt.putLong(FluidCannerSync.NBT_ENERGY_STORED, sync.amount)
+        nbt.putFloat("ProgressF", progressF)
+        nbt.putFloat("EnergyDebt", energyDebtF)
         nbt.putLong(NBT_FLUID_AMOUNT, tankInternal.amount)
         if (!tankInternal.variant.isBlank) {
             nbt.put(NBT_FLUID_VARIANT, tankInternal.variant.toNbt())
@@ -240,6 +254,15 @@ class FluidCannerBlockEntity(
         sync.fluidAmount = tankInternal.amount.toInt().coerceAtLeast(0)
         sync.fluidCapacity = TANK_CAPACITY.toInt()
         sync.fluidRawId = if (tankInternal.variant.isBlank) -1 else Registries.FLUID.getRawId(tankInternal.variant.fluid)
+    }
+
+    /** 重置全部进度状态（操作不可用时调用）。 */
+    private fun resetProgress() {
+        if (progressF != 0f || energyDebtF != 0f || sync.progress != 0) {
+            progressF = 0f
+            energyDebtF = 0f
+            sync.progress = 0
+        }
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -286,26 +309,34 @@ class FluidCannerBlockEntity(
         }
 
         if (operating) {
-            val progressIncrement = speedMultiplier.toInt().coerceAtLeast(1)
-            val need = (FluidCannerSync.ENERGY_PER_TICK * energyMultiplier).toLong().coerceAtLeast(1L)
+            // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
+            energyDebtF += FluidCannerSync.ENERGY_PER_TICK * energyMultiplier
+            val need = energyDebtF.toLong().coerceAtLeast(1L)
             if (sync.consumeEnergy(need) > 0L) {
+                energyDebtF -= need
                 sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-                sync.progress = (sync.progress + progressIncrement).coerceAtMost(FluidCannerSync.PROGRESS_MAX)
-                if (sync.progress >= FluidCannerSync.PROGRESS_MAX) {
+                // 浮点进度：1.4286^n 直接累加；封顶 PROGRESS_MAX 防极端超频（+Inf）免费完工
+                progressF = (progressF + speedMultiplier).coerceAtMost(FluidCannerSync.PROGRESS_MAX.toFloat())
+                sync.progress = progressF.toInt()
+                if (progressF >= FluidCannerSync.PROGRESS_MAX) {
                     when {
                         fillFromFilled != null -> completeFill(SLOT_INPUT_FILLED)
                         doPourOutFromFilled -> completePourOut()
                         fillFromEmpty != null -> completeFill(SLOT_INPUT_EMPTY)
                     }
+                    progressF = 0f
+                    energyDebtF = 0f
                     sync.progress = 0
                 }
                 markDirty()
                 setActiveState(world, pos, state, true)
             } else {
+                // 停顿期间不累计债务：防恢复供电后 need 超容量 all-or-nothing 卡死
+                energyDebtF = 0f
                 setActiveState(world, pos, state, false)
             }
         } else {
-            if (sync.progress != 0) sync.progress = 0
+            resetProgress()
             setActiveState(world, pos, state, false)
         }
 
