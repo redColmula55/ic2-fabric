@@ -376,7 +376,11 @@ class ReplicatorBlockEntity(
         }
 
         val ubPerTick = ceil(ReplicatorSync.BASE_UB_PER_TICK * speedMultiplier.toDouble()).toInt().coerceAtLeast(1)
-        val (dropletsPerTick, nextRemainder) = previewDropletsForTick(ubPerTick)
+        // 只按本 tick 实际入账的进度计费：若 ubPerTick 超出剩余成本（最后一 tick 溢出），
+        // 按完整 ubPerTick 扣流体会导致超频下每锭多扣（如 8 超频 87uB/tick → 每锭 7 tick
+        // 进度 609 封顶 540、浪费 69 uB，却仍按 7 tick 扣 49.33 droplets，0.54B 只得 ~887 锭）。
+        val creditedUb = minOf(ubPerTick, (template.uuCostUb - sync.progressUb).coerceAtLeast(1))
+        val (dropletsPerTick, nextRemainder) = previewDropletsForTick(creditedUb)
         if (dropletsPerTick > 0L && tankInternal.getStoredAmount() < dropletsPerTick) {
             sync.status = ReplicatorSync.STATUS_NO_FLUID
             setActiveState(world, pos, state, false)
@@ -397,7 +401,7 @@ class ReplicatorBlockEntity(
             tankInternal.extractInternal(dropletsPerTick)
         }
         sync.energy = sync.amount.toInt().coerceIn(0, Int.MAX_VALUE)
-        sync.progressUb = (sync.progressUb + ubPerTick).coerceAtLeast(0).coerceAtMost(template.uuCostUb)
+        sync.progressUb = (sync.progressUb + creditedUb).coerceAtLeast(0).coerceAtMost(template.uuCostUb)
         sync.status = ReplicatorSync.STATUS_RUNNING
         if (sync.progressUb >= template.uuCostUb) {
             if (outputStack.isEmpty) setStack(SLOT_OUTPUT, resultStack.copy())
