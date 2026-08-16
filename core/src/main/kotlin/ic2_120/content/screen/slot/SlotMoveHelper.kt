@@ -49,7 +49,10 @@ object SlotMoveHelper {
         // 直接读槽位背后的真实库存（而非 slot.stack）：DisplayCountSlot.getStack
         // 在真实数量超过展示上限时返回 count 被篡改的副本，若对其 increment/decrement
         // 增量会落在副本上而源被扣减——物品凭空消失。
-        val realStack = slot.inventory.getStack(slot.id)
+        // 注意必须用 slot.index（库存索引）而非 slot.id（handler 槽位列表序号）：
+        // 两者在高级采矿机等跳过中间槽位的 GUI 布局中错位，用 id 判空会读到别的槽，
+        // 而写入（setStack）仍走 index，导致新物品直接覆写已有物品（吞升级）。
+        val realStack = slot.inventory.getStack(slot.index)
         // 源槽守卫：目标槽即源槽（同一实例）时拒绝——同实例合并是历史复制 bug 的根因。
         if (realStack === stack) return false
         val effectiveLimit = maxPerSlot ?: slot.maxItemCount
