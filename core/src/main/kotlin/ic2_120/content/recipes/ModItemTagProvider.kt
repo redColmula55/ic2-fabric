@@ -10,6 +10,7 @@ import net.minecraft.item.Item
 import net.minecraft.item.Items
 import net.minecraft.registry.Registries
 import net.minecraft.registry.RegistryKeys
+import net.minecraft.registry.tag.ItemTags
 import net.minecraft.registry.tag.TagKey
 import net.minecraft.util.Identifier
 import java.util.concurrent.CompletableFuture
@@ -56,13 +57,27 @@ class ModItemTagProvider(
             }
         }
 
-        // 橡胶木系列原木（含 stripped 变体）：填入 `ic2_120:rubber_logs` 标签，供
-        // [ModTags.RUBBER_LOGS] 在合成配方里允许任意橡胶原木输入。
+        // 橡胶木系列原木（含 stripped 变体）：填入原版方块/物品标签，并保留 IC2 自用标签。
         listOf("rubber_log", "rubber_wood", "stripped_rubber_log", "stripped_rubber_wood").forEach { path ->
-            val id = Identifier(Ic2_120.MOD_ID, path)
-            val block = Registries.BLOCK.get(id)
+            val block = Registries.BLOCK.get(Identifier(Ic2_120.MOD_ID, path))
             if (block !== Blocks.AIR && block.asItem() !== Items.AIR) {
-                getOrCreateTagBuilder(ModTags.RUBBER_LOGS).add(block.asItem())
+                val item = block.asItem()
+                getOrCreateTagBuilder(ItemTags.LOGS).setReplace(false).add(item)
+                getOrCreateTagBuilder(ItemTags.LOGS_THAT_BURN).setReplace(false).add(item)
+                getOrCreateTagBuilder(ModTags.RUBBER_LOGS).add(item)
+            }
+        }
+
+        // 橡胶树苗和树叶同步加入原版物品标签，供 Create 等兼容方块使用。
+        listOf("rubber_sapling", "rubber_leaves").forEach { path ->
+            val block = Registries.BLOCK.get(Identifier(Ic2_120.MOD_ID, path))
+            if (block !== Blocks.AIR && block.asItem() !== Items.AIR) {
+                val item = block.asItem()
+                if (path == "rubber_sapling") {
+                    getOrCreateTagBuilder(ItemTags.SAPLINGS).setReplace(false).add(item)
+                } else {
+                    getOrCreateTagBuilder(ItemTags.LEAVES).setReplace(false).add(item)
+                }
             }
         }
 

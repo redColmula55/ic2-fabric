@@ -41,12 +41,16 @@ class ModBlockTagProvider(
         "deepslate_uranium_ore",
     )
 
-    /** 与原版橡木系列一致：斧为主工具，镐亦加入以便习惯用镐的玩家正常速度 */
-    private val rubberWoodAxePaths = setOf(
+    /** 原版橡胶木标签：原木、去皮原木和木材都视为可燃烧原木。 */
+    private val rubberLogPaths = setOf(
         "rubber_wood",
         "rubber_log",
         "stripped_rubber_log",
         "stripped_rubber_wood",
+    )
+
+    /** 与原版橡木系列一致：斧为主工具，镐亦加入以便习惯用镐的玩家正常速度 */
+    private val rubberWoodAxePaths = rubberLogPaths + setOf(
         "rubber_planks",
         "rubber_slab",
         "rubber_stairs",
@@ -76,6 +80,9 @@ class ModBlockTagProvider(
         val stoneToolBuilder = getOrCreateTagBuilder(BlockTags.NEEDS_STONE_TOOL).setReplace(false)
         val axeBuilder = getOrCreateTagBuilder(BlockTags.AXE_MINEABLE).setReplace(false)
         val hoeBuilder = getOrCreateTagBuilder(BlockTags.HOE_MINEABLE).setReplace(false)
+        val logsBuilder = getOrCreateTagBuilder(BlockTags.LOGS).setReplace(false)
+        val logsThatBurnBuilder = getOrCreateTagBuilder(BlockTags.LOGS_THAT_BURN).setReplace(false)
+        val saplingBuilder = getOrCreateTagBuilder(BlockTags.SAPLINGS).setReplace(false)
         val climbableBuilder = getOrCreateTagBuilder(BlockTags.CLIMBABLE).setReplace(false)
 
         for (block in Registries.BLOCK) {
@@ -83,6 +90,13 @@ class ModBlockTagProvider(
             if (id.namespace != Ic2_120.MOD_ID) continue
 
             if (block is Ic2ScaffoldBlock) climbableBuilder.add(block)
+            if (id.path in rubberLogPaths) {
+                logsBuilder.add(block)
+                logsThatBurnBuilder.add(block)
+            }
+            if (id.path == "rubber_sapling") {
+                saplingBuilder.add(block)
+            }
 
             when {
                 id.path == "rubber_leaves" -> {
