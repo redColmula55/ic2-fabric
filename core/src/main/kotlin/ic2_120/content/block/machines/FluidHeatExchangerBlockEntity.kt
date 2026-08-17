@@ -5,6 +5,7 @@ import ic2_120.content.block.FluidHeatExchangerBlock
 import ic2_120.content.fluid.ModFluids
 import ic2_120.content.item.IUpgradeItem
 import ic2_120.content.item.FluidCellItem
+import ic2_120.content.item.isFluidVariantRepresentable
 import ic2_120.content.storage.ItemInsertRoute
 import ic2_120.content.storage.RoutedItemStorage
 import ic2_120.content.storage.IRoutedSidedInventory
@@ -663,6 +664,8 @@ class FluidHeatExchangerBlockEntity(
 
             emptyContainer.item is FluidCellItem && emptyContainer.isFluidCellEmpty() -> {
                 if (!isAcceptedOutputFluid(fluid)) return null
+                // 病态流体（无法表达为 FluidVariant，#27）返回空栈而非抛异常
+                if (!isFluidVariantRepresentable(fluid)) return null
                 ItemStack(fluidCellItem).apply { setFluidCellVariant(FluidVariant.of(fluid)) }
             }
 

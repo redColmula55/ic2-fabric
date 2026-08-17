@@ -23,6 +23,7 @@ import ic2_120.content.recipes.orewashing.OreWashingRecipe
 import ic2_120.content.recipes.orewashing.OreWashingRecipeDatagen
 import ic2_120.content.item.EmptyTinCanItem
 import ic2_120.content.item.FilledTinCanItem
+import ic2_120.content.item.isFluidVariantRepresentable
 import ic2_120.content.recipes.solidcanner.SolidCannerRecipe
 import ic2_120.content.recipes.solidcanner.SolidCannerRecipeDatagen
 import ic2_120.registry.instance
@@ -270,11 +271,16 @@ class Ic2JeiPlugin : IModPlugin {
                     fluid !== Fluids.EMPTY &&
                     fluid !== Fluids.FLOWING_LAVA &&
                     fluid !== Fluids.FLOWING_WATER &&
-                    fluid !in modFluidCells
+                    fluid !in modFluidCells &&
+                    isFluidVariantRepresentable(fluid)  // 病态流体不注册（#27，与创造栏同步）
                 }
                 .sortedBy { Registries.FLUID.getId(it).toString() }
-                .map { fluid ->
-                    ItemStack(fluidCell).apply { setFluidCellVariant(FluidVariant.of(fluid)) }
+                .mapNotNull { fluid ->
+                    try {
+                        ItemStack(fluidCell).apply { setFluidCellVariant(FluidVariant.of(fluid)) }
+                    } catch (e: IllegalArgumentException) {
+                        null  // 兜底：防未来其他病态注册形态（#27）
+                    }
                 }
         }
 

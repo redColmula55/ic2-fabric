@@ -22,6 +22,7 @@ import net.fabricmc.fabric.api.transfer.v1.storage.StorageView
 import net.fabricmc.fabric.api.transfer.v1.transaction.TransactionContext
 import net.minecraft.block.FluidDrainable
 import net.minecraft.block.FluidFillable
+import net.minecraft.fluid.FlowableFluid
 import net.minecraft.fluid.Fluid
 import net.minecraft.fluid.Fluids
 import net.minecraft.item.FluidModificationItem
@@ -116,10 +117,26 @@ fun ItemStack.isWaterFuel(): Boolean {
 }
 
 /**
- * 根据流体返回满流体单元 ItemStack。
- * 若存在注册的专用单元（如 water_cell、coolant_cell），则返回该物品；否则使用 fluid_cell + NBT。
+ * 判断该流体能否被 Fabric Transfer API 表达为 FluidVariant（still 形态）。
+ *
+ * 与 FluidVariantImpl.of 内部判据一致：FlowableFluid 会被 API 归一化到 still；
+ * 非 FlowableFluid 但自报 isStill(defaultState)=true 的自定义 Fluid 也可直接表达。
+ * 两者都不满足的"病态"流体（如 Voltaic FluidNonPlaceable：继承 Fluid 且
+ * isSource() 硬编码 false，合法的 Forge 写法）会让 FluidVariant.of 抛 IAE，
+ * 枚举注册表时必须跳过（#27）。
+ */
+internal fun isFluidVariantRepresentable(fluid: Fluid): Boolean {
+    if (fluid == Fluids.EMPTY) return false
+    if (fluid is FlowableFluid) return true
+    return fluid.isStill(fluid.defaultState)
+}
+
+/**
+ * 安全地为流体创建满单元 ItemStack：病态流体（无法表达为 FluidVariant）
+ * 返回 EMPTY，不抛异常（#27）。
  */
 internal fun fluidToFilledCellStack(fluid: Fluid): ItemStack {
+    if (!isFluidVariantRepresentable(fluid)) return ItemStack.EMPTY
     val cellId = when (fluid) {
         Fluids.WATER, Fluids.FLOWING_WATER -> "water_cell"
         ModFluids.DISTILLED_WATER_STILL, ModFluids.DISTILLED_WATER_FLOWING -> "distilled_water_cell"
@@ -885,12 +902,19 @@ object CellAndBucketFluidRegistration {
                 fluid != Fluids.EMPTY &&
                 fluid != Fluids.FLOWING_LAVA &&
                 fluid != Fluids.FLOWING_WATER &&
-                fluid !in modFluidCells  // 排除已有独立单元类的流体
+                fluid !in modFluidCells &&  // 排除已有独立单元类的流体
+                isFluidVariantRepresentable(fluid)  // 病态流体（无法表达为 FluidVariant）不注册单元（#27）
             }.sortedBy { Registries.FLUID.getId(it).toString() }
             for (fluid in fluids) {
                 val fluidId = Registries.FLUID.getId(fluid)
                 logger.info("注册通用流体单元到创造模式物品栏: {}", fluidId)
-                val stack = ItemStack(fluidCell).apply { setFluidCellVariant(FluidVariant.of(fluid)) }
+                // 兜底：防未来其他无法静态判定的病态注册形态（#27）
+                val stack = try {
+                    ItemStack(fluidCell).apply { setFluidCellVariant(FluidVariant.of(fluid)) }
+                } catch (e: IllegalArgumentException) {
+                    logger.warn("跳过无法表达为 FluidVariant 的流体单元: {} ({})", fluidId, e.message)
+                    continue
+                }
                 entries.addAfter(fluidCell, stack)
             }
         }
