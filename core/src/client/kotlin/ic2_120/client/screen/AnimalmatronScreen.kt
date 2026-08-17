@@ -174,12 +174,15 @@ class AnimalmatronScreen(
             context.drawTooltip(textRenderer, lines, mouseX, mouseY)
         }
 
-        // Weed-EX 槽悬停
+        // Weed-EX 槽悬停：除草剂机制已停用（125c9c29），仅展示残留量与废弃说明
         if (relX in WEED_EX_TANK_X until WEED_EX_TANK_X + WEED_EX_TANK_W &&
             relY in WEED_EX_TANK_Y until WEED_EX_TANK_Y + WEED_EX_TANK_H
         ) {
-            val lines = if (weedExAmount > 0) listOf(Text.translatable("fluid.ic2_120.weed_ex"), Text.literal("${"%,d".format(weedExAmount / DROPLETS_PER_MB)} / ${"%,d".format(WEED_EX_TANK_DROPLETS / DROPLETS_PER_MB)} mB"))
-                        else listOf(Text.literal("空"))
+            val lines = mutableListOf<Text>(Text.translatable("gui.ic2_120.animalmatron.weed_ex_deprecated"))
+            if (weedExAmount > 0) {
+                lines.add(Text.translatable("fluid.ic2_120.weed_ex"))
+                lines.add(Text.literal("${"%,d".format(weedExAmount / DROPLETS_PER_MB)} / ${"%,d".format(WEED_EX_TANK_DROPLETS / DROPLETS_PER_MB)} mB"))
+            }
             context.drawTooltip(textRenderer, lines, mouseX, mouseY)
         }
 

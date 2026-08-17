@@ -1225,6 +1225,7 @@
   "tooltip.ic2_120.harvest.note.attacks": "Attacks nearby mobs",
   "gui.ic2_120.animal_slaughterer.need_shears": "Shears required to slaughter animals",
   "gui.ic2_120.animalmatron.need_shears": "Shears required to harvest extra products",
+  "gui.ic2_120.animalmatron.weed_ex_deprecated": "§7This tank is deprecated: Weed-Ex is disabled, no fluid needed",
   "gui.ic2_120.direction.down": "Down",
   "gui.ic2_120.direction.up": "Up",
   "gui.ic2_120.direction.north": "North",

@@ -1212,6 +1212,7 @@
   "tooltip.ic2_120.harvest.note.attacks": "攻击附近生物",
   "gui.ic2_120.animal_slaughterer.need_shears": "需要剪刀才能屠宰动物",
   "gui.ic2_120.animalmatron.need_shears": "需要剪刀才能收获额外产物",
+  "gui.ic2_120.animalmatron.weed_ex_deprecated": "§7此储罐已废弃：除草剂机制已停用，无需灌入任何流体",
   "gui.ic2_120.direction.down": "下",
   "gui.ic2_120.direction.up": "上",
   "gui.ic2_120.direction.north": "北",
