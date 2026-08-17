@@ -497,11 +497,12 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
 
             // 获取或创建动物数据
             val animalData = animalDataMap.computeIfAbsent(animal.uuid) {
-                // 如果是成年动物（从外面牵来的），直接标记为已长成
                 if (!animal.isBaby) {
-                    // 检查原版繁殖冷却，防止通过抱出抱入绕过冷却
-                    val hasCooldown = animal is AnimalEntity && animal.breedingAge > 0
-                    AnimalGrowthData(animal.uuid, foodConsumed = FOOD_TO_GROW, canBreed = !hasCooldown)
+                    // 外来成体：直接标记已长成。P3 修复：不再默认授予 canBreed——
+                    // 否则区块卸载重建档案/拆机重放都会变成免费繁殖入口。
+                    // 外来成体需喂满 FOOD_TO_BREED 次才可繁殖（与机器养大的幼崽同规则）；
+                    // 仍在原版繁殖冷却中的正常计入 foodConsumed 起点但不提前豁免。
+                    AnimalGrowthData(animal.uuid, foodConsumed = FOOD_TO_GROW, canBreed = false)
                 } else {
                     AnimalGrowthData(animal.uuid)
                 }
@@ -525,11 +526,14 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
             tryBreedReadyAnimals(world, animals, report)
         }
 
-        // 只清理已死亡的动物数据，活着的实体（包括离开范围的）保留状态
+        // 只清理确证死亡/卸载维度不存在的动物数据；离开范围（区块仍加载）的保留状态。
+        // P3 修复：原实现 world.getEntity(uuid)==null 即删档——动物走远致区块卸载后档案被删，
+        // 回来时按"外来成体"重建直接免费 canBreed，形成免费繁殖循环。改为仅删
+        // "实体仍在实体加载表中但已死亡"的确证死亡档案；未加载（null）保留，待回来续档。
         if (world is ServerWorld) {
-            animalDataMap.keys.removeAll { uuid ->
+            animalDataMap.entries.removeIf { (uuid, _) ->
                 val entity = world.getEntity(uuid)
-                entity == null || !entity.isAlive
+                entity != null && !entity.isAlive
             }
         }
 
@@ -555,7 +559,12 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
             animalData.insecticidePaidToday = false
         }
 
-        // 检查今天是否已经喂够了5个
+        // P2 修复：喂食终止条件——幼崽已喂满 10、或成体已可繁殖但未配对（无配偶/32上限/同种不足）时
+        // 不再消耗饲料。否则单身动物/上限卡住时会每天吞 5 饲料且 foodConsumed 无上界增长。
+        if (animalData.foodConsumed >= FOOD_TO_GROW && (animalData.canBreed || !animal.isBaby)) return
+        if (!animal.isBaby && animalData.canBreed) return
+
+        // 每天仍限 FOOD_PER_DAY 个（防超频逐帧喂食）
         if (animalData.foodToday >= FOOD_PER_DAY) return
 
         // 计算喂食间隔：12000 tick / 5 = 2400 tick = 2分钟喂1个
@@ -751,7 +760,10 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
     private fun getExtraProduct(animal: PassiveEntity): ItemStack? {
         val entityId = Registries.ENTITY_TYPE.getId(animal.type).toString()
         return when (entityId) {
-            "minecraft:chicken" -> ItemStack(Items.EGG, 1)
+            "minecraft:chicken" -> {
+                // P5 修复：幼鸡不下蛋（原实现无 isBaby 检查）
+                if (animal.isBaby) null else ItemStack(Items.EGG, 1)
+            }
             "minecraft:sheep" -> {
                 if (animal is SheepEntity && !animal.isSheared) {
                     val colorName = animal.color.asString()
@@ -793,20 +805,33 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
 
         val product = getExtraProduct(animal) ?: return
 
+        // P5 修复：先确认输出槽可容纳，再产生副作用（剪刀耐久/羊剪毛标记）。
+        // 原实现先扣耐久+标 isSheared 再发现输出满直接 return——羊毛凭空消失，
+        // 且 lastHarvestTick 不推进，每 2400t 空剪一次。
+        val out = getStack(SLOT_HARVEST_OUTPUT)
+        val canStore = out.isEmpty || (ItemStack.canCombine(out, product) && out.count + product.count <= out.maxCount)
+        if (!canStore) {
+            // 输出满：推进 lastHarvestTick，避免每 tick 重扫，但不消耗任何资源
+            animalData.lastHarvestTick = world.time
+            return
+        }
+
         // 鸡蛋不需要剪刀，其他产物需要消耗剪刀耐久
         val needsShears = product.item != Items.EGG
-        if (needsShears && !tryConsumeShearsDurability()) return
+        if (needsShears && !tryConsumeShearsDurability()) {
+            animalData.lastHarvestTick = world.time
+            return
+        }
 
-        // 收获后处理（如标记羊已剪毛）
+        // 收获后处理（如标记羊已剪毛）——此时输出已确认可容纳，副作用不会白费
         if (animal is SheepEntity) {
             animal.isSheared = true
         }
 
         // 放入输出槽
-        val out = getStack(SLOT_HARVEST_OUTPUT)
-        if (!out.isEmpty) {
-            if (!ItemStack.canCombine(out, product) || out.count >= out.maxCount) return
-            out.increment(product.count)
+        val out2 = getStack(SLOT_HARVEST_OUTPUT)
+        if (!out2.isEmpty) {
+            out2.increment(product.count)
         } else {
             setStack(SLOT_HARVEST_OUTPUT, product.copy())
         }

@@ -679,42 +679,43 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
             return
         }
 
-        // 检查附近4格内是否有牲畜监管机
-        val box = net.minecraft.util.math.Box(pos).expand(4.0)
+        // P1 修复：统一用 AnimalmatronBlock.isManaged（与 BE 喂食扫描同几何），
+        // 再在命中机器里找档案（扫描序优先，多机重叠时表现层仍取第一台，见 P6 注释）。
         var foundMachine: AnimalmatronBlockEntity? = null
         var hasWater = false
         var totalFed = 0
         var todayFed = 0
 
-        val minX = box.minX.toInt()
-        val minY = box.minY.toInt()
-        val minZ = box.minZ.toInt()
-        val maxX = box.maxX.toInt()
-        val maxY = box.maxY.toInt()
-        val maxZ = box.maxZ.toInt()
-
-        for (x in minX..maxX) {
-            for (y in minY..maxY) {
-                for (z in minZ..maxZ) {
-                    val checkPos = net.minecraft.util.math.BlockPos(x, y, z)
-                    val be = world.getBlockEntity(checkPos)
-                    if (be is AnimalmatronBlockEntity) {
-                        foundMachine = be
-                        hasWater = be.sync.waterAmount > 0
-                        // 获取喂食进度
-                        val progress = be.getAnimalFeedProgress(entity.uuid)
-                        if (progress != null) {
-                            totalFed = progress.first
-                            todayFed = progress.second
-                        }
-                        // 获取繁殖状态
-                        data.putBoolean("canBreed", be.isAnimalCanBreed(entity.uuid))
-                        break
+        if (AnimalmatronBlock.isManaged(entity)) {
+            val searchBox = entity.boundingBox.expand(AnimalmatronBlock.RANGE_RADIUS)
+            val minPos = net.minecraft.util.math.BlockPos(
+                Math.floor(searchBox.minX).toInt(),
+                Math.floor(searchBox.minY).toInt(),
+                Math.floor(searchBox.minZ).toInt()
+            )
+            val maxPos = net.minecraft.util.math.BlockPos(
+                Math.ceil(searchBox.maxX).toInt(),
+                Math.ceil(searchBox.maxY).toInt(),
+                Math.ceil(searchBox.maxZ).toInt()
+            )
+            outer@ for (bp in net.minecraft.util.math.BlockPos.iterate(minPos, maxPos)) {
+                val be = world.getBlockEntity(bp)
+                if (be is AnimalmatronBlockEntity &&
+                    world.getBlockState(bp).get(AnimalmatronBlock.ACTIVE)
+                ) {
+                    foundMachine = be
+                    hasWater = be.sync.waterAmount > 0
+                    // 获取喂食进度
+                    val progress = be.getAnimalFeedProgress(entity.uuid)
+                    if (progress != null) {
+                        totalFed = progress.first
+                        todayFed = progress.second
                     }
+                    // 获取繁殖状态
+                    data.putBoolean("canBreed", be.isAnimalCanBreed(entity.uuid))
+                    break@outer
                 }
-                if (foundMachine != null) break
             }
-            if (foundMachine != null) break
         }
 
         data.putBoolean("isManaged", foundMachine != null)

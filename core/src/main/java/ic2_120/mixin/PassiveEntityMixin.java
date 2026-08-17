@@ -2,11 +2,7 @@ package ic2_120.mixin;
 
 import ic2_120.content.block.AnimalmatronBlock;
 import ic2_120.content.entity.AnimalFoodMapping;
-import net.minecraft.block.BlockState;
 import net.minecraft.entity.passive.PassiveEntity;
-import net.minecraft.server.world.ServerWorld;
-import net.minecraft.util.math.BlockPos;
-import net.minecraft.util.math.Box;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -32,7 +28,7 @@ public class PassiveEntityMixin {
     private void ic2AnimalmatronStartNaturalGrowthGuard(CallbackInfo ci) {
         PassiveEntity entity = (PassiveEntity) (Object) this;
         this.ic2_120$blockingNaturalGrowth =
-                entity.getWorld() instanceof ServerWorld &&
+                entity.getWorld() instanceof net.minecraft.server.world.ServerWorld &&
                         entity.isBaby() &&
                         AnimalFoodMapping.isManagedAnimal(entity);
     }
@@ -52,43 +48,15 @@ public class PassiveEntityMixin {
         }
 
         PassiveEntity entity = (PassiveEntity) (Object) this;
-        if (!(entity.getWorld() instanceof ServerWorld world)) {
-            return;
-        }
 
         if (age <= entity.getBreedingAge()) {
             return;
         }
 
-        if (ic2_120$isInsideAnimalmatronRange(entity, world)) {
+        // 统一走 AnimalmatronBlock.isManaged：与 BE 扫描同几何 + 要求 ACTIVE（P1/P4）。
+        // 断电/停机时不拦截，幼崽可自然生长。
+        if (AnimalmatronBlock.isManaged(entity)) {
             ci.cancel();
         }
-    }
-
-    @Unique
-    private boolean ic2_120$isInsideAnimalmatronRange(PassiveEntity entity, ServerWorld world) {
-        BlockPos entityPos = entity.getBlockPos();
-        Box searchBox = new Box(entityPos).expand(4.0);
-
-        int minX = (int) Math.floor(searchBox.minX);
-        int minY = (int) Math.floor(searchBox.minY);
-        int minZ = (int) Math.floor(searchBox.minZ);
-        int maxX = (int) Math.ceil(searchBox.maxX);
-        int maxY = (int) Math.ceil(searchBox.maxY);
-        int maxZ = (int) Math.ceil(searchBox.maxZ);
-
-        for (int x = minX; x <= maxX; x++) {
-            for (int y = minY; y <= maxY; y++) {
-                for (int z = minZ; z <= maxZ; z++) {
-                    BlockPos pos = new BlockPos(x, y, z);
-                    BlockState state = world.getBlockState(pos);
-                    if (state.getBlock() instanceof AnimalmatronBlock) {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
     }
 }

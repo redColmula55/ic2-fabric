@@ -82,6 +82,40 @@ class AnimalmatronBlock : MachineBlock() {
     companion object {
         val ACTIVE: BooleanProperty = BooleanProperty.of("active")
 
+        /** 监管范围半径（与 BE runScan 的 Box(pos).expand(SCAN_RADIUS) 一致）。 */
+        const val RANGE_RADIUS = 4.0
+
+        /**
+         * 统一的范围判定（P1/P4 修复）：Mixin 拦截自然生长/下蛋、JADE 展示与 BE 喂食扫描
+         * 必须用同一几何，否则边界先上会出现"被拦截自然生长却不被喂食"的永久卡死幼崽。
+         * 几何 = 机器方块 Box.expand(4) 与实体 bbox 相交（与 BE getEntitiesByClass 一致），
+         * 并额外要求机器 ACTIVE（断电/停机时不拦截，避免幼崽冻结）。
+         *
+         * P6（多机重叠）：档案每机独立，重叠区喂食/水耗/EU 会叠加，繁殖可能绕过单机 32 上限。
+         * 已知限制，不修——有意让多台机器范围重叠时各自独立工作（文档化于此）。
+         */
+        @JvmStatic
+        fun isManaged(entity: net.minecraft.entity.Entity): Boolean {
+            val world = entity.world
+            if (world !is net.minecraft.server.world.ServerWorld) return false
+            val searchBox = entity.boundingBox.expand(RANGE_RADIUS)
+            val minPos = net.minecraft.util.math.BlockPos(
+                Math.floor(searchBox.minX).toInt(),
+                Math.floor(searchBox.minY).toInt(),
+                Math.floor(searchBox.minZ).toInt()
+            )
+            val maxPos = net.minecraft.util.math.BlockPos(
+                Math.ceil(searchBox.maxX).toInt(),
+                Math.ceil(searchBox.maxY).toInt(),
+                Math.ceil(searchBox.maxZ).toInt()
+            )
+            for (bp in net.minecraft.util.math.BlockPos.iterate(minPos, maxPos)) {
+                val state = world.getBlockState(bp)
+                if (state.block is AnimalmatronBlock && state.get(ACTIVE)) return true
+            }
+            return false
+        }
+
         @RecipeProvider
         fun generateRecipes(exporter: Consumer<RecipeJsonProvider>) {
             val machine = MachineCasingBlock::class.item()
