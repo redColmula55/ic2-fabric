@@ -245,7 +245,7 @@ class SolidCannerBlockEntity(
             result = recipe.output.copy()
             slot0InputCount = recipe.slot0Count
             slot1InputCount = recipe.slot1Count
-        } else if (tinCan.item is EmptyTinCanItem && food.item.foodComponent != null) {
+        } else if (tinCan.item is EmptyTinCanItem && food.item.foodComponent != null && food.item !is FilledTinCanItem) {
             val canCount = food.item.foodComponent!!.hunger.coerceAtLeast(1)
             result = ItemStack(FilledTinCanItem::class.instance(), canCount)
             slot0InputCount = canCount
@@ -352,6 +352,7 @@ class SolidCannerBlockEntity(
 
     private fun isFoodInput(stack: ItemStack): Boolean =
         !stack.isEmpty && stack.item !is IBatteryItem && stack.item !is IUpgradeItem &&
+            stack.item !is FilledTinCanItem &&
             (world?.let { SolidCannerRecipe.slot1Ingredients(it).any { ing -> ing.test(stack) } } == true
              || stack.item.foodComponent != null)
 }
