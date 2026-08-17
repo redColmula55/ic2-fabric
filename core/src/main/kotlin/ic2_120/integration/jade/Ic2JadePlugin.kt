@@ -700,9 +700,7 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
             )
             outer@ for (bp in net.minecraft.util.math.BlockPos.iterate(minPos, maxPos)) {
                 val be = world.getBlockEntity(bp)
-                if (be is AnimalmatronBlockEntity &&
-                    world.getBlockState(bp).get(AnimalmatronBlock.ACTIVE)
-                ) {
+                if (be is AnimalmatronBlockEntity && be.sync.amount > 0L) {
                     foundMachine = be
                     hasWater = be.sync.waterAmount > 0
                     // 获取喂食进度

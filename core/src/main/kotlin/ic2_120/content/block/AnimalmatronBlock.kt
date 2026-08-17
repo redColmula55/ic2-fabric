@@ -89,7 +89,9 @@ class AnimalmatronBlock : MachineBlock() {
          * 统一的范围判定（P1/P4 修复）：Mixin 拦截自然生长/下蛋、JADE 展示与 BE 喂食扫描
          * 必须用同一几何，否则边界先上会出现"被拦截自然生长却不被喂食"的永久卡死幼崽。
          * 几何 = 机器方块 Box.expand(4) 与实体 bbox 相交（与 BE getEntitiesByClass 一致），
-         * 并额外要求机器 ACTIVE（断电/停机时不拦截，避免幼崽冻结）。
+         * 并额外要求机器有电（sync.amount > 0，断电即不再拦截/JADE 不再显示，避免幼崽冻结）。
+         *
+         * 注：不使用方块 ACTIVE 属性——那是"本次扫描是否碰到动物"的瞬时状态，闪烁不定。
          *
          * P6（多机重叠）：档案每机独立，重叠区喂食/水耗/EU 会叠加，繁殖可能绕过单机 32 上限。
          * 已知限制，不修——有意让多台机器范围重叠时各自独立工作（文档化于此）。
@@ -110,8 +112,9 @@ class AnimalmatronBlock : MachineBlock() {
                 Math.ceil(searchBox.maxZ).toInt()
             )
             for (bp in net.minecraft.util.math.BlockPos.iterate(minPos, maxPos)) {
-                val state = world.getBlockState(bp)
-                if (state.block is AnimalmatronBlock && state.get(ACTIVE)) return true
+                if (world.getBlockState(bp).block !is AnimalmatronBlock) continue
+                val be = world.getBlockEntity(bp) as? AnimalmatronBlockEntity ?: continue
+                if (be.sync.amount > 0L) return true
             }
             return false
         }
