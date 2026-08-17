@@ -52,7 +52,7 @@ class EnergyStorageScreen(
        super.init()
        if (handler.supportsRedstoneMode) {
            addDrawableChild(
-               net.minecraft.client.gui.widget.ButtonWidget.builder(modeLabel()) {
+               net.minecraft.client.gui.widget.ButtonWidget.builder(Text.empty()) {
                    client?.player?.networkHandler?.sendPacket(
                        net.minecraft.network.packet.c2s.play.ButtonClickC2SPacket(
                            handler.syncId, EnergyStorageScreenHandler.BUTTON_REDSTONE_MODE
@@ -62,8 +62,6 @@ class EnergyStorageScreen(
            )
        }
    }
-
-   private fun modeLabel(): Text = Text.literal("RS")
 
    /** 服务端切换后聊天栏提示模式名；GUI 内鼠标悬停也显示当前模式。 */
    override fun drawMouseoverTooltip(context: DrawContext, mouseX: Int, mouseY: Int) {
@@ -125,6 +123,15 @@ class EnergyStorageScreen(
                 textRenderer,
                 Text.literal("${EnergyFormatUtils.formatRaw(energy)} / ${EnergyFormatUtils.formatRaw(cap)} EU"),
                 mouseX, mouseY
+            )
+        }
+
+        // 红石模式按钮：原版红石粉图标（居中于 18x14 按钮）
+        if (handler.supportsRedstoneMode) {
+            context.drawItem(
+                net.minecraft.item.ItemStack(net.minecraft.item.Items.REDSTONE),
+                x + backgroundWidth - 24 + (18 - 16) / 2,
+                y + 4 + (14 - 16) / 2
             )
         }
 
