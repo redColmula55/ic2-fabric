@@ -10,37 +10,43 @@ data class EnergyStorageConfig(
     val capacity: Long,
     val slotCount: Int,
     val useEquipmentSlots: Boolean,
-    val chargePlayersAbove: Boolean = false
+    val chargePlayersAbove: Boolean = false,
+    /** 未满电时向周围输出红石信号（对齐原版 IC2 储电盒红石模式 “emitted when not full”）。 */
+    val emitRedstoneWhenNotFull: Boolean = false
 ) {
     companion object {
         val BATBOX = EnergyStorageConfig(
             tier = 1,
             capacity = 40_000L,
             slotCount = 2,
-            useEquipmentSlots = false
+            useEquipmentSlots = false,
+            emitRedstoneWhenNotFull = true
         )
         val CESU = EnergyStorageConfig(
             tier = 2,
             capacity = 300_000L,
             slotCount = 2,
-            useEquipmentSlots = false
+            useEquipmentSlots = false,
+            emitRedstoneWhenNotFull = true
         )
         val MFE = EnergyStorageConfig(
             tier = 3,
             capacity = 4_000_000L,
             slotCount = 2,
-            useEquipmentSlots = true
+            useEquipmentSlots = true,
+            emitRedstoneWhenNotFull = true
         )
         val MFSU = EnergyStorageConfig(
             tier = 4,
             capacity = 40_000_000L,
             slotCount = 2,
-            useEquipmentSlots = true
+            useEquipmentSlots = true,
+            emitRedstoneWhenNotFull = true
         )
-        val BATBOX_CHARGEPAD = BATBOX.copy(chargePlayersAbove = true)
-        val CESU_CHARGEPAD = CESU.copy(chargePlayersAbove = true)
-        val MFE_CHARGEPAD = MFE.copy(chargePlayersAbove = true)
-        val MFSU_CHARGEPAD = MFSU.copy(chargePlayersAbove = true)
+        val BATBOX_CHARGEPAD = BATBOX.copy(chargePlayersAbove = true, emitRedstoneWhenNotFull = false)
+        val CESU_CHARGEPAD = CESU.copy(chargePlayersAbove = true, emitRedstoneWhenNotFull = false)
+        val MFE_CHARGEPAD = MFE.copy(chargePlayersAbove = true, emitRedstoneWhenNotFull = false)
+        val MFSU_CHARGEPAD = MFSU.copy(chargePlayersAbove = true, emitRedstoneWhenNotFull = false)
 
         private val BY_PATH = mapOf(
             "batbox" to BATBOX,

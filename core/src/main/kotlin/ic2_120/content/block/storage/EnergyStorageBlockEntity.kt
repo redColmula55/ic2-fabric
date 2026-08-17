@@ -187,6 +187,13 @@ abstract class EnergyStorageBlockEntity(
         nbt.putLong(EnergyStorageSync.NBT_ENERGY_STORED, sync.amount)
     }
 
+    /** 未满电时输出红石信号（仅配置开启的储电箱；供方块 getWeakRedstonePower 查询）。 */
+    val emitsNotFullRedstone: Boolean
+        get() = config.emitRedstoneWhenNotFull && sync.amount < config.capacity
+
+    /** 红石输出翻转时通知邻居，让红石线/比较器即时响应充放电状态变化。 */
+    private var lastRedstoneEmit = false
+
     open fun tick(world: World, pos: BlockPos, state: BlockState) {
         if (world.isClient) return
 
@@ -204,6 +211,14 @@ abstract class EnergyStorageBlockEntity(
        }
 
        updateActiveState(world, pos, chargedThisTick > 0L)
+
+       if (config.emitRedstoneWhenNotFull) {
+           val emit = emitsNotFullRedstone
+           if (emit != lastRedstoneEmit) {
+               lastRedstoneEmit = emit
+               world.updateNeighborsAlways(pos, state.block)
+           }
+       }
 
        sync.syncCurrentTickFlow()
    }

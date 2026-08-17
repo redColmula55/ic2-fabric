@@ -22,6 +22,8 @@ import net.minecraft.util.ActionResult
 import net.minecraft.util.Hand
 import net.minecraft.util.hit.BlockHitResult
 import net.minecraft.util.math.BlockPos
+import net.minecraft.util.math.Direction
+import net.minecraft.world.BlockView
 import net.minecraft.world.World
 
 /**
@@ -37,6 +39,21 @@ abstract class EnergyStorageBlock(
     }
 
     abstract override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity?
+
+    /** 未满电时向四周输出红石信号（原版 IC2 储电盒红石功能）。 */
+    override fun emitsRedstonePower(state: BlockState): Boolean = config.emitRedstoneWhenNotFull
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun getWeakRedstonePower(
+        state: BlockState,
+        world: BlockView,
+        pos: BlockPos,
+        direction: Direction
+    ): Int {
+        if (!config.emitRedstoneWhenNotFull) return 0
+        val be = world.getBlockEntity(pos) as? EnergyStorageBlockEntity ?: return 0
+        return if (be.emitsNotFullRedstone) 15 else 0
+    }
 
     override fun createScreenHandlerFactory(state: BlockState, world: World, pos: BlockPos): net.minecraft.screen.NamedScreenHandlerFactory? {
         val be = world.getBlockEntity(pos)
