@@ -161,6 +161,8 @@ abstract class BaseMinerBlockEntity(
     private var advancedTarget: BlockPos? = null
     private var advancedScanPos: BlockPos? = null
     private var normalPipeRecoveryTicks = 0
+    /** 普通矿机到底标志：钻到不可破坏方块（基岩）或世界底部后自动进入管道回收，直到收完或 GUI 重启。 */
+    private var normalReachedBottom = false
     private var resetWaitingForRedstone = false
     private var redstoneStateAtReset = false
     private var renderTarget: BlockPos? = null
@@ -320,6 +322,15 @@ abstract class BaseMinerBlockEntity(
         TransformerUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES, this)
         FluidPipeUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES)
         adjacentEnergy.tick()
+        if (!advanced) {
+            // 弹出升级不依赖挖掘动作：罢工/回收/闲置时也持续弹出产物与流体 (#26)
+            world?.let { w ->
+                EjectorUpgradeComponent.ejectIfUpgraded(w, pos, this, SLOT_UPGRADE_INDICES, SLOT_ITEM_INDICES)
+                if (fluidPipeProviderEnabled) {
+                    FluidPipeUpgradeComponent.ejectFluidToNeighbors(w, pos, fluidTankInternal, fluidPipeProviderFilter, fluidPipeProviderSides, upgradeCount = fluidPipeEjectorCount)
+                }
+            }
+        }
         val available = minOf(sync.getEffectiveCapacity() - sync.amount, sync.getEffectiveMaxInsertPerTick())
         if (available > 0) discharger.tick(available).also { if (it > 0) sync.insertEnergy(it) }
         if (sync.amount > 0) scannerCharger.tick()
@@ -340,6 +351,7 @@ abstract class BaseMinerBlockEntity(
 
     /** Process one vertical pipe level, then scan one horizontal layer. */
     private fun tickNormal(world: ServerWorld): Boolean {
+        if (normalReachedBottom) return recoverNormalPipes(world)
         val drill = getStack(SLOT_DRILL)
         if (drill.isEmpty) return recoverNormalPipes(world)
         val scanner = getStack(SLOT_SCANNER)
@@ -358,6 +370,12 @@ abstract class BaseMinerBlockEntity(
         if (world.getBlockState(pipe).block !is MiningPipeBlock) {
             val pipeState = world.getBlockState(pipe)
             if (!pipeState.isAir) {
+                // 遇到不可破坏方块（基岩等）视为到底：不再钻穿，自动转入管道回收 (#26)
+                if (pipeState.getHardness(world, pipe) < 0f) {
+                    normalReachedBottom = true
+                    markDirty()
+                    return recoverNormalPipes(world)
+                }
                 if (!canUseDrill(pipeState)) return false
                 mineNormalBlock(world, pipe, drill)
                 return true
@@ -382,7 +400,12 @@ abstract class BaseMinerBlockEntity(
         val target = findNormalTarget(world, y, scanRange) ?: run {
             sync.cursorY = y - 1
             scanLevel = Int.MIN_VALUE
-            return sync.cursorY >= world.bottomY
+            if (sync.cursorY < world.bottomY) {
+                normalReachedBottom = true
+                markDirty()
+                return recoverNormalPipes(world)
+            }
+            return true
         }
         sync.cursorX = target.x - pos.x
         sync.cursorZ = target.z - pos.z
@@ -399,10 +422,17 @@ abstract class BaseMinerBlockEntity(
         return null
     }
 
-    /** Remove one pipe from the bottom upward while the drill slot is empty. */
+    /** Remove one pipe from the bottom upward (auto after reaching bottom, or manual with drill removed). */
     private fun recoverNormalPipes(world: ServerWorld): Boolean {
         if (advanced) return false
-        val pipe = findDeepestNormalPipe(world) ?: return false
+        val pipe = findDeepestNormalPipe(world) ?: run {
+            // 管道全部收回：卸下钻头（或 GUI 重启）后复位到底标志，允许下一轮采矿
+            if (normalReachedBottom && getStack(SLOT_DRILL).isEmpty) {
+                normalReachedBottom = false
+                markDirty()
+            }
+            return false
+        }
         if (getPipeCount() >= PIPE_SLOT_MAX_COUNT) return false
         if (ClaimProtection.isProtected(world, pipe, ownerUuid, ClaimProtection.EDIT_BLOCK)) return false
         if (normalPipeRecoveryTicks < 20) {
@@ -418,7 +448,8 @@ abstract class BaseMinerBlockEntity(
     }
 
     private fun findDeepestNormalPipe(world: ServerWorld): BlockPos? {
-        for (y in (pos.y - 1) downTo world.bottomY) {
+        // 自底向上回收：先拆最底部的管道（钻头端），列保持连续，不会出现隔空缺口 (#26)
+        for (y in world.bottomY until pos.y) {
             val pipe = BlockPos(pos.x, y, pos.z)
             if (world.getBlockState(pipe).block is MiningPipeBlock) return pipe
         }
@@ -455,7 +486,10 @@ abstract class BaseMinerBlockEntity(
 
     private fun mineNormalBlock(world: ServerWorld, target: BlockPos, drill: ItemStack): Boolean {
         val mode = when (drill.item) { is Drill -> 0; is DiamondDrill -> 1; is IridiumDrill -> 2; else -> return false }
-        val (euPerTick, duration, toolCost) = when (mode) { 0 -> Triple(6L, 200, 50L); 1 -> Triple(20L, 50, 80L); else -> Triple(200L, 20, 800L) }
+        val targetState = world.getBlockState(target)
+        // 不可破坏方块（基岩等）一律不挖：竖直下探与水平路径共用此守卫 (#26)
+        if (targetState.getHardness(world, target) < 0f) return false
+        val (euPerTick, duration, toolCost) = when (mode) { 0 -> Triple(60L, 20, 50L); 1 -> Triple(100L, 10, 80L); else -> Triple(800L, 5, 800L) }
         if (progressMode != mode) { progressMode = mode; sync.progressTicks = 0 }
         val depthCost = max(0, pos.y - target.y) * 2L
         val tool = drill.item as IElectricTool
@@ -593,6 +627,7 @@ abstract class BaseMinerBlockEntity(
         sync.cursorX = 0; sync.cursorY = pos.y - 1; sync.cursorZ = 0
         sync.progressTicks = 0
         advancedScanPos = null; advancedTarget = null
+        normalReachedBottom = false
         resetWaitingForRedstone = advanced
         redstoneStateAtReset = world?.isReceivingRedstonePower(pos) ?: false
         markDirty()
@@ -602,10 +637,10 @@ abstract class BaseMinerBlockEntity(
     fun toggleSilkTouch() { if (sync.running == 0) { sync.silkTouch = if (sync.silkTouch == 0) 1 else 0; markDirty() } }
 
     private fun writeMinerNbt(nbt: NbtCompound) {
-        nbt.putLong("EnergyStored", sync.amount); nbt.putInt("ScanLevel", scanLevel); nbt.putInt("ProgressMode", progressMode); nbt.putInt("AdvancedTicker", advancedTicker); nbt.putInt("NormalPipeRecoveryTicks", normalPipeRecoveryTicks)
+        nbt.putLong("EnergyStored", sync.amount); nbt.putInt("ScanLevel", scanLevel); nbt.putInt("ProgressMode", progressMode); nbt.putInt("AdvancedTicker", advancedTicker); nbt.putInt("NormalPipeRecoveryTicks", normalPipeRecoveryTicks); nbt.putBoolean("NormalReachedBottom", normalReachedBottom)
         nbt.putLong("RenderTargetTime", renderTargetTime); nbt.putBoolean("ResetWaitingForRedstone", resetWaitingForRedstone); nbt.putBoolean("RedstoneStateAtReset", redstoneStateAtReset); renderTarget?.let { nbt.putInt("RenderTargetX", it.x); nbt.putInt("RenderTargetY", it.y); nbt.putInt("RenderTargetZ", it.z) }
     }
-    override fun readNbt(nbt: NbtCompound) { super.readNbt(nbt); Inventories.readNbt(nbt, inventory); syncedData.readNbt(nbt); sync.amount = nbt.getLong("EnergyStored"); sync.syncCommittedAmount(); scanLevel = nbt.getInt("ScanLevel"); progressMode = nbt.getInt("ProgressMode"); advancedTicker = nbt.getInt("AdvancedTicker"); normalPipeRecoveryTicks = nbt.getInt("NormalPipeRecoveryTicks").coerceIn(0, 19); resetWaitingForRedstone = nbt.getBoolean("ResetWaitingForRedstone"); redstoneStateAtReset = nbt.getBoolean("RedstoneStateAtReset"); renderTargetTime = nbt.getLong("RenderTargetTime"); if (nbt.contains("RenderTargetX")) renderTarget = BlockPos(nbt.getInt("RenderTargetX"), nbt.getInt("RenderTargetY"), nbt.getInt("RenderTargetZ")) }
+    override fun readNbt(nbt: NbtCompound) { super.readNbt(nbt); Inventories.readNbt(nbt, inventory); syncedData.readNbt(nbt); sync.amount = nbt.getLong("EnergyStored"); sync.syncCommittedAmount(); scanLevel = nbt.getInt("ScanLevel"); progressMode = nbt.getInt("ProgressMode"); advancedTicker = nbt.getInt("AdvancedTicker"); normalPipeRecoveryTicks = nbt.getInt("NormalPipeRecoveryTicks").coerceIn(0, 19); normalReachedBottom = nbt.getBoolean("NormalReachedBottom"); resetWaitingForRedstone = nbt.getBoolean("ResetWaitingForRedstone"); redstoneStateAtReset = nbt.getBoolean("RedstoneStateAtReset"); renderTargetTime = nbt.getLong("RenderTargetTime"); if (nbt.contains("RenderTargetX")) renderTarget = BlockPos(nbt.getInt("RenderTargetX"), nbt.getInt("RenderTargetY"), nbt.getInt("RenderTargetZ")) }
     override fun writeNbt(nbt: NbtCompound) { super.writeNbt(nbt); Inventories.writeNbt(nbt, inventory); syncedData.writeNbt(nbt); writeMinerNbt(nbt) }
     override fun toInitialChunkDataNbt() = createNbt()
     override fun toUpdatePacket(): Packet<ClientPlayPacketListener> = BlockEntityUpdateS2CPacket.create(this)
