@@ -2,14 +2,18 @@ package ic2_120.content.energy.charge
 
 import ic2_120.content.item.energy.IBatteryItem
 import ic2_120.content.item.energy.IElectricTool
+import ic2_120.content.item.energy.ITiered
 import net.minecraft.inventory.Inventory
+import net.minecraft.item.ItemStack
 
 /**
  * 通用充电组件。
  *
  * 支持电池（[IBatteryItem]）与电动工具（[IElectricTool]）充电。
  * 通过组合方式复用“机器给可充电物品充电”逻辑，避免各类机器重复实现。
- * 每 tick 上限为 [ic2_120.content.item.energy.ITiered.nominalEuPerTick]（与标称线速一致）。
+ * 每 tick 上限默认取物品自身 [ic2_120.content.item.energy.ITiered.nominalEuPerTick]（与标称线速一致），
+ * 也可通过 [transferRateProvider] 覆盖，供机器实现“升级加成充电速度”
+ * （如采矿机高压升级提升扫描仪充电电压等级）。
  */
 class BatteryChargerComponent(
     private val inventory: Inventory,
@@ -21,6 +25,11 @@ class BatteryChargerComponent(
     private val extractEnergy: (Long) -> Long,
     //向机器插入能量的函数，返回实际插入量（EU），用于放电模式
     private val insertEnergy: (Long) -> Long = { 0L },
+    //单 tick 充电速率上限（EU）。默认取物品自身 nominalEuPerTick()；
+    //机器可覆盖此回调实现充电速度加成（如每个高压升级让扫描仪充电快 4 倍）。
+    private val transferRateProvider: (ItemStack) -> Long = { stack ->
+        (stack.item as? ITiered)?.nominalEuPerTick() ?: 0L
+    },
     private val canChargeNow: () -> Boolean = { true }
 ) {
     /**
@@ -84,7 +93,7 @@ class BatteryChargerComponent(
 
         val machineEnergy = machineEnergyProvider().coerceAtLeast(0L)
         val remaining = (battery.maxCapacity - battery.getCurrentCharge(stack)).coerceAtLeast(0L)
-        val transferLimit = battery.nominalEuPerTick()
+        val transferLimit = transferRateProvider(stack)
         val requested = minOf(transferLimit, machineEnergy, remaining)
         if (requested <= 0L) return 0L
 
@@ -106,7 +115,7 @@ class BatteryChargerComponent(
 
         val machineEnergy = machineEnergyProvider().coerceAtLeast(0L)
         val remaining = (tool.maxCapacity - tool.getEnergy(stack)).coerceAtLeast(0L)
-        val transferLimit = tool.nominalEuPerTick()
+        val transferLimit = transferRateProvider(stack)
         val requested = minOf(transferLimit, machineEnergy, remaining)
         if (requested <= 0L) return 0L
         val extracted = extractEnergy(requested).coerceIn(0L, requested)

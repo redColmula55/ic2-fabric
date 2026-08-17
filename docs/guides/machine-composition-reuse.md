@@ -27,6 +27,7 @@
   - `machineTierProvider`: 机器等级
   - `machineEnergyProvider`: 当前可用能量
   - `extractEnergy`: 扣除机器能量
+  - `transferRateProvider`（可选）: 单 tick 充电速率上限，默认取物品自身 `nominalEuPerTick()`；机器可覆盖实现“升级加成充电速度”（例：采矿机高压升级提升扫描仪充电电压等级，每个高压升级充电快 4 倍）
   - `canChargeNow`: 充电时机（例如发电机仅燃烧时）
 
 核心规则由组件统一保证：

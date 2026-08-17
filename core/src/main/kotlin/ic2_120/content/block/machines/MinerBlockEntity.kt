@@ -8,6 +8,7 @@ import ic2_120.content.block.IClaimSensitive
 import ic2_120.content.block.ITieredMachine
 import ic2_120.content.block.MinerBlock
 import ic2_120.content.block.MiningPipeBlock
+import ic2_120.content.energy.EnergyTier
 import ic2_120.content.energy.charge.BatteryChargerComponent
 import ic2_120.content.energy.charge.BatteryDischargerComponent
 import ic2_120.content.item.AdvancedScannerItem
@@ -212,7 +213,22 @@ abstract class BaseMinerBlockEntity(
     val combinedItemStorage = CombinedMinerItemStorage(itemStorage, pipeStorage)
 
     private val discharger = BatteryDischargerComponent(this, SLOT_DISCHARGING, { baseTier }, { sync.amount < sync.getEffectiveCapacity() })
-    private val scannerCharger = BatteryChargerComponent(this, SLOT_SCANNER, { baseTier }, { sync.amount }, { sync.consumeEnergy(it) }, canChargeNow = { sync.amount > 0 })
+    // 扫描仪充电：速率默认受扫描仪自身电压等级限制（OD 32 / OV 512 EU/t），超频后回充跟不上扫描耗电（1.6^n）会卡住。
+    // 高压升级同样提升扫描仪充电电压等级：每装入一个高压升级，充电速率按 4 倍提升
+    // （等级门限仍按机器基础等级，普通采矿机不用 OV，OV 只进高级采矿机，无门限问题）。
+    private val scannerCharger = BatteryChargerComponent(
+        this,
+        SLOT_SCANNER,
+        { baseTier },
+        { sync.amount },
+        { sync.consumeEnergy(it) },
+        transferRateProvider = { stack ->
+            val tool = stack.item as? IElectricTool
+            val tier = (tool?.tier ?: 1) + TransformerUpgradeComponent.countUpgrades(this, SLOT_UPGRADE_INDICES)
+            EnergyTier.euPerTickFromTier(tier)
+        },
+        canChargeNow = { sync.amount > 0 }
+    )
     private val drillCharger = BatteryChargerComponent(this, SLOT_DRILL, { baseTier }, { sync.amount }, { sync.consumeEnergy(it) }, canChargeNow = { !advanced && sync.amount > 0 })
     private val adjacentEnergy = AdjacentEnergyTransferComponent(this, sync)
 
