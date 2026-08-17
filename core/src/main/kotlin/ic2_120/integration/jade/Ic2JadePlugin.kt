@@ -703,7 +703,7 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
                 if (be is AnimalmatronBlockEntity && be.sync.amount > 0L) {
                     foundMachine = be
                     hasWater = be.sync.waterAmount > 0
-                    // 获取喂食进度
+                    // 获取喂食进度与繁殖资格（P3 语义：breedUnlocked 区分"待解锁"与"已解锁等空位"）
                     val progress = be.getAnimalFeedProgress(entity.uuid)
                     if (progress != null) {
                         totalFed = progress.first
@@ -711,6 +711,7 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
                     }
                     // 获取繁殖状态
                     data.putBoolean("canBreed", be.isAnimalCanBreed(entity.uuid))
+                    data.putBoolean("breedUnlocked", be.isAnimalBreedUnlocked(entity.uuid))
                     break@outer
                 }
             }
@@ -746,7 +747,8 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
 
         // 注：除草剂已停用（不消耗、无作用），不再展示“杀虫剂/生病”状态，避免误导。
 
-        // 显示喂食进度
+        // 显示喂食进度 / 繁殖资格（P3 后语义：foodConsumed 达 10 仅表示"长大了"，
+        // 繁殖资格由 breedUnlocked 表达，JADE 分三档显示消除歧义）
         if (accessor.serverData.contains("canBreed")) {
             val canBreed = accessor.serverData.getBoolean("canBreed")
             if (canBreed) {
@@ -755,13 +757,16 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
             } else {
                 val totalFed = accessor.serverData.getInt("totalFed")
                 val requiredToFed = accessor.serverData.getInt("requiredToFed")
-                if (totalFed < requiredToFed) {
-                    // 还没长成，显示进度
+                if (accessor.serverData.getBoolean("breedUnlocked")) {
+                    // 已解锁繁殖资格但暂不可配对（如范围内动物数量已达上限）
+                    tooltip.add(Text.translatable("ic2_120.jade.animal_fed_full").formatted(Formatting.YELLOW))
+                } else if (totalFed < requiredToFed) {
+                    // 还没喂够，显示进度（含外来成体：从 0/10 喂起解锁繁殖资格）
                     tooltip.add(Text.translatable("ic2_120.jade.animal_feed_progress", totalFed, requiredToFed).formatted(Formatting.YELLOW))
                     val remaining = requiredToFed - totalFed
                     tooltip.add(Text.translatable("ic2_120.jade.animal_remaining_feed", remaining).formatted(Formatting.GRAY))
                 } else {
-                    // 已喂够但暂不可繁殖（如范围内动物数量已达上限）
+                    // foodConsumed 达标但未解锁（32 上限内首次达标会立即解锁，此分支为上限外成长的幼崽）
                     tooltip.add(Text.translatable("ic2_120.jade.animal_fed_full").formatted(Formatting.YELLOW))
                 }
             }

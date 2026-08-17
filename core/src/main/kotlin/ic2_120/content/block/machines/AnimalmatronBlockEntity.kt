@@ -559,10 +559,10 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
             animalData.insecticidePaidToday = false
         }
 
-        // P2 修复：喂食终止条件——幼崽已喂满 10、或成体已可繁殖但未配对（无配偶/32上限/同种不足）时
-        // 不再消耗饲料。否则单身动物/上限卡住时会每天吞 5 饲料且 foodConsumed 无上界增长。
-        if (animalData.foodConsumed >= FOOD_TO_GROW && (animalData.canBreed || !animal.isBaby)) return
-        if (!animal.isBaby && animalData.canBreed) return
+        // P2 修复：喂食终止条件——幼崽已喂满 10、或成体已解锁繁殖资格但未配对（无配偶/32上限/
+        // 同种不足）时不再消耗饲料。否则单身动物/上限卡住时会每天吞 5 饲料且 foodConsumed 无上界增长。
+        if (animalData.foodConsumed >= FOOD_TO_GROW && (animalData.breedUnlocked || !animal.isBaby)) return
+        if (!animal.isBaby && animalData.breedUnlocked) return
 
         // 每天仍限 FOOD_PER_DAY 个（防超频逐帧喂食）
         if (animalData.foodToday >= FOOD_PER_DAY) return
@@ -613,6 +613,15 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
         totalAnimals: Int,
         report: ScanReport
     ) {
+        // 原版手动繁殖同步：玩家用原版机制配对后 breedingAge>0（6000t 冷却）。此时档案的
+        // breedUnlocked/canBreed 必须立即失效，否则机器会认为它"已解锁待配对"，JADE 显示
+        // 与实际状态不符，且冷却结束后可能绕过机器喂食直接机器配对。
+        if (animal is AnimalEntity && animal.breedingAge > 0) {
+            animalData.breedUnlocked = false
+            animalData.canBreed = false
+            return
+        }
+
         // 检查是否达到10个食物
         if (animalData.foodConsumed >= FOOD_TO_GROW) {
             // 先让动物长大（如果还是幼崽）
@@ -621,11 +630,12 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
                 report.grewUp++
             }
 
-            // 检查是否可以繁殖
+            // 解锁繁殖资格：喂满后一次性解锁（breedUnlocked），配对消耗后置回，需重新喂满。
             // 注：除草剂日剂量支付已在 125c9c29 停用（不再消耗、无负面作用），
             // 此处不得再把 insecticidePaidToday 当作繁殖门槛——否则机器喂大的动物
             // 永远无法标记为可繁殖，喂食计数还会无限增长（#22）。
-            if (totalAnimals < MAX_ANIMALS_FOR_BREEDING && !animalData.canBreed) {
+            if (!animalData.breedUnlocked && totalAnimals < MAX_ANIMALS_FOR_BREEDING) {
+                animalData.breedUnlocked = true
                 animalData.canBreed = true
                 report.canBreedNow++
             }
@@ -673,8 +683,10 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
             world.spawnEntityAndPassengers(child)
 
             animalData.foodConsumed = 0
+            animalData.breedUnlocked = false
             animalData.canBreed = false
             mateData.foodConsumed = 0
+            mateData.breedUnlocked = false
             mateData.canBreed = false
 
             used.add(mate.uuid)
@@ -877,6 +889,14 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
     fun isAnimalCanBreed(uuid: java.util.UUID): Boolean {
         val data = animalDataMap[uuid] ?: return false
         return data.canBreed
+    }
+
+    /**
+     * 获取指定动物是否已解锁繁殖资格（供 JADE 显示分流：待解锁 vs 已解锁等空位）
+     */
+    fun isAnimalBreedUnlocked(uuid: java.util.UUID): Boolean {
+        val data = animalDataMap[uuid] ?: return false
+        return data.breedUnlocked
     }
 
     data class ScanReport(

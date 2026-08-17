@@ -6,8 +6,11 @@ import net.minecraft.nbt.NbtCompound
  * 追踪动物的喂食进度和状态
  *
  * @property uuid 动物的唯一标识符
- * @property foodConsumed 累计喂食的食物数量
- * @property canBreed 是否满足繁殖条件
+ * @property foodConsumed 累计喂食的食物数量（注意：外来成体建档即 10，仅表示"无需再长大"，
+ *   不等于繁殖资格；繁殖资格看 [breedUnlocked]）
+ * @property breedUnlocked 繁殖资格已解锁（本次周期喂满 FOOD_TO_BREED 或幼崽长成后达标；
+ *   配对消耗后置回 false）。JADE 据此区分"待解锁（继续喂）"与"已解锁（等配偶/空位）"
+ * @property canBreed 当前可参与配对（运行态标记；配对后置回 false）
  * @property lastFeedTick 上次喂食的 tick 时间
  * @property foodToday 今天已喂食的数量
  * @property currentDay 当前所在的天数
@@ -15,6 +18,7 @@ import net.minecraft.nbt.NbtCompound
 data class AnimalGrowthData(
     val uuid: java.util.UUID,
     var foodConsumed: Int = 0,
+    var breedUnlocked: Boolean = false,
     var canBreed: Boolean = false,
     var lastFeedTick: Long = 0L,
     var foodToday: Int = 0,
@@ -29,6 +33,7 @@ data class AnimalGrowthData(
         val nbt = NbtCompound()
         nbt.putUuid("UUID", uuid)
         nbt.putInt("FoodConsumed", foodConsumed)
+        nbt.putBoolean("BreedUnlocked", breedUnlocked)
         nbt.putBoolean("CanBreed", canBreed)
         nbt.putLong("LastFeedTick", lastFeedTick)
         nbt.putInt("FoodToday", foodToday)
@@ -45,6 +50,7 @@ data class AnimalGrowthData(
             return AnimalGrowthData(
                 uuid = nbt.getUuid("UUID"),
                 foodConsumed = nbt.getInt("FoodConsumed"),
+                breedUnlocked = nbt.getBoolean("BreedUnlocked"),
                 canBreed = nbt.getBoolean("CanBreed"),
                 lastFeedTick = nbt.getLong("LastFeedTick"),
                 foodToday = nbt.getInt("FoodToday"),
