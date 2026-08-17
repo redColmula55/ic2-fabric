@@ -745,14 +745,15 @@ abstract class Ic2ScaffoldBlock(
                     best = maxOf(best, block.supportStrength)
                 }
 
-                // 竖直传播不消耗距离，横向传播每格递减；任何方块都不能传递超过自身材质上限的支撑，
-                // 避免木脚手架成为钢支撑的无损中继。
+                // 竖直传播不消耗距离，横向传播每格递减。支撑余量由接地底座的材质决定：
+                // 仅加固底座即可让上方/侧向整段按加固材质的上限延伸（对齐原版 IC2
+                // “强化铁质脚手架可延伸 12 格”的语义），中继方块不再按自身材质钳制。
                 if (isScaffold(world.getBlockState(below).block)) {
-                    best = maxOf(best, minOf(block.supportStrength, support[below] ?: -1))
+                    best = maxOf(best, support[below] ?: -1)
                 }
                 for (direction in listOf(Direction.NORTH, Direction.SOUTH, Direction.EAST, Direction.WEST)) {
                     val neighborStrength = support[pos.offset(direction)] ?: -1
-                    best = maxOf(best, minOf(block.supportStrength, neighborStrength - 1))
+                    best = maxOf(best, neighborStrength - 1)
                 }
                 if (best > (support[pos] ?: -1)) {
                     support[pos] = best
