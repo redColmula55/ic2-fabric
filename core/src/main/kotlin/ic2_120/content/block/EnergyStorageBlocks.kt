@@ -184,7 +184,10 @@ class MfsuBlock : EnergyStorageBlock(EnergyStorageConfig.MFSU) {
     }
 }
 
-abstract class ChargepadBlock(config: EnergyStorageConfig) : MachineBlock() {
+/**
+ * 充电座方块。与储电箱共用 EnergyStorageBlockEntity（含红石模式系统）与 GUI。
+ */
+abstract class ChargepadBlock(val config: EnergyStorageConfig) : MachineBlock() {
     init {
         defaultState = stateManager.defaultState
             .with(Properties.HORIZONTAL_FACING, net.minecraft.util.math.Direction.NORTH)
@@ -194,6 +197,20 @@ abstract class ChargepadBlock(config: EnergyStorageConfig) : MachineBlock() {
     override fun appendProperties(builder: StateManager.Builder<Block, BlockState>) {
         super.appendProperties(builder)
         builder.add(EnergyStorageBlock.ACTIVE)
+    }
+
+    /** 红石模式输出（与储电箱同源：BE 红石模式 0-6，默认 0 = 不输出）。 */
+    override fun emitsRedstonePower(state: BlockState): Boolean = true
+
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
+    override fun getWeakRedstonePower(
+        state: BlockState,
+        world: net.minecraft.world.BlockView,
+        pos: BlockPos,
+        direction: net.minecraft.util.math.Direction
+    ): Int {
+        val be = world.getBlockEntity(pos) as? EnergyStorageBlockEntity ?: return 0
+        return if (be.emitsRedstoneNow) 15 else 0
     }
 
     override fun createScreenHandlerFactory(

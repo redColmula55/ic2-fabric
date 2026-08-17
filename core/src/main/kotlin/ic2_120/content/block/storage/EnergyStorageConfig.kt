@@ -43,10 +43,11 @@ data class EnergyStorageConfig(
             useEquipmentSlots = true,
             emitRedstoneWhenNotFull = true
         )
-        val BATBOX_CHARGEPAD = BATBOX.copy(chargePlayersAbove = true, emitRedstoneWhenNotFull = false)
-        val CESU_CHARGEPAD = CESU.copy(chargePlayersAbove = true, emitRedstoneWhenNotFull = false)
-        val MFE_CHARGEPAD = MFE.copy(chargePlayersAbove = true, emitRedstoneWhenNotFull = false)
-        val MFSU_CHARGEPAD = MFSU.copy(chargePlayersAbove = true, emitRedstoneWhenNotFull = false)
+        // 充电座同样支持红石模式系统（与储电箱同源，默认 0 = 不输出）
+        val BATBOX_CHARGEPAD = BATBOX.copy(chargePlayersAbove = true)
+        val CESU_CHARGEPAD = CESU.copy(chargePlayersAbove = true)
+        val MFE_CHARGEPAD = MFE.copy(chargePlayersAbove = true)
+        val MFSU_CHARGEPAD = MFSU.copy(chargePlayersAbove = true)
 
         private val BY_PATH = mapOf(
             "batbox" to BATBOX,
