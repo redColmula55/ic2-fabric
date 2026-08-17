@@ -3,6 +3,7 @@ package ic2_120_advanced_solar_addon.content.block
 import ic2_120_advanced_solar_addon.content.block.AdvancedSolarPanelBlock
 import ic2_120_advanced_solar_addon.content.item.EnrichedSunnarium
 import ic2_120.content.block.MachineBlock
+import ic2_120.content.item.AdvancedCircuit
 import ic2_120.content.item.CoalChunk
 import ic2_120.registry.CreativeTab
 import ic2_120.registry.annotation.ModBlock
@@ -98,6 +99,19 @@ open class UltimateSolarPanelBlock : MachineBlock() {
                 .input('S', enrichedSunnarium)
                 .criterion(hasItem(advancedSolar), conditionsFromItem(advancedSolar))
                 .offerTo(exporter, ic2_120_advanced_solar_addon.IC2AdvancedSolarAddon.id("ultimate_solar_panel"))
+
+            // 8×混合太阳能 + 居中高级电路板 → 终极混合太阳能
+            val hybridSolar = HybridSolarPanelBlock::class.item()
+            val advancedCircuit = AdvancedCircuit::class.instance()
+
+            ShapedRecipeJsonBuilder.create(RecipeCategory.MISC, UltimateSolarPanelBlock::class.item(), 1)
+                .pattern("HHH")
+                .pattern("HCH")
+                .pattern("HHH")
+                .input('H', hybridSolar)
+                .input('C', advancedCircuit)
+                .criterion(hasItem(hybridSolar), conditionsFromItem(hybridSolar))
+                .offerTo(exporter, ic2_120_advanced_solar_addon.IC2AdvancedSolarAddon.id("ultimate_solar_panel_from_hybrid"))
         }
     }
 }
