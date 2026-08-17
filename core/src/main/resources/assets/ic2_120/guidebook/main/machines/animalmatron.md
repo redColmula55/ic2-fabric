@@ -26,7 +26,7 @@ The Animal-Matron is an automated livestock caretaker. It tracks managed animals
 ## Slots and Supplies
 
 - **Water input/output**: accepts water buckets, distilled water buckets, water cells, distilled water cells, and matching universal fluid cells.
-- **Weed-Ex input/output**: accepts Weed-Ex buckets, Weed-Ex cells, and matching universal fluid cells. Despite the name, in this machine Weed-Ex is used as an **insecticide** — a daily dose keeps an animal free of parasites so it can be marked ready for breeding. It is not actually a weed-killer here.
+- **Weed-Ex input/output**: accepts Weed-Ex buckets, Weed-Ex cells, and matching universal fluid cells. Note: Weed-Ex currently has no effect in this machine — it can be filled but is never consumed. It is kept only for tank compatibility.
 - **Feed slots**: five slots for the managed animals' foods.
 - **Shears slot**: used for sheep wool collection.
 - **Harvest output**: receives eggs and wool.
@@ -36,9 +36,9 @@ Managed animals are pigs, cows, mooshrooms, sheep, chickens, rabbits, horses, do
 
 ## Care Rules
 
-Each animal can receive up to 5 food items per Minecraft day, spaced across the day. Feeding consumes 100 mB of water when available. Babies become adults after 10 total feedings. Adults can become breeding-ready after 10 total feedings, but only if their daily 100 mB Weed-Ex dose has been paid — Weed-Ex acts as an insecticide in this machine, keeping parasites off the animal so it is considered healthy enough to breed. The machine will breed same-species ready adults until the local managed population reaches 32.
+Each animal can receive up to 5 food items per Minecraft day, spaced across the day. Feeding consumes 100 mB of water when available. Babies become adults after 10 total feedings. Adults become breeding-ready after 10 total feedings (Weed-Ex is not required). The machine will breed same-species ready adults until the local managed population reaches 32.
 
-If the water tank is empty, animals in range slowly take care damage, but the machine will not reduce them below half health. Weed-Ex is not needed for growth, but without their daily insecticide dose animals will not be marked ready for automatic breeding.
+If the water tank is empty, animals in range slowly take care damage, but the machine will not reduce them below half health.
 
 ## Extra Products
 
@@ -46,4 +46,4 @@ Chickens can contribute eggs about every 10 minutes. Sheep can be sheared about 
 
 ## Usage
 
-Place the Animal-Matron beside or under a compact pen so the whole herd stays within 4 blocks. Pulling upgrades can pull water containers, Weed-Ex containers, feed, and shears into their work slots. Ejector upgrades can push water-container returns, Weed-Ex returns, eggs, and wool from the work output slots. Keep water and Weed-Ex supplied, and use overclockers only if your feed and fluid supply can keep up with the faster scans.
+Place the Animal-Matron beside or under a compact pen so the whole herd stays within 4 blocks. Pulling upgrades can pull water containers, feed, and shears into their work slots. Ejector upgrades can push water-container returns, eggs, and wool from the work output slots. Keep water supplied, and use overclockers only if your feed and fluid supply can keep up with the faster scans.

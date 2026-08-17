@@ -612,13 +612,13 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
                 report.grewUp++
             }
 
-            // 检查是否可以繁殖（需要当日已支付杀虫剂）
+            // 检查是否可以繁殖
+            // 注：除草剂日剂量支付已在 125c9c29 停用（不再消耗、无负面作用），
+            // 此处不得再把 insecticidePaidToday 当作繁殖门槛——否则机器喂大的动物
+            // 永远无法标记为可繁殖，喂食计数还会无限增长（#22）。
             if (totalAnimals < MAX_ANIMALS_FOR_BREEDING && !animalData.canBreed) {
-                if (animalData.insecticidePaidToday) {
-                    animalData.canBreed = true
-                    report.canBreedNow++
-                }
-                // 没有杀虫剂则无法繁殖，但动物仍可正常长大
+                animalData.canBreed = true
+                report.canBreedNow++
             }
         }
     }

@@ -683,7 +683,6 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
         val box = net.minecraft.util.math.Box(pos).expand(4.0)
         var foundMachine: AnimalmatronBlockEntity? = null
         var hasWater = false
-        var hasWeedEx = false
         var totalFed = 0
         var todayFed = 0
 
@@ -702,7 +701,6 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
                     if (be is AnimalmatronBlockEntity) {
                         foundMachine = be
                         hasWater = be.sync.waterAmount > 0
-                        hasWeedEx = be.sync.weedExAmount > 0
                         // 获取喂食进度
                         val progress = be.getAnimalFeedProgress(entity.uuid)
                         if (progress != null) {
@@ -721,7 +719,6 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
 
         data.putBoolean("isManaged", foundMachine != null)
         data.putBoolean("hasWater", hasWater)
-        data.putBoolean("hasWeedEx", hasWeedEx)
         data.putInt("totalFed", totalFed)
         data.putInt("todayFed", todayFed)
         data.putInt("requiredToFed", AnimalmatronBlockEntity.FOOD_TO_GROW) // 10
@@ -735,7 +732,6 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
         tooltip.add(Text.translatable("ic2_120.jade.animal_monitored").formatted(Formatting.GREEN))
 
         val hasWater = accessor.serverData.getBoolean("hasWater")
-        val hasWeedEx = accessor.serverData.getBoolean("hasWeedEx")
 
         // 显示水状态 / 干渴
         tooltip.add(
@@ -749,17 +745,7 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
             tooltip.add(Text.translatable("ic2_120.jade.animal_thirsty").formatted(Formatting.RED))
         }
 
-        // 显示杀虫剂状态 / 生病
-        tooltip.add(
-            if (hasWeedEx) {
-                Text.translatable("ic2_120.jade.animal_weedex_ok").formatted(Formatting.GREEN)
-            } else {
-                Text.translatable("ic2_120.jade.animal_weedex_low").formatted(Formatting.RED)
-            }
-        )
-        if (!hasWeedEx) {
-            tooltip.add(Text.translatable("ic2_120.jade.animal_sick").formatted(Formatting.RED))
-        }
+        // 注：除草剂已停用（不消耗、无作用），不再展示“杀虫剂/生病”状态，避免误导。
 
         // 显示喂食进度
         if (accessor.serverData.contains("canBreed")) {
@@ -768,12 +754,17 @@ object AnimalJadeProvider : IEntityComponentProvider, IServerDataProvider<Entity
                 // 可以繁殖
                 tooltip.add(Text.translatable("ic2_120.jade.animal_ready_to_breed").formatted(Formatting.GREEN))
             } else {
-                // 还没长成，显示进度
                 val totalFed = accessor.serverData.getInt("totalFed")
                 val requiredToFed = accessor.serverData.getInt("requiredToFed")
-                tooltip.add(Text.literal("喂食: $totalFed/$requiredToFed").formatted(Formatting.YELLOW))
-                val remaining = requiredToFed - totalFed
-                tooltip.add(Text.translatable("ic2_120.jade.animal_remaining_feed", remaining).formatted(Formatting.GRAY))
+                if (totalFed < requiredToFed) {
+                    // 还没长成，显示进度
+                    tooltip.add(Text.translatable("ic2_120.jade.animal_feed_progress", totalFed, requiredToFed).formatted(Formatting.YELLOW))
+                    val remaining = requiredToFed - totalFed
+                    tooltip.add(Text.translatable("ic2_120.jade.animal_remaining_feed", remaining).formatted(Formatting.GRAY))
+                } else {
+                    // 已喂够但暂不可繁殖（如范围内动物数量已达上限）
+                    tooltip.add(Text.translatable("ic2_120.jade.animal_fed_full").formatted(Formatting.YELLOW))
+                }
             }
         }
     }
