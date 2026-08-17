@@ -30,6 +30,8 @@ class EnergyStorageSync(
     private val maxRate = EnergyTier.euPerTickFromTier(tier)
 
    var energy by schema.int("Energy")
+   /** 红石模式（0-6；仅储电箱使用，随 SyncedData 属性同步到客户端）。 */
+   var redstoneMode by schema.int("RedstoneMode")
    private val flow = EnergyFlowSync(schema, this)
    override fun getSideMaxInsert(side: Direction?): Long {
         if (side == null) return maxRate

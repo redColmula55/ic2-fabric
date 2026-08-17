@@ -1,6 +1,7 @@
 package ic2_120.content.screen
 
 import ic2_120.content.block.storage.EnergyStorageConfig
+import ic2_120.content.block.storage.EnergyStorageBlockEntity
 import ic2_120.content.block.ChargepadBlock
 import ic2_120.content.sync.EnergyStorageSync
 import ic2_120.content.syncs.SyncedDataView
@@ -176,8 +177,26 @@ class EnergyStorageScreenHandler(
                 player.squaredDistanceTo(pos.x + 0.5, pos.y + 0.5, pos.z + 0.5) <= 64.0
         }, true)
 
+    /** 是否为可切红石模式的储电箱（非充电座）。 */
+    val supportsRedstoneMode: Boolean get() = config.emitRedstoneWhenNotFull
+
+    /** 当前红石模式（两端统一经 SyncedData 属性：服务端读 BE 本体，客户端读属性同步值）。 */
+    val currentRedstoneMode: Int
+        get() = sync.redstoneMode.coerceIn(0, 6)
+
+    override fun onButtonClick(player: PlayerEntity, id: Int): Boolean {
+        if (id != BUTTON_REDSTONE_MODE) return super.onButtonClick(player, id)
+        context.run { world, pos ->
+            val be = world.getBlockEntity(pos) as? EnergyStorageBlockEntity ?: return@run
+            be.cycleRedstoneMode()
+        }
+        return true
+    }
+
    companion object {
        const val SLOT_SIZE = 18
+        /** GUI 红石模式循环切换按钮。 */
+        const val BUTTON_REDSTONE_MODE = 100
         @ScreenFactory
         fun fromBuffer(syncId: Int, playerInventory: PlayerInventory, buf: PacketByteBuf): EnergyStorageScreenHandler {
             val pos = buf.readBlockPos()

@@ -5,6 +5,7 @@ import ic2_120.content.AdjacentEnergyTransferComponent
 import ic2_120.content.sync.EnergyStorageSync
 import ic2_120.content.syncs.SyncedData
 import ic2_120.content.energy.charge.BatteryChargerComponent
+import ic2_120.content.energy.EnergyTier
 import ic2_120.content.item.EnergiumDust
 import ic2_120.content.item.energy.IBatteryItem
 import ic2_120.content.item.energy.IElectricTool
@@ -187,9 +188,51 @@ abstract class EnergyStorageBlockEntity(
         nbt.putLong(EnergyStorageSync.NBT_ENERGY_STORED, sync.amount)
     }
 
-    /** 未满电时输出红石信号（仅配置开启的储电箱；供方块 getWeakRedstonePower 查询）。 */
-    val emitsNotFullRedstone: Boolean
-        get() = config.emitRedstoneWhenNotFull && sync.amount < config.capacity
+    /**
+     * 红石模式（对齐原版 IC2 TileEntityElectricBlock 的 7 档循环）：
+     * 0 不输出（默认）；1 满电时输出；2 部分充电时输出；3 未满电时输出；
+     * 4 空电时输出；5 收到红石时不输出能量；6 收到红石且未满时不输出能量。
+     * 仅储电箱（非充电座）可切换；充电座恒为 0。
+     * 真值存在 sync.redstoneMode（SyncedData 属性：自动 NBT 持久化 + 属性同步到客户端 GUI）。
+     */
+    val redstoneMode: Int
+        get() = if (config.emitRedstoneWhenNotFull) sync.redstoneMode.coerceIn(0, 6) else 0
+
+    /** 循环切换红石模式（服务端调用；模式系统入口，含邻居刷新与聊天提示）。 */
+    fun cycleRedstoneMode(): Boolean {
+        if (!config.emitRedstoneWhenNotFull) return false
+        setRedstoneMode((redstoneMode + 1) % 7)
+        return true
+    }
+
+    fun setRedstoneMode(mode: Int) {
+        if (!config.emitRedstoneWhenNotFull) return
+        sync.redstoneMode = mode.coerceIn(0, 6)
+        markDirty()
+        // 输出电平可能随模式变化，立即刷新邻居
+        world?.updateNeighborsAlways(pos, cachedState.block)
+        // 原版行为：切换时聊天栏提示当前模式名
+        world?.let { w ->
+            val players = w.getNonSpectatingEntities(PlayerEntity::class.java, net.minecraft.util.math.Box(pos).expand(8.0))
+            for (p in players) {
+                p.sendMessage(Text.translatable("gui.ic2_120.eu_storage.redstone_mode$redstoneMode"), true)
+            }
+        }
+    }
+
+    /** 当前模式是否应输出红石信号（0/5/6 档不发射）。 */
+    val emitsRedstoneNow: Boolean
+        get() = when (redstoneMode) {
+            1 -> sync.amount >= capacityMinusBuffer
+            2 -> sync.amount > 0 && sync.amount < config.capacity
+            3 -> sync.amount < config.capacity
+            4 -> sync.amount <= outputPower
+            else -> false
+        }
+
+    /** 原版阈値：容量 - 20×输出功率（output = EnergyTier.euPerTickFromTier(tier)）。 */
+    private val capacityMinusBuffer: Long get() = config.capacity - outputPower * 20
+    private val outputPower: Long get() = EnergyTier.euPerTickFromTier(config.tier)
 
     /** 红石输出翻转时通知邻居，让红石线/比较器即时响应充放电状态变化。 */
     private var lastRedstoneEmit = false
@@ -213,7 +256,7 @@ abstract class EnergyStorageBlockEntity(
        updateActiveState(world, pos, chargedThisTick > 0L)
 
        if (config.emitRedstoneWhenNotFull) {
-           val emit = emitsNotFullRedstone
+           val emit = emitsRedstoneNow
            if (emit != lastRedstoneEmit) {
                lastRedstoneEmit = emit
                world.updateNeighborsAlways(pos, state.block)

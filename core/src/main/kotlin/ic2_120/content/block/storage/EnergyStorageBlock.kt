@@ -40,7 +40,7 @@ abstract class EnergyStorageBlock(
 
     abstract override fun createBlockEntity(pos: BlockPos, state: BlockState): BlockEntity?
 
-    /** 未满电时向四周输出红石信号（原版 IC2 储电盒红石功能）。 */
+    /** 红石模式输出（原版 IC2 7 档模式，默认 0 = 不输出；详见 BE.cycleRedstoneMode）。 */
     override fun emitsRedstonePower(state: BlockState): Boolean = config.emitRedstoneWhenNotFull
 
     @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
@@ -52,7 +52,7 @@ abstract class EnergyStorageBlock(
     ): Int {
         if (!config.emitRedstoneWhenNotFull) return 0
         val be = world.getBlockEntity(pos) as? EnergyStorageBlockEntity ?: return 0
-        return if (be.emitsNotFullRedstone) 15 else 0
+        return if (be.emitsRedstoneNow) 15 else 0
     }
 
     override fun createScreenHandlerFactory(state: BlockState, world: World, pos: BlockPos): net.minecraft.screen.NamedScreenHandlerFactory? {

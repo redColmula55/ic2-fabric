@@ -50,6 +50,33 @@ class EnergyStorageScreen(
 
    override fun init() {
        super.init()
+       if (handler.supportsRedstoneMode) {
+           addDrawableChild(
+               net.minecraft.client.gui.widget.ButtonWidget.builder(modeLabel()) {
+                   client?.player?.networkHandler?.sendPacket(
+                       net.minecraft.network.packet.c2s.play.ButtonClickC2SPacket(
+                           handler.syncId, EnergyStorageScreenHandler.BUTTON_REDSTONE_MODE
+                       )
+                   )
+               }.dimensions(x + backgroundWidth - 24, y + 4, 18, 14).build()
+           )
+       }
+   }
+
+   private fun modeLabel(): Text = Text.literal("RS")
+
+   /** 服务端切换后聊天栏提示模式名；GUI 内鼠标悬停也显示当前模式。 */
+   override fun drawMouseoverTooltip(context: DrawContext, mouseX: Int, mouseY: Int) {
+       super.drawMouseoverTooltip(context, mouseX, mouseY)
+       val btnX = x + backgroundWidth - 24
+       val btnY = y + 4
+       if (handler.supportsRedstoneMode && mouseX in btnX until btnX + 18 && mouseY in btnY until btnY + 14) {
+           context.drawTooltip(
+               textRenderer,
+               Text.translatable("gui.ic2_120.eu_storage.redstone_mode${handler.currentRedstoneMode}"),
+               mouseX, mouseY
+           )
+       }
    }
 
     override fun drawBackground(context: DrawContext, delta: Float, mouseX: Int, mouseY: Int) {
