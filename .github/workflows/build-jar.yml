@@ -55,16 +55,34 @@ jobs:
         run: |
           mkdir -p mod-release
           shopt -s globstar nullglob
-          for f in \
-            build-output/**/ic2_120-*.jar \
-            build-output/**/ic2_120_advanced_solar_addon-*.jar \
-            build-output/**/ic2_120_industrial_upgrade-*.jar; do
-            [[ "$f" != *-sources* && "$f" != *-remapped* ]] && cp "$f" "mod-release/$(basename "$f" .jar)-mc1.20.1.jar" || true
+          # 统一命名（与正式 release 对齐）：
+          #   本体   industrialcraft2-refabricated-1.20.1-fabric.<ver>.jar
+          #   ASA   advanced-solar-addon-fabric.<ver>.jar
+          #   IU     industrial-upgrade-addon-fabric.<ver>.jar
+          # 版本号从产物文件名提取（ic2_120-0.6.jar → 0.6）
+          for f in build-output/**/ic2_120-*.jar; do
+            [[ "$f" == *-sources* || "$f" == *-remapped* ]] && continue
+            v=$(basename "$f" .jar); v="${v#ic2_120-}"
+            [[ "$v" == *mc1.20.1* ]] && v="${v%-mc1.20.1}"
+            cp "$f" "mod-release/industrialcraft2-refabricated-1.20.1-fabric.${v}.jar"
+          done
+          for f in build-output/**/ic2_120_advanced_solar_addon-*.jar; do
+            [[ "$f" == *-sources* || "$f" == *-remapped* ]] && continue
+            v=$(basename "$f" .jar); v="${v#ic2_120_advanced_solar_addon-}"
+            [[ "$v" == *mc1.20.1* ]] && v="${v%-mc1.20.1}"
+            cp "$f" "mod-release/advanced-solar-addon-fabric.${v}.jar"
+          done
+          for f in build-output/**/ic2_120_industrial_upgrade-*.jar; do
+            [[ "$f" == *-sources* || "$f" == *-remapped* ]] && continue
+            v=$(basename "$f" .jar); v="${v#ic2_120_industrial_upgrade-}"
+            [[ "$v" == *mc1.20.1* ]] && v="${v%-mc1.20.1}"
+            cp "$f" "mod-release/industrial-upgrade-addon-fabric.${v}.jar"
           done
           if [ -d "libs" ]; then
             cp libs/*.jar mod-release/ || true
           fi
           rm -f mod-release/energy-*.jar
+          ls -l mod-release/
       - name: create prerelease
         uses: softprops/action-gh-release@v2
         with:
