@@ -153,7 +153,12 @@ class ReplicatorBlockEntity(
         syncedData,
         { world?.time },
         { capacityBonus },
-        { TransformerUpgradeComponent.maxInsertForTier(ReplicatorSync.REPLICATOR_TIER + voltageTierBonus) }
+        { TransformerUpgradeComponent.maxInsertForTier(ReplicatorSync.REPLICATOR_TIER + voltageTierBonus) },
+        // 红石停机时拒绝外部供能，避免停工期间持续拉电填充内部缓冲（#30）。
+        externalEnergyGate = {
+            val w = world
+            w == null || RedstoneControlComponent.canRun(w, pos, this)
+        }
     )
 
     private val adjacentEnergyTransfer = AdjacentEnergyTransferComponent(this, sync)

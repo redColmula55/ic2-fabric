@@ -65,6 +65,8 @@ class AdjacentEnergyTransferComponent(
     fun tick(): Long {
         val world = owner.world ?: return 0L
         if (world.isClient) return 0L
+        // 停机门控：机器拒绝外部供能时（如红石停机）不再从邻居拉电，避免停工期间空耗电（#30）。
+        if (!energy.canAcceptExternalEnergy()) return 0L
 
         val selfMachine = owner as? ITieredMachine ?: return 0L
         var total = 0L

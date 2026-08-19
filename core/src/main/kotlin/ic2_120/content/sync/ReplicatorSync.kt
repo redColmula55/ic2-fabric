@@ -7,7 +7,9 @@ class ReplicatorSync(
     schema: SyncSchema,
     currentTickProvider: () -> Long? = { null },
     capacityBonusProvider: () -> Long = { 0L },
-    maxInsertPerTickProvider: (() -> Long)? = null
+    maxInsertPerTickProvider: (() -> Long)? = null,
+    /** 外部供能门控：false 时拒绝电缆/邻接机器注入（红石停机不空耗电，#30）。 */
+    private val externalEnergyGate: () -> Boolean = { true }
 ) : UpgradeableTickLimitedSidedEnergyContainer(
     ENERGY_CAPACITY,
     capacityBonusProvider,
@@ -68,4 +70,6 @@ class ReplicatorSync(
 
     fun getSyncedInsertedAmount(): Long = flow.getSyncedInsertedAmount()
     fun getSyncedConsumedAmount(): Long = flow.getSyncedConsumedAmount()
+
+    override fun canAcceptExternalEnergy(): Boolean = externalEnergyGate()
 }

@@ -102,7 +102,8 @@ class MatterGeneratorBlockEntity(
         const val SLOT_UPGRADE_3 = 6
         val SLOT_UPGRADE_INDICES = intArrayOf(SLOT_UPGRADE_0, SLOT_UPGRADE_1, SLOT_UPGRADE_2, SLOT_UPGRADE_3)
         val SLOT_OUTPUT_INDICES = intArrayOf(SLOT_CONTAINER_OUTPUT)
-        val SLOT_INPUT_INDICES = intArrayOf(SLOT_CONTAINER_INPUT)
+        // 抽入升级的抽入目标：除容器输入槽外还包含废料槽——修复“抽入升级无法从箱子抽废料/废料盒”（#30）。
+        val SLOT_INPUT_INDICES = intArrayOf(SLOT_SCRAP, SLOT_CONTAINER_INPUT)
         const val INVENTORY_SIZE = 7
 
         /** 一个废料盒按合成配方（3×3 废料）等价于 9 个废料。 */
@@ -159,7 +160,12 @@ class MatterGeneratorBlockEntity(
         syncedData,
         { world?.time },
         { capacityBonus },
-        { TransformerUpgradeComponent.maxInsertForTier(MatterGeneratorSync.MATTER_GENERATOR_TIER + voltageTierBonus) }
+        { TransformerUpgradeComponent.maxInsertForTier(MatterGeneratorSync.MATTER_GENERATOR_TIER + voltageTierBonus) },
+        // 红石停机时拒绝外部供能，避免停工期间持续拉电填充内部缓冲（#30）。
+        externalEnergyGate = {
+            val w = world
+            w == null || RedstoneControlComponent.canRun(w, pos, this)
+        }
     )
 
     private val adjacentEnergyTransfer = AdjacentEnergyTransferComponent(this, sync)

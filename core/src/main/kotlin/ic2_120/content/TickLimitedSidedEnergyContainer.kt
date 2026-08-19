@@ -118,8 +118,12 @@ open class TickLimitedSidedEnergyContainer(
     /**
      * 获取指定方向的最大输入量（包含 tick 限制）。
      * 子类通常不需要覆写此方法，而是覆写 [getSideMaxInsert]。
+     *
+     * 当 [canAcceptExternalEnergy] 返回 false（如机器被红石停机）时返回 0，
+     * 外部（电缆/邻接传输）无法向机器注入能量，避免停工期间持续拉电。
      */
     open fun getMaxInsert(side: Direction?): Long {
+        if (!canAcceptExternalEnergy()) return 0L
         normalizeTickBudget()
         val sideRaw = getSideMaxInsert(side)
         val sideLimit = sideRaw.coerceAtLeast(0L)
@@ -317,6 +321,13 @@ open class TickLimitedSidedEnergyContainer(
     }
 
     // ========== 子类覆写点 ==========
+
+    /**
+     * 外部能量注入门控：false 时所有面的插入上限归零（电缆推送、邻接机器直送均被拒绝）。
+     * 用于“停工停产不空耗电”类语义（如红石停机时不再从电网拉电填充内部缓冲）。
+     * 默认恒为 true。
+     */
+    open fun canAcceptExternalEnergy(): Boolean = true
 
     /**
      * 子类定义该面是否可输入及该面的意愿上限；整机总输入由 [maxInsertPerTick] 限制。
