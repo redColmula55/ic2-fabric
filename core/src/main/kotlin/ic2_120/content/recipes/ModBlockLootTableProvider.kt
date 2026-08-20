@@ -26,7 +26,6 @@ import net.minecraft.loot.condition.AnyOfLootCondition
 import net.minecraft.loot.condition.BlockStatePropertyLootCondition
 import net.minecraft.loot.condition.InvertedLootCondition
 import net.minecraft.loot.condition.MatchToolLootCondition
-import net.minecraft.loot.condition.RandomChanceLootCondition
 import net.minecraft.loot.entry.ItemEntry
 import net.minecraft.enchantment.Enchantments
 import net.minecraft.loot.function.ApplyBonusLootFunction
@@ -123,8 +122,8 @@ class ModBlockLootTableProvider(output: FabricDataOutput) : FabricBlockLootTable
      * 结构对齐 vanilla `BlockLootTableGenerator` 的树叶表：
      * - 剪刀/精准采集 → 掉树叶块本身；
      * - 保底绑定叶（[RubberLeavesBlock.RUBBER_SAPLING_DROP]）→ 必掉 1 个树苗（世界生成/树苗生长时由
-     *   [ic2_120.content.block.RubberTreeSaplingDrop.bindLeaves] 写到方块状态上，运行时可判定）；
-     * - 未绑定叶 → 每叶 2.25% 掉树苗（对齐旧 onStacksDropped 的关保底回退概率）。
+     *   [ic2_120.content.block.RubberTreeSaplingDrop.bindLeaves] 写到方块状态上，运行时可判定）。
+     * 不保留任何随机 fallback——每棵保底树掉落树苗数精确等于配置期望 n（默认 1.25）。
      */
     private fun rubberLeavesLootTable(block: RubberLeavesBlock): LootTable.Builder {
         val leafItem = block.asItem()
@@ -137,11 +136,9 @@ class ModBlockLootTableProvider(output: FabricDataOutput) : FabricBlockLootTable
                     .enchantment(EnchantmentPredicate(Enchantments.SILK_TOUCH, NumberRange.IntRange.atLeast(1)))
             )
         )
-        val notSilkTouchOrShears = InvertedLootCondition.builder(silkTouchOrShears)
         val boundLeaf = BlockStatePropertyLootCondition.builder(block)
             .properties(StatePredicate.Builder.create().exactMatch(RubberLeavesBlock.RUBBER_SAPLING_DROP, true))
-        val unboundLeaf = InvertedLootCondition.builder(boundLeaf)
-        val perLeafChance = RandomChanceLootCondition.builder(0.0225f)
+        val notSilkTouchOrShears = InvertedLootCondition.builder(silkTouchOrShears)
 
         return LootTable.builder()
             // 剪刀/精准采集 → 掉树叶本身
@@ -151,21 +148,12 @@ class ModBlockLootTableProvider(output: FabricDataOutput) : FabricBlockLootTable
                     .conditionally(silkTouchOrShears)
                     .with(addSurvivesExplosionCondition(block, ItemEntry.builder(leafItem)))
             )
-            // 保底绑定叶 → 必掉 1 个树苗
+            // 保底绑定叶 → 必掉 1 个树苗（世界生成/树苗生长时由 bindLeaves 写入方块状态，运行时可判定）
             .pool(
                 LootPool.builder()
                     .rolls(ConstantLootNumberProvider.create(1f))
                     .conditionally(notSilkTouchOrShears)
                     .conditionally(boundLeaf)
-                    .with(ItemEntry.builder(saplingItem))
-            )
-            // 未绑定叶 → 每叶 2.25% 掉树苗
-            .pool(
-                LootPool.builder()
-                    .rolls(ConstantLootNumberProvider.create(1f))
-                    .conditionally(notSilkTouchOrShears)
-                    .conditionally(unboundLeaf)
-                    .conditionally(perLeafChance)
                     .with(ItemEntry.builder(saplingItem))
             )
     }
