@@ -20,8 +20,6 @@ import net.minecraft.block.entity.BlockEntity
 import net.minecraft.data.server.recipe.RecipeJsonProvider
 import net.minecraft.data.server.recipe.ShapedRecipeJsonBuilder
 import net.minecraft.data.server.recipe.ShapelessRecipeJsonBuilder
-import net.minecraft.enchantment.EnchantmentHelper
-import net.minecraft.enchantment.Enchantments
 import net.minecraft.item.ItemStack
 import net.minecraft.item.Items
 import net.minecraft.recipe.Ingredient
@@ -46,7 +44,6 @@ import net.minecraft.world.WorldAccess
 import net.minecraft.world.gen.chunk.ChunkGenerator
 import net.minecraft.world.gen.feature.ConfiguredFeature
 import net.minecraft.server.world.ServerWorld
-import java.util.ArrayDeque
 import java.util.function.Consumer
 
 // ========== 原木 / 木材 ==========
@@ -463,29 +460,11 @@ internal class RubberSaplingGenerator : net.minecraft.block.sapling.SaplingGener
     }
 }
 
-@ModBlock(name = "rubber_leaves", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood", generateBlockLootTable = false)
+@ModBlock(name = "rubber_leaves", registerItem = true, tab = CreativeTab.IC2_MATERIALS, group = "wood")
 class RubberLeavesBlock(settings: AbstractBlock.Settings = AbstractBlock.Settings.copy(Blocks.OAK_LEAVES).strength(0.2f)) : LeavesBlock(settings) {
     init {
         // 明确指定默认值，避免新增布尔状态在不同注册阶段被误认为已绑定树苗。
         defaultState = defaultState.with(RUBBER_SAPLING_DROP, false)
-    }
-
-    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
-    override fun onStacksDropped(state: BlockState, world: ServerWorld, pos: BlockPos, tool: ItemStack, dropExperience: Boolean) {
-        super.onStacksDropped(state, world, pos, tool, dropExperience)
-        val normalTool = !tool.isOf(Items.SHEARS) && EnchantmentHelper.getLevel(Enchantments.SILK_TOUCH, tool) == 0
-        if (state.get(RUBBER_SAPLING_DROP) && normalTool) {
-            Block.dropStack(world, pos, ItemStack(RubberSaplingBlock::class.item()))
-        } else if (normalTool && Ic2Config.current.worldgen.rubberTree.normalized().saplingGuaranteeEnabled &&
-            !state.get(RUBBER_TREE_GENERATED)
-        ) {
-            RubberTreeSaplingDrop.migrateLegacyTree(world, pos, world.random)
-        } else if (!Ic2Config.current.worldgen.rubberTree.normalized().saplingGuaranteeEnabled &&
-            normalTool &&
-            world.random.nextFloat() < 0.0225f
-        ) {
-            Block.dropStack(world, pos, ItemStack(RubberSaplingBlock::class.item()))
-        }
     }
 
     companion object {
@@ -556,7 +535,9 @@ class RubberLeavesBlock(settings: AbstractBlock.Settings = AbstractBlock.Setting
 }
 
 /**
- * 树苗绑定在具体叶子上，由叶子消失时触发掉落；不在砍原木时直接掉落。
+ * 树苗绑定在具体叶子上：生成树时把保底树苗标记写成方块状态 `rubber_sapling_drop`，
+ * 由橡胶叶战利品表（[ModBlockLootTableProvider] 生成）在破坏/凋落时读取兑现。
+ * 放在方块状态里（而非代码钩子）是为了让动力锯这类"只走战利品表"的破坏路径也能触发掉落。
  */
 internal object RubberTreeSaplingDrop {
     fun bindLeaves(world: WorldAccess, leafPositions: List<BlockPos>, random: Random) {
@@ -582,55 +563,6 @@ internal object RubberTreeSaplingDrop {
                 world.setBlockState(leafPos, state.with(RubberLeavesBlock.RUBBER_SAPLING_DROP, true), Block.NOTIFY_ALL)
             }
         }
-    }
-
-    fun migrateLegacyTree(world: ServerWorld, start: BlockPos, random: Random) {
-        val leaves = connectedLeaves(world, start)
-        if (leaves.isEmpty()) return
-
-        // 当前正在消失的旧叶子承担保底 1 个。
-        Block.dropStack(world, start, ItemStack(RubberSaplingBlock::class.item()))
-
-        val config = Ic2Config.current.worldgen.rubberTree.normalized()
-        val extra = config.saplingDropExpected.coerceAtLeast(1f) - 1f
-        var extraCount = extra.toInt()
-        if (random.nextFloat() < extra - extra.toInt()) extraCount++
-
-        val candidates = leaves.filter { it != start }.toMutableList()
-        leaves.forEach { leafPos ->
-            val state = world.getBlockState(leafPos)
-            if (state.block is RubberLeavesBlock) {
-                world.setBlockState(leafPos, state.with(RubberLeavesBlock.RUBBER_TREE_GENERATED, true), Block.NOTIFY_ALL)
-            }
-        }
-        repeat(extraCount.coerceAtMost(candidates.size)) {
-            val leafPos = candidates.removeAt(random.nextInt(candidates.size))
-            val state = world.getBlockState(leafPos)
-            if (state.block is RubberLeavesBlock) {
-                world.setBlockState(leafPos, state.with(RubberLeavesBlock.RUBBER_SAPLING_DROP, true), Block.NOTIFY_ALL)
-            }
-        }
-    }
-
-    private fun connectedLeaves(world: ServerWorld, start: BlockPos): List<BlockPos> {
-        val queue = ArrayDeque<BlockPos>()
-        val visited = HashSet<BlockPos>()
-        val leaves = mutableListOf<BlockPos>()
-        queue.add(start.toImmutable())
-        visited.add(start.toImmutable())
-        while (queue.isNotEmpty() && visited.size <= 512) {
-            val pos = queue.removeFirst()
-            val state = world.getBlockState(pos)
-            if (state.block is RubberLeavesBlock) leaves += pos.toImmutable()
-            if (state.block !is RubberLeavesBlock && state.block !is RubberLogBlock) continue
-            for (direction in Direction.values()) {
-                val next = pos.offset(direction).toImmutable()
-                if (!visited.add(next)) continue
-                val block = world.getBlockState(next).block
-                if (block is RubberLeavesBlock || block is RubberLogBlock) queue.add(next)
-            }
-        }
-        return leaves
     }
 }
 

@@ -7,6 +7,8 @@ import ic2_120.content.block.DeepslateTinOreBlock
 import ic2_120.content.block.DeepslateUraniumOreBlock
 import ic2_120.content.block.LeadOreBlock
 import ic2_120.content.block.MachineBlock
+import ic2_120.content.block.RubberLeavesBlock
+import ic2_120.content.block.RubberSaplingBlock
 import ic2_120.content.block.TinOreBlock
 import ic2_120.content.block.UraniumOreBlock
 import ic2_120.content.item.RawLead
@@ -17,16 +19,23 @@ import ic2_120.registry.instance
 import net.fabricmc.fabric.api.datagen.v1.FabricDataOutput
 import net.fabricmc.fabric.api.datagen.v1.provider.FabricBlockLootTableProvider
 import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
 import net.minecraft.loot.LootPool
 import net.minecraft.loot.LootTable
+import net.minecraft.loot.condition.AnyOfLootCondition
+import net.minecraft.loot.condition.BlockStatePropertyLootCondition
 import net.minecraft.loot.condition.InvertedLootCondition
 import net.minecraft.loot.condition.MatchToolLootCondition
+import net.minecraft.loot.condition.RandomChanceLootCondition
 import net.minecraft.loot.entry.ItemEntry
 import net.minecraft.enchantment.Enchantments
 import net.minecraft.loot.function.ApplyBonusLootFunction
 import net.minecraft.loot.function.ExplosionDecayLootFunction
 
 import net.minecraft.loot.provider.number.ConstantLootNumberProvider
+import net.minecraft.predicate.NumberRange
+import net.minecraft.predicate.StatePredicate
+import net.minecraft.predicate.item.EnchantmentPredicate
 import net.minecraft.predicate.item.ItemPredicate
 import net.minecraft.registry.Registries
 import net.minecraft.util.Identifier
@@ -63,6 +72,7 @@ class ModBlockLootTableProvider(output: FabricDataOutput) : FabricBlockLootTable
                 block is DeepslateLeadOreBlock -> addCustomOreDrop(block, RawLead::class.instance())
                 block is DeepslateTinOreBlock -> addCustomOreDrop(block, RawTin::class.instance())
                 block is DeepslateUraniumOreBlock -> addCustomOreDrop(block, RawUranium::class.instance())
+                block is RubberLeavesBlock -> addDrop(block, rubberLeavesLootTable(block))
                 id == reinforcedDoorId -> addDrop(block, doorDrops(block))
                 else -> addDrop(block)
             }
@@ -102,5 +112,61 @@ class ModBlockLootTableProvider(output: FabricDataOutput) : FabricBlockLootTable
                 .apply(ApplyBonusLootFunction.binomialWithBonusCount(Enchantments.FORTUNE, 0.2f, 0))
             )
         ))
+    }
+
+    /**
+     * 橡胶叶战利品表。树苗掉落必须走战利品表：动力锯砍树冠时只调用
+     * `Block.getDrops`（滚战利品表），1.20.1 的 `spawnAfterBreak`/`onStacksDropped`
+     * 只给经验值。原版树叶靠战利品表掉树苗所以正常，橡胶叶此前依赖
+     * `onStacksDropped` 代码钩子，被锯子完全绕过 → 整树砍完一颗树苗都不掉。
+     *
+     * 结构对齐 vanilla `BlockLootTableGenerator` 的树叶表：
+     * - 剪刀/精准采集 → 掉树叶块本身；
+     * - 保底绑定叶（[RubberLeavesBlock.RUBBER_SAPLING_DROP]）→ 必掉 1 个树苗（世界生成/树苗生长时由
+     *   [ic2_120.content.block.RubberTreeSaplingDrop.bindLeaves] 写到方块状态上，运行时可判定）；
+     * - 未绑定叶 → 每叶 2.25% 掉树苗（对齐旧 onStacksDropped 的关保底回退概率）。
+     */
+    private fun rubberLeavesLootTable(block: RubberLeavesBlock): LootTable.Builder {
+        val leafItem = block.asItem()
+        val saplingItem = RubberSaplingBlock::class.instance()
+
+        val silkTouchOrShears = AnyOfLootCondition.builder(
+            MatchToolLootCondition.builder(ItemPredicate.Builder.create().items(Items.SHEARS)),
+            MatchToolLootCondition.builder(
+                ItemPredicate.Builder.create()
+                    .enchantment(EnchantmentPredicate(Enchantments.SILK_TOUCH, NumberRange.IntRange.atLeast(1)))
+            )
+        )
+        val notSilkTouchOrShears = InvertedLootCondition.builder(silkTouchOrShears)
+        val boundLeaf = BlockStatePropertyLootCondition.builder(block)
+            .properties(StatePredicate.Builder.create().exactMatch(RubberLeavesBlock.RUBBER_SAPLING_DROP, true))
+        val unboundLeaf = InvertedLootCondition.builder(boundLeaf)
+        val perLeafChance = RandomChanceLootCondition.builder(0.0225f)
+
+        return LootTable.builder()
+            // 剪刀/精准采集 → 掉树叶本身
+            .pool(
+                LootPool.builder()
+                    .rolls(ConstantLootNumberProvider.create(1f))
+                    .conditionally(silkTouchOrShears)
+                    .with(addSurvivesExplosionCondition(block, ItemEntry.builder(leafItem)))
+            )
+            // 保底绑定叶 → 必掉 1 个树苗
+            .pool(
+                LootPool.builder()
+                    .rolls(ConstantLootNumberProvider.create(1f))
+                    .conditionally(notSilkTouchOrShears)
+                    .conditionally(boundLeaf)
+                    .with(ItemEntry.builder(saplingItem))
+            )
+            // 未绑定叶 → 每叶 2.25% 掉树苗
+            .pool(
+                LootPool.builder()
+                    .rolls(ConstantLootNumberProvider.create(1f))
+                    .conditionally(notSilkTouchOrShears)
+                    .conditionally(unboundLeaf)
+                    .conditionally(perLeafChance)
+                    .with(ItemEntry.builder(saplingItem))
+            )
     }
 }
