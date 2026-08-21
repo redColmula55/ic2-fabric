@@ -58,5 +58,10 @@
   "block.ic2_120_industrial_upgrade.singular_cable": "Singular Cable",
   "block.ic2_120_industrial_upgrade.mythical_cable": "Mythical Cable",
   "block.ic2_120_industrial_upgrade.quantum_cable": "Quantum Cable",
-  "block.ic2_120_industrial_upgrade.photonic_cable": "Photonic Cable"
+  "block.ic2_120_industrial_upgrade.photonic_cable": "Photonic Cable",
+  "block.ic2_120_industrial_upgrade.neutron_cable": "Neutron Cable",
+  "block.ic2_120_industrial_upgrade.perfect_cable": "Perfect Cable",
+  "block.ic2_120_industrial_upgrade.universal_cable": "Universal Cable",
+  "block.ic2_120_industrial_upgrade.diffractive_cable": "Diffractive Cable",
+  "block.ic2_120_industrial_upgrade.infinity_cable": "Infinity Cable"
 }

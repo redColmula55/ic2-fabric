@@ -58,5 +58,10 @@
   "block.ic2_120_industrial_upgrade.singular_cable": "奇异导线",
   "block.ic2_120_industrial_upgrade.mythical_cable": "神话导线",
   "block.ic2_120_industrial_upgrade.quantum_cable": "量子导线",
-  "block.ic2_120_industrial_upgrade.photonic_cable": "光子导线"
+  "block.ic2_120_industrial_upgrade.photonic_cable": "光子导线",
+  "block.ic2_120_industrial_upgrade.neutron_cable": "中子导线",
+  "block.ic2_120_industrial_upgrade.perfect_cable": "完美导线",
+  "block.ic2_120_industrial_upgrade.universal_cable": "寰宇导线",
+  "block.ic2_120_industrial_upgrade.diffractive_cable": "街射导线",
+  "block.ic2_120_industrial_upgrade.infinity_cable": "无限导线"
 }
