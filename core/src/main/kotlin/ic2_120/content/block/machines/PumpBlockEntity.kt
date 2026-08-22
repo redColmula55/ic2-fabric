@@ -18,6 +18,7 @@ import ic2_120.integration.ftbchunks.ClaimProtection
 import ic2_120.content.sync.PumpSync
 import ic2_120.content.syncs.SyncedData
 import ic2_120.content.upgrade.EjectorUpgradeComponent
+import ic2_120.content.upgrade.EnergyDebtAccounting
 import ic2_120.content.upgrade.PullingUpgradeComponent
 import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
 import ic2_120.content.upgrade.FluidPipeUpgradeComponent
@@ -308,7 +309,7 @@ class PumpBlockEntity(
 
         var pumping = false
         // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
-        energyDebtF += PumpSync.ENERGY_PER_TICK * energyMultiplier
+        energyDebtF = EnergyDebtAccounting.accrue(energyDebtF, PumpSync.ENERGY_PER_TICK * energyMultiplier, sync.getEffectiveCapacity())
         val energyNeed = energyDebtF.toLong().coerceAtLeast(1L)
 
         val spaceLeft = tankInternal.capacity - tankInternal.amount

@@ -16,6 +16,7 @@ import ic2_120.content.screen.CropmatronScreenHandler
 import ic2_120.content.sync.CropmatronSync
 import ic2_120.content.syncs.SyncedData
 import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
+import ic2_120.content.upgrade.EnergyDebtAccounting
 import ic2_120.content.upgrade.FluidPipeUpgradeComponent
 import ic2_120.content.upgrade.EjectorUpgradeComponent
 import ic2_120.content.upgrade.PullingUpgradeComponent
@@ -461,7 +462,7 @@ SLOT_FERTILIZER_INDICES.contains(slot) -> stack.item is Fertilizer
      * 能量不足返回 0（并清零债务，防恢复供电后累计债务超容量卡死）。
      */
     private fun chargeEnergy(costF: Float): Long {
-        energyDebtF += costF
+        energyDebtF = EnergyDebtAccounting.accrue(energyDebtF, costF, sync.getEffectiveCapacity())
         val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
             energyDebtF -= need

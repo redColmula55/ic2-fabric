@@ -21,6 +21,7 @@ import ic2_120.content.screen.CannerScreenHandler
 import ic2_120.content.sync.CannerSync
 import ic2_120.content.syncs.SyncedData
 import ic2_120.content.upgrade.EjectorUpgradeComponent
+import ic2_120.content.upgrade.EnergyDebtAccounting
 import ic2_120.content.upgrade.PullingUpgradeComponent
 import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
 import ic2_120.content.upgrade.FluidPipeUpgradeComponent
@@ -402,7 +403,7 @@ class CannerBlockEntity(
 
         if (operating) {
             // 耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
-            energyDebtF += CannerSync.ENERGY_PER_TICK * energyMultiplier
+            energyDebtF = EnergyDebtAccounting.accrue(energyDebtF, CannerSync.ENERGY_PER_TICK * energyMultiplier, sync.getEffectiveCapacity())
             val need = energyDebtF.toLong().coerceAtLeast(1L)
             if (sync.consumeEnergy(need) > 0L) {
                 energyDebtF -= need

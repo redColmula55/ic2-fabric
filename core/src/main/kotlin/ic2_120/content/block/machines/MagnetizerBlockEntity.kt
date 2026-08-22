@@ -9,6 +9,7 @@ import ic2_120.content.screen.MagnetizerScreenHandler
 import ic2_120.content.sync.MagnetizerSync
 import ic2_120.content.syncs.SyncedData
 import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
+import ic2_120.content.upgrade.EnergyDebtAccounting
 import ic2_120.content.upgrade.IEnergyStorageUpgradeSupport
 import ic2_120.content.upgrade.IOverclockerUpgradeSupport
 import ic2_120.content.upgrade.IRedstoneInverterUpgradeSupport
@@ -267,7 +268,7 @@ class MagnetizerBlockEntity(
         val magnetizeCost = MagnetizerSync.ENERGY_PER_PULSE_BASE + MagnetizerSync.ENERGY_PER_HEIGHT * reachHeight.toLong()
         // 浮点耗能记账：整次脉冲成本 × 1.6^n 分摊 20 tick，小数余数跨 tick 结转
         // （避免原 (cost×1.6^n).toLong()/20 双重取整导致每 tick 欠收锯齿）
-        energyDebtF += magnetizeCost * energyMultiplier / 20f
+        energyDebtF = EnergyDebtAccounting.accrue(energyDebtF, magnetizeCost * energyMultiplier / 20f, sync.getEffectiveCapacity())
         val perTickCost = energyDebtF.toLong().coerceAtLeast(1L)
         val active = sync.consumeEnergy(perTickCost) > 0L
         if (active) {

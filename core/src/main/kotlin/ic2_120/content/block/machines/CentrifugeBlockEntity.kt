@@ -17,6 +17,7 @@ import ic2_120.content.screen.CentrifugeScreenHandler
 import ic2_120.content.sync.CentrifugeSync
 import ic2_120.content.syncs.SyncedData
 import ic2_120.content.upgrade.EjectorUpgradeComponent
+import ic2_120.content.upgrade.EnergyDebtAccounting
 import ic2_120.content.upgrade.PullingUpgradeComponent
 import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
 import ic2_120.content.upgrade.IEjectorUpgradeSupport
@@ -299,7 +300,7 @@ class CentrifugeBlockEntity(
         }
 
         // 加工阶段耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（EU 本身是整数）
-        energyDebtF += CentrifugeSync.ENERGY_PER_TICK_PROCESSING * energyMultiplier
+        energyDebtF = EnergyDebtAccounting.accrue(energyDebtF, CentrifugeSync.ENERGY_PER_TICK_PROCESSING * energyMultiplier, sync.getEffectiveCapacity())
         val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
             energyDebtF -= need

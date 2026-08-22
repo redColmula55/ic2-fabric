@@ -16,6 +16,7 @@ import ic2_120.content.screen.AnimalmatronScreenHandler
 import ic2_120.content.sync.AnimalmatronSync
 import ic2_120.content.syncs.SyncedData
 import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
+import ic2_120.content.upgrade.EnergyDebtAccounting
 import ic2_120.content.upgrade.FluidPipeUpgradeComponent
 import ic2_120.content.upgrade.EjectorUpgradeComponent
 import ic2_120.content.upgrade.PullingUpgradeComponent
@@ -449,7 +450,7 @@ slot == SLOT_SHEARS -> stack.item == Items.SHEARS
         var canPower = true
         if (sync.animalCount > 0) {
             // 浮点耗能记账：1.6^n 按浮点累计，取整数部分消费、余数结转（超频提速的同时耗能按比例增加）
-            energyDebtF += AnimalmatronSync.ENERGY_PER_TICK * energyMultiplier
+            energyDebtF = EnergyDebtAccounting.accrue(energyDebtF, AnimalmatronSync.ENERGY_PER_TICK * energyMultiplier, sync.getEffectiveCapacity())
             val actualDrain = energyDebtF.toLong().coerceAtLeast(1L)
             canPower = sync.consumeEnergy(actualDrain) >= actualDrain
             if (canPower) {

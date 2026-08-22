@@ -19,6 +19,7 @@ import ic2_120.content.screen.OreWashingPlantScreenHandler
 import ic2_120.content.sync.OreWashingPlantSync
 import ic2_120.content.syncs.SyncedData
 import ic2_120.content.upgrade.EjectorUpgradeComponent
+import ic2_120.content.upgrade.EnergyDebtAccounting
 import ic2_120.content.upgrade.PullingUpgradeComponent
 import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
 import ic2_120.content.upgrade.FluidPipeUpgradeComponent
@@ -459,7 +460,7 @@ class OreWashingPlantBlockEntity(
             sync.syncCurrentTickFlow()
             return
         }
-        energyDebtF += OreWashingPlantSync.ENERGY_PER_TICK * energyMultiplier
+        energyDebtF = EnergyDebtAccounting.accrue(energyDebtF, OreWashingPlantSync.ENERGY_PER_TICK * energyMultiplier, sync.getEffectiveCapacity())
         val need = energyDebtF.toLong().coerceAtLeast(1L)
         if (sync.consumeEnergy(need) > 0L) {
             energyDebtF -= need
