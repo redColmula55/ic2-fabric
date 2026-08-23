@@ -15,6 +15,8 @@ import ic2_120.content.upgrade.EnergyStorageUpgradeComponent
 import ic2_120.content.upgrade.IEnergyStorageUpgradeSupport
 import ic2_120.content.upgrade.IEjectorUpgradeSupport
 import ic2_120.content.upgrade.ITransformerUpgradeSupport
+import ic2_120.content.upgrade.IOverclockerUpgradeSupport
+import ic2_120.content.upgrade.OverclockerUpgradeComponent
 import ic2_120.content.upgrade.TransformerUpgradeComponent
 import ic2_120.registry.annotation.ModBlockEntity
 import ic2_120.registry.annotation.RegisterEnergy
@@ -43,6 +45,7 @@ import net.minecraft.util.ItemScatterer
 import net.minecraft.util.collection.DefaultedList
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Direction
+import net.minecraft.util.math.random.Random
 import net.minecraft.world.World
 
 @ModBlockEntity(block = CropHarvesterBlock::class)
@@ -56,6 +59,7 @@ class CropHarvesterBlockEntity(
     IEnergyStorageUpgradeSupport,
     IEjectorUpgradeSupport,
     ITransformerUpgradeSupport,
+    IOverclockerUpgradeSupport,
     ExtendedScreenHandlerFactory {
 
     override val activeProperty: net.minecraft.state.property.BooleanProperty = CropHarvesterBlock.ACTIVE
@@ -63,6 +67,10 @@ class CropHarvesterBlockEntity(
 
     override var capacityBonus: Long = 0L
     override var voltageTierBonus: Int = 0
+    override var speedMultiplier: Float = 1f
+    override var energyMultiplier: Float = 1f
+
+    private var workOffset: Int = random.nextBetween(0, WORK_INTERVAL_TICKS - 1)
 
     private val inventory = DefaultedList.ofSize(INVENTORY_SIZE, ItemStack.EMPTY)
     @RegisterItemStorage
@@ -158,6 +166,7 @@ class CropHarvesterBlockEntity(
         sync.scanX = scanX
         sync.scanY = scanY
         sync.scanZ = scanZ
+        workOffset = nbt.getInt(NBT_WORK_OFFSET).coerceIn(0, WORK_INTERVAL_TICKS - 1)
     }
 
     override fun writeNbt(nbt: NbtCompound) {
@@ -168,6 +177,7 @@ class CropHarvesterBlockEntity(
         nbt.putInt(NBT_SCAN_X, scanX)
         nbt.putInt(NBT_SCAN_Y, scanY)
         nbt.putInt(NBT_SCAN_Z, scanZ)
+        nbt.putInt(NBT_WORK_OFFSET, workOffset)
     }
 
     fun tick(world: World, pos: BlockPos, state: BlockState) {
@@ -176,6 +186,7 @@ class CropHarvesterBlockEntity(
         sync.energy = sync.amount.toInt().coerceAtLeast(0)
 
         EnergyStorageUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES, this)
+        OverclockerUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES, this)
         TransformerUpgradeComponent.apply(this, SLOT_UPGRADE_INDICES, this)
         EjectorUpgradeComponent.ejectIfUpgraded(world, pos, this, SLOT_UPGRADE_INDICES, SLOT_CONTENT_INDICES)
         sync.energyCapacity = sync.getEffectiveCapacity().toInt().coerceIn(0, Int.MAX_VALUE)
@@ -184,9 +195,10 @@ class CropHarvesterBlockEntity(
         extractFromDischargingSlot()
 
         var active = false
-        if (world.time % WORK_INTERVAL_TICKS.toLong() == 0L) {
-            val scanCost = ENERGY_PER_SCAN.toLong()
-            val harvestCost = ENERGY_PER_HARVEST_STACK.toLong()
+        val interval = (WORK_INTERVAL_TICKS.toFloat() / speedMultiplier).toInt().coerceAtLeast(1)
+        if ((world.time + workOffset) % interval.toLong() == 0L) {
+            val scanCost = (ENERGY_PER_SCAN * energyMultiplier).toLong()
+            val harvestCost = (ENERGY_PER_HARVEST_STACK * energyMultiplier).toLong()
             if (sync.amount >= scanCost + harvestCost) {
                 val report = runScan(world, scanCost, harvestCost)
                 sync.checkedThisRun = report.checked
@@ -204,11 +216,22 @@ class CropHarvesterBlockEntity(
 
     private fun runScan(world: World, scanCost: Long, harvestCost: Long): ScanReport {
         val report = ScanReport()
-        advanceScanCursor()
+        var steps = 0
+        var targetPos: BlockPos? = null
+        var be: CropBlockEntity? = null
+        // 跳跃式推进：每次工作最多走 SCAN_STEPS_PER_TICK 格，命中作物架即停。
+        // 空气/非作物格不消耗扫描能量，扫描费只在真实检查作物架时收取。
+        while (steps < SCAN_STEPS_PER_TICK) {
+            advanceScanCursor()
+            steps++
+            val p = pos.add(scanX, scanY, scanZ)
+            val candidate = world.getBlockEntity(p) as? CropBlockEntity ?: continue
+            targetPos = p
+            be = candidate
+            break
+        }
+        if (be == null || targetPos == null) return report
         if (sync.consumeEnergy(scanCost) <= 0L) return report
-
-        val targetPos = pos.add(scanX, scanY, scanZ)
-        val be = world.getBlockEntity(targetPos) as? CropBlockEntity ?: return report
         report.checked++
 
         if (isOutputFull()) return report
@@ -357,8 +380,8 @@ class CropHarvesterBlockEntity(
         const val INVENTORY_SIZE = 20
 
         private const val WORK_INTERVAL_TICKS = 10
-        private const val ENERGY_PER_SCAN = 1
-        private const val ENERGY_PER_HARVEST_STACK = 20
+        private const val ENERGY_PER_SCAN = 1f
+        private const val ENERGY_PER_HARVEST_STACK = 20f
 
         private const val SCAN_X_MIN = -4
         private const val SCAN_X_MAX = 4
@@ -367,8 +390,14 @@ class CropHarvesterBlockEntity(
         private const val SCAN_Z_MIN = -4
         private const val SCAN_Z_MAX = 4
 
+        /** 每次工作最多推进的游标格数（防全空区域时每 tick 走满整个扫描体） */
+        private const val SCAN_STEPS_PER_TICK = 8
+
+        private val random: Random = Random.create()
+
         private const val NBT_SCAN_X = "ScanX"
         private const val NBT_SCAN_Y = "ScanY"
         private const val NBT_SCAN_Z = "ScanZ"
+        private const val NBT_WORK_OFFSET = "WorkOffset"
     }
 }
