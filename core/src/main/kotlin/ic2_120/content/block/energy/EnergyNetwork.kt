@@ -840,6 +840,8 @@ class EnergyNetwork : SnapshotParticipant<EnergyNetwork.NetworkSnapshot>() {
             val remaining = cableTransferRemaining[cablePosLong] ?: transferRate
             val used = transferRate - remaining
             val pos = BlockPos.fromLong(cablePosLong)
+            // 只为 Jade 显示同步，绝不为它同步加载区块（曾致主线程卡 60s 被 Watchdog 砍）
+            if (!world.isChunkLoaded(pos)) continue
             val be = world.getBlockEntity(pos)
             if (be is ic2_120.content.block.cables.CableBlockEntity) {
                 be.cableLoad = used
