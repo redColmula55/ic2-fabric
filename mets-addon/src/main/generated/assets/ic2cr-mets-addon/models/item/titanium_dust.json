@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "ic2cr-mets-addon:item/titanium_dust"
+  }
+}

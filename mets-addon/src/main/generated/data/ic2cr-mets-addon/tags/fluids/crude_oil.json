@@ -1,0 +1,7 @@
+{
+  "replace": false,
+  "values": [
+    "ic2cr-mets-addon:crude_oil/flowing",
+    "ic2cr-mets-addon:crude_oil/still"
+  ]
+}

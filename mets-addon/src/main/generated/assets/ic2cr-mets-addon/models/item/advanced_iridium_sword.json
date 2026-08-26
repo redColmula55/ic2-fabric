@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:item/handheld",
+  "textures": {
+    "layer0": "ic2cr-mets-addon:item/advanced_iridium_sword"
+  }
+}

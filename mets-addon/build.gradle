@@ -1,0 +1,46 @@
+base {
+    archivesName = "ic2cr-mets-addon"
+}
+
+loom {
+    mods {
+        "ic2cr-mets-addon" {
+            sourceSet sourceSets.main
+        }
+    }
+}
+
+fabricApi {
+    configureDataGeneration {
+        client = true
+        modId = 'ic2cr-mets-addon'
+    }
+}
+
+tasks.named('runDatagen') {
+    jvmArgs '-Dfabric-api.datagen.modid=ic2cr-mets-addon'
+}
+
+repositories {
+    // Cloth Config API / REI
+    maven { url "https://maven.shedaniel.me/" }
+}
+
+dependencies {
+    implementation project(path: ":core", configuration: "namedElements")
+
+    // Cloth Config Api
+    modApi("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+        exclude(group: "net.fabricmc.fabric-api")
+    }
+    // RFAPI
+    modImplementation(files("libs/rfapi_${project.rfapi_version}.jar"))
+}
+
+processResources {
+    inputs.property "version", project.version
+
+    filesMatching("fabric.mod.json") {
+        expand "version": inputs.properties.version
+    }
+}

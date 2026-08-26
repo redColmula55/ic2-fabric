@@ -1,0 +1,50 @@
+{
+  "variants": {
+    "active=false,facing=down": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "x": 90
+    },
+    "active=false,facing=east": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "y": 90
+    },
+    "active=false,facing=north": {
+      "model": "ic2cr-mets-addon:block/eesu/storage"
+    },
+    "active=false,facing=south": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "y": 180
+    },
+    "active=false,facing=up": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "x": 270
+    },
+    "active=false,facing=west": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "y": 270
+    },
+    "active=true,facing=down": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "x": 90
+    },
+    "active=true,facing=east": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "y": 90
+    },
+    "active=true,facing=north": {
+      "model": "ic2cr-mets-addon:block/eesu/storage"
+    },
+    "active=true,facing=south": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "y": 180
+    },
+    "active=true,facing=up": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "x": 270
+    },
+    "active=true,facing=west": {
+      "model": "ic2cr-mets-addon:block/eesu/storage",
+      "y": 270
+    }
+  }
+}

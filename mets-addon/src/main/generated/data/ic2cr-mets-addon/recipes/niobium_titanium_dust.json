@@ -1,0 +1,22 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "ic2cr-mets-addon:niobium_dust"
+    },
+    {
+      "item": "ic2cr-mets-addon:titanium_dust"
+    },
+    {
+      "item": "ic2cr-mets-addon:titanium_dust"
+    },
+    {
+      "item": "ic2cr-mets-addon:titanium_dust"
+    }
+  ],
+  "result": {
+    "count": 2,
+    "item": "ic2cr-mets-addon:niobium_titanium_dust"
+  }
+}

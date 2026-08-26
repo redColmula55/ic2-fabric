@@ -1,0 +1,35 @@
+{
+  "parent": "minecraft:recipes/root",
+  "criteria": {
+    "has_niobium_dust": {
+      "conditions": {
+        "items": [
+          {
+            "items": [
+              "ic2cr-mets-addon:niobium_dust"
+            ]
+          }
+        ]
+      },
+      "trigger": "minecraft:inventory_changed"
+    },
+    "has_the_recipe": {
+      "conditions": {
+        "recipe": "ic2cr-mets-addon:niobium_titanium_dust"
+      },
+      "trigger": "minecraft:recipe_unlocked"
+    }
+  },
+  "requirements": [
+    [
+      "has_niobium_dust",
+      "has_the_recipe"
+    ]
+  ],
+  "rewards": {
+    "recipes": [
+      "ic2cr-mets-addon:niobium_titanium_dust"
+    ]
+  },
+  "sends_telemetry_event": false
+}

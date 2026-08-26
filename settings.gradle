@@ -15,3 +15,5 @@ include 'advanced-solar-addon'
 include 'advanced-weapons-addon'
 include 'buildcraft-addon'
 include 'industrial-upgrade-addon'
+
+include 'mets-addon'

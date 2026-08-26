@@ -18,7 +18,7 @@ import net.minecraft.util.Identifier
         "batbox_chargepad", "cesu_chargepad", "mfe_chargepad", "mfsu_chargepad"
     ]
 )
-class EnergyStorageScreen(
+open class EnergyStorageScreen(
     handler: EnergyStorageScreenHandler,
     playerInventory: PlayerInventory,
     title: Text
@@ -27,7 +27,7 @@ class EnergyStorageScreen(
    private val capacity: Long = resolveCapacity()
    private val useEquipmentSlots: Boolean = resolveUseEquipmentSlots()
 
-    private fun resolveCapacity(): Long {
+    protected open fun resolveCapacity(): Long {
         return handler.context.get({ world, pos ->
             val block = world.getBlockState(pos).block
             val id = Registries.BLOCK.getId(block)

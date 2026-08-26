@@ -1,0 +1,6 @@
+{
+  "parent": "minecraft:block/cube_all",
+  "textures": {
+    "all": "ic2cr-mets-addon:block/titanium_block"
+  }
+}

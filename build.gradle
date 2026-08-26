@@ -30,9 +30,11 @@ subprojects {
 		archivesName = project.archives_base_name
 	}
 
-	loom {
-		splitEnvironmentSourceSets()
-	}
+    if (!it.name.matches("mets-addon")) {
+        loom {
+            splitEnvironmentSourceSets()
+        }
+    }
 
 	dependencies {
 		minecraft "com.mojang:minecraft:${project.minecraft_version}"

@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "id": "ic2cr-mets-addon",
+  "version": "0.1-dev+1.20.1",
+  "name": "IC2R More Electric Tools",
+  "description": "METS addon for IC2 Fabric.",
+  "authors": ["lr8soft", "redColmula55"],
+  "license": "GPL-3.0",
+  "icon": "assets/ic2cr-mets-addon/textures/mets.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "rc55.mc.ic2cr.addon.mets.MoreElectricTools"
+    ],
+    "client": [
+      "rc55.mc.ic2cr.addon.mets.MoreElectricToolsClient"
+    ],
+    "fabric-datagen": [
+      "rc55.mc.ic2cr.addon.mets.MoreElectricToolsDataGen"
+    ],
+    "ic2_120:cables": [
+    ]
+  },
+  "mixins": [
+    "ic2cr-mets-addon.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "minecraft": "~1.20.1",
+    "java": ">=17",
+    "fabric-api": "*",
+    "reservoir-api": "*",
+    "ic2_120": "*"
+  }
+}

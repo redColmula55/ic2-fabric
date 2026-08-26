@@ -1,0 +1,11 @@
+{
+  "type": "minecraft:smelting",
+  "category": "misc",
+  "cookingtime": 200,
+  "experience": 0.7,
+  "group": "titanium_ingot_smelt",
+  "ingredient": {
+    "item": "ic2cr-mets-addon:titanium_dust"
+  },
+  "result": "ic2cr-mets-addon:titanium_ingot"
+}

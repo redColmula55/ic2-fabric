@@ -1,0 +1,12 @@
+{
+  "parent": "minecraft:block/cube",
+  "textures": {
+    "down": "ic2cr-mets-addon:block/lesu/bottom",
+    "east": "ic2cr-mets-addon:block/lesu/side",
+    "north": "ic2cr-mets-addon:block/lesu/front",
+    "particle": "ic2cr-mets-addon:block/lesu/side",
+    "south": "ic2cr-mets-addon:block/lesu/back",
+    "up": "ic2cr-mets-addon:block/lesu/bottom",
+    "west": "ic2cr-mets-addon:block/lesu/side"
+  }
+}
